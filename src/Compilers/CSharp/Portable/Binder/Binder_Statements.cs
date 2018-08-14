@@ -3184,6 +3184,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// <param name="patternType">Type to search.</param>
         /// <param name="methodName">Method to search for.</param>
         /// <param name="lookupResult">Passed in for reusability.</param>
+        /// <param name="searchExtensionMethods">True if the lookup should consider extension methods as viable candidates</param>
         /// <param name="warningsOnly">True if failures should result in warnings; false if they should result in errors.</param>
         /// <param name="diagnostics">Populated with binding diagnostics.</param>
         /// <returns>The desired method or null.</returns>
@@ -3273,7 +3274,6 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 if (patternMethod == null)
                 {
-                    //TODO: do we need to do this here? 
                     ReportPatternMemberLookupDiagnostics(extLookupResult, patternType, methodName, syntaxExpr, warningsOnly, diagnostics, messageID);
                     return null;
                 }
