@@ -86,9 +86,10 @@ namespace Microsoft.CodeAnalysis.CSharp
             // the expression to be null.
             //
             // If expr is the constant null then we can elide the whole thing and simply generate the statement. 
+            // *Unless* Dispose is an extension method, in which case we still need to invoke it with a null argument
 
             BoundExpression rewrittenExpression = (BoundExpression)Visit(node.ExpressionOpt);
-            if (rewrittenExpression.ConstantValue == ConstantValue.Null)
+            if (rewrittenExpression.ConstantValue == ConstantValue.Null && node.DisposeMethodOpt?.IsExtensionMethod != true)
             {
                 Debug.Assert(node.Locals.IsEmpty); // TODO: This might not be a valid assumption in presence of semicolon operator.
                 return tryBlock;
@@ -170,14 +171,17 @@ namespace Microsoft.CodeAnalysis.CSharp
             TypeSymbol localType = localSymbol.Type.TypeSymbol;
             Debug.Assert((object)localType != null); //otherwise, there wouldn't be a conversion to IDisposable
 
-            BoundLocal boundLocal = new BoundLocal(declarationSyntax, localSymbol, localDeclaration.InitializerOpt.ConstantValue, localType);
+            // if we have an extension dispose method, don't consider the constant value, we'll always want to emit this local
+            ConstantValue localConstantValue = methodSymbol?.IsExtensionMethod == true ? null : localDeclaration.InitializerOpt.ConstantValue;
+
+            BoundLocal boundLocal = new BoundLocal(declarationSyntax, localSymbol, localConstantValue, localType);
 
             BoundStatement rewrittenDeclaration = (BoundStatement)Visit(localDeclaration);
 
             // If we know that the expression is null, then we know that the null check in the finally block
             // will fail, and the Dispose call will never happen.  That is, the finally block will have no effect.
             // Consequently, we can simply skip the whole try-finally construct and just create a block containing
-            // the new declaration.
+            // the new declaration. 
             if (boundLocal.ConstantValue == ConstantValue.Null)
             {
                 //localSymbol will be declared by an enclosing block
@@ -286,6 +290,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             // the native compiler behavior is to test for HasValue, then *box* and convert
             // the boxed value to IDisposable. There's no need to do that.
             //
+            // Note also that we *don't* do this if Dispose/DisposeAsync is an extension method
+            // as it would not be correct to invoke Dispose(this ResourceType x) for a ResourceType? 
+            // under normal extension method call semantics, and a user would expect
+            // Dispose(this ResourceType? x) to still be called even if x is null
+            //
             // Third: if we have "using(x)" and x is dynamic then obviously we need not generate
             // "{ dynamic temp1 = x; IDisposable temp2 = (IDisposable) temp1; ... }". Rather, we elide
             // the completely unnecessary first temporary. 
@@ -293,8 +302,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert((awaitKeywordOpt == default) == (awaitOpt == default(AwaitableInfo)));
             BoundExpression disposedExpression;
             bool isNullableValueType = local.Type.IsNullableType();
+            bool isExtensionDispose = methodOpt?.IsExtensionMethod == true;
 
-            if (isNullableValueType)
+            if (isNullableValueType && !isExtensionDispose)
             {
                 MethodSymbol getValueOrDefault = UnsafeGetNullableMethod(syntax, local.Type, SpecialMember.System_Nullable_T_GetValueOrDefault);
                 // local.GetValueOrDefault()
@@ -306,60 +316,28 @@ namespace Microsoft.CodeAnalysis.CSharp
                 disposedExpression = local;
             }
 
-            BoundExpression disposeCall;
-            if (methodOpt is null)
-            {
-                if (awaitOpt is null)
-                {
-                    // IDisposable.Dispose()
-                    Binder.TryGetSpecialTypeMember(_compilation, SpecialMember.System_IDisposable__Dispose, syntax, _diagnostics, out methodOpt);
-                }
-                else
-                {
-                    // IAsyncDisposable.DisposeAsync()
-                    TryGetWellKnownTypeMember(syntax: null, WellKnownMember.System_IAsyncDisposable__DisposeAsync, out methodOpt, location: awaitKeywordOpt.GetLocation());
-                }
-            }
-
-            if (methodOpt is null)
-            {
-                disposeCall = new BoundBadExpression(syntax, LookupResultKind.NotInvocable, ImmutableArray<Symbol>.Empty, ImmutableArray.Create(disposedExpression), ErrorTypeSymbol.UnknownResultType);
-            }
-            else
-            {
-                disposeCall = methodOpt.IsExtensionMethod
-                   ? BoundCall.Synthesized(syntax, receiverOpt: null, methodOpt, local)
-                   : BoundCall.Synthesized(syntax, disposedExpression, methodOpt);
-
-                if(!(awaitOpt is null))
-                {
-                    // await local.DisposeAsync()
-                    _sawAwaitInExceptionHandler = true;
-
-                    TypeSymbol awaitExpressionType = awaitOpt.GetResult?.ReturnType.TypeSymbol ?? _compilation.DynamicType;
-                    BoundAwaitExpression awaitExpr = new BoundAwaitExpression(syntax, disposeCall, awaitOpt, awaitExpressionType) { WasCompilerGenerated = true };
-                    disposeCall = (BoundExpression)VisitAwaitExpression(awaitExpr);
-                }
-            }
+            BoundExpression disposeCall = GenerateDisposeCall(syntax, disposedExpression, awaitKeywordOpt, awaitOpt, methodOpt);
 
             // local.Dispose(); or await variant
             BoundStatement disposeStatement = new BoundExpressionStatement(syntax, disposeCall);
 
-            BoundExpression ifCondition;
-
-            if (isNullableValueType)
+            BoundExpression ifCondition = null;
+            if (!isExtensionDispose)
             {
-                // local.HasValue
-                ifCondition = MakeNullableHasValue(syntax, local);
-            }
-            else if (local.Type.IsValueType)
-            {
-                ifCondition = null;
-            }
-            else
-            {
-                // local != null
-                ifCondition = MakeNullCheck(syntax, local, BinaryOperatorKind.NotEqual);
+                if (isNullableValueType)
+                {
+                    // local.HasValue
+                    ifCondition = MakeNullableHasValue(syntax, local);
+                }
+                else if (local.Type.IsValueType)
+                {
+                    ifCondition = null;
+                }
+                else
+                {
+                    // local != null
+                    ifCondition = MakeNullCheck(syntax, local, BinaryOperatorKind.NotEqual);
+                }
             }
 
             BoundStatement finallyStatement;
@@ -394,6 +372,48 @@ namespace Microsoft.CodeAnalysis.CSharp
                 finallyBlockOpt: BoundBlock.SynthesizedNoLocals(syntax, finallyStatement));
 
             return tryFinally;
+        }
+
+        private BoundExpression GenerateDisposeCall(SyntaxNode syntax, BoundExpression disposedExpression, SyntaxToken awaitKeywordOpt, AwaitableInfo awaitOpt, MethodSymbol methodOpt)
+        {
+            // If we don't have an explicit dispose method, try and get the special member for IDiposable/IAsyncDisposable
+            if (methodOpt is null)
+            {
+                if (awaitOpt is null)
+                {
+                    // IDisposable.Dispose()
+                    Binder.TryGetSpecialTypeMember(_compilation, SpecialMember.System_IDisposable__Dispose, syntax, _diagnostics, out methodOpt);
+                }
+                else
+                {
+                    // IAsyncDisposable.DisposeAsync()
+                    TryGetWellKnownTypeMember(syntax: null, WellKnownMember.System_IAsyncDisposable__DisposeAsync, out methodOpt, location: awaitKeywordOpt.GetLocation());
+                }
+            }
+
+            BoundExpression disposeCall;
+            if (methodOpt is null)
+            {
+                disposeCall = new BoundBadExpression(syntax, LookupResultKind.NotInvocable, ImmutableArray<Symbol>.Empty, ImmutableArray.Create(disposedExpression), ErrorTypeSymbol.UnknownResultType);
+            }
+            else
+            {
+                disposeCall = methodOpt.IsExtensionMethod
+                   ? BoundCall.Synthesized(syntax, receiverOpt: null, methodOpt, disposedExpression)
+                   : BoundCall.Synthesized(syntax, disposedExpression, methodOpt);
+
+                if (!(awaitOpt is null))
+                {
+                    // await local.DisposeAsync()
+                    _sawAwaitInExceptionHandler = true;
+
+                    TypeSymbol awaitExpressionType = awaitOpt.GetResult?.ReturnType.TypeSymbol ?? _compilation.DynamicType;
+                    BoundAwaitExpression awaitExpr = new BoundAwaitExpression(syntax, disposeCall, awaitOpt, awaitExpressionType) { WasCompilerGenerated = true };
+                    disposeCall = (BoundExpression)VisitAwaitExpression(awaitExpr);
+                }
+            }
+
+            return disposeCall;
         }
     }
 }
