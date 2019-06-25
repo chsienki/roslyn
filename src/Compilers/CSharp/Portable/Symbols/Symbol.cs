@@ -596,9 +596,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             return (object)this == obj;
         }
 
+        [Obsolete("Use Equals(ISymbol IEqualityComparer<ISymbol> instead")]
         public bool Equals(ISymbol other)
         {
             return this.Equals((object)other);
+        }
+
+        public bool Equals(ISymbol other, IEqualityComparer<ISymbol> comparer)
+        {
+            return comparer.Equals(this, other);
         }
 
         // By default, we do reference equality. This can be overridden.

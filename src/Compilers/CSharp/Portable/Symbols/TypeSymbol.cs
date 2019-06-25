@@ -314,6 +314,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             return this.Equals(t2, TypeCompareKind.ConsiderEverything);
         }
 
+        public bool Equals(ITypeSymbol other, bool extra)
+        {
+            return false;
+        }
+
         /// <summary>
         /// We ignore custom modifiers, and the distinction between dynamic and object, when computing a type's hash code.
         /// </summary>

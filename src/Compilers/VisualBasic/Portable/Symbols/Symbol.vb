@@ -758,6 +758,10 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             Return Me.[Equals](CObj(other))
         End Function
 
+        Public Overloads Function [Equals](other As ISymbol, comparer As IEqualityComparer(Of ISymbol)) As Boolean Implements ISymbol.Equals
+            Return Me.[Equals](CObj(other))
+        End Function
+
         ' By default, we do reference equality. This can be overridden.
         Public Overrides Function GetHashCode() As Integer
             Return MyBase.GetHashCode()

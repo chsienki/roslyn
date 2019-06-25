@@ -4821,6 +4821,7 @@ class C
 
             public bool IsReadOnly => false;
 
+
             #region FakeTupleTypeSymbol generated
             public ImmutableArray<INamedTypeSymbol> AllInterfaces
             {
@@ -5243,6 +5244,11 @@ class C
             }
 
             public bool Equals(ISymbol other)
+            {
+                throw new NotImplementedException();
+            }
+
+            public bool Equals(ISymbol other, IEqualityComparer<ISymbol> comparer)
             {
                 throw new NotImplementedException();
             }

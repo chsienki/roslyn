@@ -14,6 +14,7 @@ Microsoft.CodeAnalysis.IMethodSymbol.TypeArgumentsNullableAnnotations.get -> Sys
 Microsoft.CodeAnalysis.INamedTypeSymbol.TypeArgumentsNullableAnnotations.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.NullableAnnotation>
 Microsoft.CodeAnalysis.IParameterSymbol.NullableAnnotation.get -> Microsoft.CodeAnalysis.NullableAnnotation
 Microsoft.CodeAnalysis.IPropertySymbol.NullableAnnotation.get -> Microsoft.CodeAnalysis.NullableAnnotation
+Microsoft.CodeAnalysis.ISymbol.Equals(Microsoft.CodeAnalysis.ISymbol other, System.Collections.Generic.IEqualityComparer<Microsoft.CodeAnalysis.ISymbol> comparer) -> bool
 Microsoft.CodeAnalysis.ITypeParameterSymbol.ConstraintNullableAnnotations.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.NullableAnnotation>
 Microsoft.CodeAnalysis.ITypeParameterSymbol.HasNotNullConstraint.get -> bool
 Microsoft.CodeAnalysis.ITypeParameterSymbol.ReferenceTypeConstraintNullableAnnotation.get -> Microsoft.CodeAnalysis.NullableAnnotation

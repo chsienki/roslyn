@@ -165,6 +165,8 @@ namespace Microsoft.CodeAnalysis
             NullableFlowState topLevelNullability,
             int position,
             SymbolDisplayFormat format = null);
+
+        //bool Equals(ITypeSymbol other, bool extra);
     }
 
     // Intentionally not extension methods. We don't want them ever be called for symbol classes

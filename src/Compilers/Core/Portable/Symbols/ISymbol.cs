@@ -288,5 +288,7 @@ namespace Microsoft.CodeAnalysis
         /// </para>
         /// </summary>
         bool HasUnsupportedMetadata { get; }
+
+        bool Equals(ISymbol other, IEqualityComparer<ISymbol> comparer);
     }
 }

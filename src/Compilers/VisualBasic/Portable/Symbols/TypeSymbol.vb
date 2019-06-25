@@ -332,6 +332,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Symbols
             Return left.IsSameType(right, comparison)
         End Function
 
+        'public Overloads Shared Function Equals(left as )
+
         ''' <summary>
         ''' Lookup an immediately nested type referenced from metadata, names should be
         ''' compared case-sensitively.
