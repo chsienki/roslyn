@@ -14,6 +14,8 @@ namespace Microsoft.CodeAnalysis.CSharp.CommandLine
         {
             try
             {
+                System.Diagnostics.Debugger.Launch();
+
                 return MainCore(args);
             }
             catch (FileNotFoundException e)
