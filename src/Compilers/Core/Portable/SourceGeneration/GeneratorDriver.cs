@@ -4,9 +4,11 @@
 
 using System;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.PooledObjects;
+using Microsoft.CodeAnalysis.SourceGeneration;
 using Roslyn.Utilities;
 
 #nullable enable
@@ -41,13 +43,14 @@ namespace Microsoft.CodeAnalysis
 
         internal GeneratorDriver(Compilation compilation, ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts)
         {
-            _state = new GeneratorDriverState(compilation, parseOptions, generators, additionalTexts, ImmutableArray<PendingEdit>.Empty, ImmutableDictionary<ISourceGenerator, ImmutableArray<GeneratedSourceText>>.Empty, finalCompilation: null, editsFailed: true);
+            var generatorDict = generators.ToImmutableDictionary(g => g, g => new GeneratorState());
+            _state = new GeneratorDriverState(compilation, parseOptions, generatorDict, additionalTexts, ImmutableArray<PendingEdit>.Empty, finalCompilation: null, editsFailed: true);
         }
 
         public GeneratorDriver RunFullGeneration(Compilation compilation, out Compilation outputCompilation, CancellationToken cancellationToken = default)
         {
             // with no generators, there is no work to do
-            if (_state.Generators.Length == 0)
+            if (_state.Generators.Count == 0)
             {
                 outputCompilation = compilation;
                 return this;
@@ -63,17 +66,43 @@ namespace Microsoft.CodeAnalysis
 
             // run the actual generation
             var state = StateWithPendingEditsApplied(_state);
+
+            // initialize if needed
+            //if (state.Infos.Count != state.Generators.Length)
+            //{
+            //    state = InitializeGenerators(state, cancellationToken);
+            //}
+
             var sourcesBuilder = PooledDictionary<ISourceGenerator, ImmutableArray<GeneratedSourceText>>.GetInstance();
 
+            // PROTOTYPE: 
+            var syntaxGeneratorMap = GetSyntaxAwareGenerators(state.Generators.Keys.ToImmutableArray());
+            if (syntaxGeneratorMap.Count > 0)
+            {
+                GeneratorSyntaxWalker walker = new GeneratorSyntaxWalker(syntaxGeneratorMap.Values.ToImmutableArray());
+                foreach (var tree in compilation.SyntaxTrees)
+                {
+                    walker.Visit(tree.GetRoot());
+                }
+            }
+
             //PROTOTYPE: should be possible to parallelize this
-            foreach (var generator in state.Generators)
+            foreach (var generator in state.Generators.Keys.ToImmutableArray())
             {
                 try
                 {
                     // we create a new context for each run of the generator. We'll never re-use existing state, only replace anything we have
                     var context = new SourceGeneratorContext(state.Compilation, new AnalyzerOptions(state.AdditionalTexts.NullToEmpty(), CompilerAnalyzerConfigOptionsProvider.Empty));
 
-                    generator.Execute(context);
+                    if (syntaxGeneratorMap.ContainsKey(generator))
+                    {
+                        syntaxGeneratorMap[generator].Execute(context);
+                    }
+                    else
+                    {
+                        generator.Execute(context);
+                    }
+
                     sourcesBuilder.Add(generator, context.AdditionalSources.ToImmutableAndFree());
                 }
                 catch
@@ -174,12 +203,32 @@ namespace Microsoft.CodeAnalysis
                 return state;
             }
 
-            var newState = state;
-            foreach (var edit in newState.Edits)
+            foreach (var edit in state.Edits)
             {
-                newState = edit.Commit(newState);
+                state = edit.Commit(state);
             }
-            return newState.With(edits: ImmutableArray<PendingEdit>.Empty, editsFailed: false);
+            return state.With(edits: ImmutableArray<PendingEdit>.Empty, editsFailed: false);
+        }
+
+        private static GeneratorDriverState InitializeGenerators(GeneratorDriverState state, CancellationToken token)
+        {
+            // PROTOTYPE: we should be able to do this in parallel
+            var infoDict = PooledDictionary<ISourceGenerator, GeneratorInfo>.GetInstance();
+            foreach (var generator in state.Generators)
+            {
+                InitializationContext context = new InitializationContext(token);
+                try
+                {
+                    generator.Initialize(context);
+                    GeneratorInfo info = new GeneratorInfo(context.additionalFileCallback);
+                    infoDict.Add(generator, info);
+                }
+                catch
+                {
+                    // PROTOTYPE: we should issue a diagnostic when generator intialization fails
+                }
+            }
+            return state.With(infos: infoDict.ToImmutableDictionaryAndFree());
         }
 
         private GeneratorDriver BuildFinalCompilation(Compilation compilation, out Compilation outputCompilation, GeneratorDriverState state, CancellationToken cancellationToken)
@@ -207,6 +256,23 @@ namespace Microsoft.CodeAnalysis
                                edits: ImmutableArray<PendingEdit>.Empty,
                                editsFailed: false);
             return FromState(state);
+        }
+
+        private static ImmutableDictionary<ISourceGenerator, ISyntaxAwareGenerator> GetSyntaxAwareGenerators(ImmutableArray<ISourceGenerator> generators)
+        {
+            PooledDictionary<ISourceGenerator, ISyntaxAwareGenerator> builder = PooledDictionary<ISourceGenerator, ISyntaxAwareGenerator>.GetInstance();
+            foreach (var generator in generators)
+            {
+                if (generator is ISyntaxAwareGenerator)
+                {
+                    object? duplicate = Activator.CreateInstance(generator.GetType());
+                    if (duplicate is object)
+                    {
+                        builder.Add(generator, (ISyntaxAwareGenerator)duplicate);
+                    }
+                }
+            }
+            return builder.ToImmutableDictionaryAndFree();
         }
 
         internal abstract GeneratorDriver FromState(GeneratorDriverState state);

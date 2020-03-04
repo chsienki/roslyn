@@ -353,9 +353,13 @@ class C { }
         {
             context.AdditionalSources.Add(this._hintName, SourceText.From(_content, Encoding.UTF8));
         }
+
+        public void Initialize(InitializationContext context)
+        {
+        }
     }
 
-    internal class AdditionalFileAddedGenerator : ISourceGenerator, ITriggeredByAdditionalFileGenerator
+    internal class AdditionalFileAddedGenerator : ISourceGenerator
     {
         public bool CanApplyChanges { get; set; } = true;
 
@@ -365,6 +369,11 @@ class C { }
             {
                 AddSourceForAdditionalFile(context.AdditionalSources, file);
             }
+        }
+
+        public void Initialize(InitializationContext context)
+        {
+            context.RegisterForAdditionalFileChanges(UpdateContext);
         }
 
         public bool UpdateContext(UpdateContext context, AdditionalFileEdit edit)

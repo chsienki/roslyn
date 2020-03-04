@@ -15,13 +15,22 @@ namespace Microsoft.CodeAnalysis
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In progress")]
     public interface ISourceGenerator
     {
+        void Initialize(InitializationContext context);
         void Execute(SourceGeneratorContext context);
     }
 
+    //[System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In progress")]
+    //public interface ITriggeredByAdditionalFileGenerator : ISourceGenerator
+    //{
+    //    bool UpdateContext(UpdateContext context, AdditionalFileEdit edit);
+    //}
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In progress")]
-    public interface ITriggeredByAdditionalFileGenerator : ISourceGenerator
+    public interface ISyntaxAwareGenerator : ISourceGenerator
     {
-        bool UpdateContext(UpdateContext context, AdditionalFileEdit edit);
+        void VisitSyntaxNode(SyntaxNode node);
+        //void VisitSyntaxTree(SyntaxTree tree);
+        //void VisitCodeBlock(CodeBlockStartAnalysisContext)
     }
 }
 

@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Microsoft.CodeAnalysis.SourceGeneration;
 
 #nullable enable
 namespace Microsoft.CodeAnalysis
@@ -18,9 +19,9 @@ namespace Microsoft.CodeAnalysis
     {
         internal abstract GeneratorDriverState Commit(GeneratorDriverState state);
 
-        internal abstract bool AcceptedBy(ISourceGenerator generator);
+        internal abstract bool AcceptedBy(ISourceGenerator generator, GeneratorInfo info);
 
-        internal abstract bool TryApply(ISourceGenerator generator, UpdateContext context);
+        internal abstract bool TryApply(ISourceGenerator generator, GeneratorInfo info, UpdateContext context);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In progress")]
@@ -40,8 +41,8 @@ namespace Microsoft.CodeAnalysis
 
         internal override GeneratorDriverState Commit(GeneratorDriverState state) => state.With(additionalTexts: state.AdditionalTexts.Add(this.AddedText));
 
-        internal override bool AcceptedBy(ISourceGenerator generator) => generator is ITriggeredByAdditionalFileGenerator;
+        internal override bool AcceptedBy(ISourceGenerator generator, GeneratorInfo info) => info.EditCallback is object;
 
-        internal override bool TryApply(ISourceGenerator generator, UpdateContext context) => ((ITriggeredByAdditionalFileGenerator)generator).UpdateContext(context, this);
+        internal override bool TryApply(ISourceGenerator generator, GeneratorInfo info, UpdateContext context) => info.EditCallback!.Invoke(context, this);
     }
 }

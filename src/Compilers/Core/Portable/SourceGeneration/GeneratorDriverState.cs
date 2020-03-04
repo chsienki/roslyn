@@ -6,29 +6,23 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
+using Microsoft.CodeAnalysis.SourceGeneration;
 
 #nullable enable
 namespace Microsoft.CodeAnalysis
 {
     internal readonly struct GeneratorDriverState
     {
-        internal GeneratorDriverState(Compilation compilation, ParseOptions parseOptions)
-            : this(compilation, parseOptions, ImmutableArray<ISourceGenerator>.Empty, ImmutableArray<AdditionalText>.Empty, ImmutableArray<PendingEdit>.Empty, ImmutableDictionary<ISourceGenerator, ImmutableArray<GeneratedSourceText>>.Empty, null, false)
-        {
-        }
-
         internal GeneratorDriverState(Compilation compilation,
                                       ParseOptions parseOptions,
-                                      ImmutableArray<ISourceGenerator> generators,
+                                      ImmutableDictionary<ISourceGenerator, GeneratorState> generators,
                                       ImmutableArray<AdditionalText> additionalTexts,
                                       ImmutableArray<PendingEdit> edits,
-                                      ImmutableDictionary<ISourceGenerator, ImmutableArray<GeneratedSourceText>> sources,
                                       Compilation? finalCompilation,
                                       bool editsFailed)
         {
             Generators = generators;
             AdditionalTexts = additionalTexts;
-            Sources = sources;
             Edits = edits;
             Compilation = compilation;
             ParseOptions = parseOptions;
@@ -41,9 +35,9 @@ namespace Microsoft.CodeAnalysis
         /// </summary>
         /// <remarks>
         /// This is the set of generators that will run on next generation.
-        /// If there are any sources present in <see cref="Sources" />, they were produced by a subset of these generators.
+        /// If there are any sources present in TK they were produced by a subset of these generators.
         /// </remarks>
-        internal readonly ImmutableArray<ISourceGenerator> Generators;
+        internal readonly ImmutableDictionary<ISourceGenerator, GeneratorState> Generators;
 
         /// <summary>
         /// The set of <see cref="AdditionalText"/>s available to source generators during a run
@@ -54,16 +48,6 @@ namespace Microsoft.CodeAnalysis
         /// An ordered list of <see cref="PendingEdit"/>s that are waiting to be applied to the compilation.
         /// </summary>
         internal readonly ImmutableArray<PendingEdit> Edits;
-
-        /// <summary>
-        /// The set of sources added to this state, by generator that added them
-        /// </summary>
-        /// <remarks>
-        /// If this state has not been used to perform generation, this collection will be empty.
-        /// The keys here will be a subset of the <see cref="Generators"/> collection; only generators
-        /// that produced at least 1 source will have an entry.
-        /// </remarks>
-        internal readonly ImmutableDictionary<ISourceGenerator, ImmutableArray<GeneratedSourceText>> Sources;
 
         /// <summary>
         /// When set, this contains the <see cref="Compilation"/> with the generated sources applied
@@ -88,9 +72,8 @@ namespace Microsoft.CodeAnalysis
         internal GeneratorDriverState With(
             Compilation? compilation = null,
             ParseOptions? parseOptions = null,
-            ImmutableArray<ISourceGenerator>? generators = null,
+            ImmutableDictionary<ISourceGenerator, GeneratorState>? generators = null,
             ImmutableArray<AdditionalText>? additionalTexts = null,
-            ImmutableDictionary<ISourceGenerator, ImmutableArray<GeneratedSourceText>>? sources = null,
             ImmutableArray<PendingEdit>? edits = null,
             Compilation? finalCompilation = null,
             bool? editsFailed = null)
@@ -101,7 +84,6 @@ namespace Microsoft.CodeAnalysis
                 generators ?? this.Generators,
                 additionalTexts ?? this.AdditionalTexts,
                 edits ?? this.Edits,
-                sources ?? this.Sources,
                 finalCompilation, // always clear the finalCompilation unless one is explicitly provided
                 editsFailed ?? this.EditsFailed
                 );

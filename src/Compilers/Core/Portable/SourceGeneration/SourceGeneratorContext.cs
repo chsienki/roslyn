@@ -39,6 +39,30 @@ namespace Microsoft.CodeAnalysis
         public void ReportDiagnostic(Diagnostic diagnostic) { throw new NotImplementedException(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In Progress")]
+    public delegate bool UpdateCallback<T>(UpdateContext context, T edit);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In Progress")]
+    public struct InitializationContext
+    {
+        public delegate void SyntaxCallback(SyntaxNode node);
+
+        internal InitializationContext(CancellationToken cancellationToken = default)
+        {
+            CancellationToken = cancellationToken;
+            additionalFileCallback = null;
+        }
+
+        public CancellationToken CancellationToken { get; }
+
+        internal UpdateCallback<AdditionalFileEdit>? additionalFileCallback;
+
+        public void RegisterForAdditionalFileChanges(UpdateCallback<AdditionalFileEdit> callback)
+        {
+            this.additionalFileCallback = callback;
+        }
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In progress")]
     // PROTOTYPE: this is going to need to track the input and output compilations that occured
     public readonly struct UpdateContext
