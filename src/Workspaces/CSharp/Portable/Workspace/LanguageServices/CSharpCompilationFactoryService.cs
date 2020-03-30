@@ -44,6 +44,12 @@ namespace Microsoft.CodeAnalysis.CSharp
             return s_defaultOptions;
         }
 
+        bool ICompilationFactoryService.IsCompilationReference(MetadataReference reference)
+            => reference is CompilationReference;
+
+        CompilationOptions ICompilationFactoryService.GetDefaultCompilationOptions()
+            => s_defaultOptions;
+
         GeneratorDriver? ICompilationFactoryService.CreateGeneratorDriver(ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts)
         {
             // PROTOTYPE: for now we gate behind langver == preview. We'll remove this before final shipping, as the feature is langver agnostic
