@@ -15,6 +15,7 @@ namespace Microsoft.CodeAnalysis
         internal GeneratorDriverState(ParseOptions parseOptions,
                                       ImmutableArray<ISourceGenerator> generators,
                                       ImmutableArray<AdditionalText> additionalTexts,
+                                      AnalyzerConfigSet analyzerConfigSet,
                                       ImmutableDictionary<ISourceGenerator, GeneratorState> generatorStates,
                                       ImmutableArray<PendingEdit> edits,
                                       bool editsFailed)

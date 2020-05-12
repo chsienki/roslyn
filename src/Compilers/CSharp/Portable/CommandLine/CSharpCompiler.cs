@@ -212,6 +212,16 @@ namespace Microsoft.CodeAnalysis.CSharp
             CommandLineSourceFile file,
             AnalyzerConfigOptionsResult? analyzerConfigOptionsResult)
         {
+            return ParseFile(file.IsScript ? scriptParseOptions : parseOptions, content, file.Path, analyzerConfigOptionsResult);
+        }
+
+        internal static SyntaxTree ParseFile(
+           CSharpParseOptions parseOptions,
+           SourceText content,
+           string filePath,
+           AnalyzerConfigOptionsResult? analyzerConfigOptionsResult,
+           CancellationToken cancellationToken = default)
+        {
             ImmutableDictionary<string, ReportDiagnostic> diagnosticOptions;
             bool? isUserConfiguredGeneratedCode;
             if (analyzerConfigOptionsResult.HasValue)
@@ -227,16 +237,16 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var tree = SyntaxFactory.ParseSyntaxTree(
                 content,
-                file.IsScript ? scriptParseOptions : parseOptions,
-                file.Path,
+                parseOptions,
+                filePath,
                 diagnosticOptions,
-                isUserConfiguredGeneratedCode);
+                isUserConfiguredGeneratedCode,
+                cancellationToken);
 
             // prepopulate line tables.
             // we will need line tables anyways and it is better to not wait until we are in emit
             // where things run sequentially.
-            bool isHiddenDummy;
-            tree.GetMappedLineSpanAndVisibility(default(TextSpan), out isHiddenDummy);
+            tree.GetMappedLineSpanAndVisibility(default, out _);
 
             return tree;
         }
@@ -399,7 +409,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private protected override Compilation RunGenerators(Compilation input, ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts, DiagnosticBag diagnostics)
+        private protected override Compilation RunGenerators(Compilation input, ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts, DiagnosticBag diagnostics, AnalyzerConfigSet? analyzerConfigSet, ref ImmutableArray<AnalyzerConfigOptionsResult> analyzerConfigOptions)
         {
             // https://github.com/dotnet/roslyn/issues/42565: for now we gate behind langver == preview. We'll remove this before final shipping, as the feature is langver agnostic
             if (((CSharpParseOptions)parseOptions).LanguageVersion != LanguageVersion.Preview)
@@ -407,7 +417,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return input;
             }
 
-            var driver = new CSharpGeneratorDriver(parseOptions, generators, additionalTexts);
+            var driver = new CSharpGeneratorDriver(parseOptions, generators, additionalTexts, analyzerConfigSet);
             driver.RunFullGeneration(input, out var compilationOut, out var generatorDiagnostics);
             diagnostics.AddRange(generatorDiagnostics);
             return compilationOut;

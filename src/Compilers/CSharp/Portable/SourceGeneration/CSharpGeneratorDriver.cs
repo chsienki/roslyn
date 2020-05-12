@@ -20,8 +20,8 @@ namespace Microsoft.CodeAnalysis.CSharp
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0016:Add public types and members to the declared API", Justification = "In Progress")]
     public sealed class CSharpGeneratorDriver : GeneratorDriver
     {
-        public CSharpGeneratorDriver(ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts)
-            : base(parseOptions, generators, additionalTexts)
+        public CSharpGeneratorDriver(ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts, AnalyzerConfigSet? analyzerConfigSet)
+            : base(parseOptions, generators, additionalTexts, analyzerConfigSet)
         {
         }
 
@@ -31,7 +31,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         }
 
         internal override SyntaxTree ParseGeneratedSourceText(GeneratedSourceText input, CancellationToken cancellationToken)
-            => SyntaxFactory.ParseSyntaxTree(input.Text, _state.ParseOptions, input.HintName, cancellationToken); // https://github.com/dotnet/roslyn/issues/42628: hint path/ filename uniqueness
+            => CSharpCompiler.ParseFile((CSharpParseOptions)_state.ParseOptions, input.Text, input.HintName, null, cancellationToken); // https://github.com/dotnet/roslyn/issues/42628: hint path/ filename uniqueness
 
         internal override GeneratorDriver FromState(GeneratorDriverState state) => new CSharpGeneratorDriver(state);
 

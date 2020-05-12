@@ -702,7 +702,7 @@ namespace Microsoft.CodeAnalysis
         /// <param name="additionalTexts">Any additional texts that should be passed to the generators when run.</param>
         /// <param name="generatorDiagnostics">Any diagnostics that were produced during generation</param>
         /// <returns>A compilation that represents the original compilation with any additional, generated texts added to it.</returns>
-        private protected virtual Compilation RunGenerators(Compilation input, ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts, DiagnosticBag generatorDiagnostics) { return input; }
+        private protected virtual Compilation RunGenerators(Compilation input, ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, ImmutableArray<AdditionalText> additionalTexts, DiagnosticBag generatorDiagnostics, AnalyzerConfigSet? analyzerConfigSet, ref ImmutableArray<AnalyzerConfigOptionsResult> analyzerConfigOptions) { return input; }
 
         private int RunCore(TextWriter consoleOutput, ErrorLogger errorLogger, CancellationToken cancellationToken)
         {
@@ -786,7 +786,13 @@ namespace Microsoft.CodeAnalysis
 
             // At this point we have a compilation with nothing yet computed. 
             // We pass it to the generators, which will realize any symbols they require. 
-            compilation = RunGenerators(compilation, Arguments.ParseOptions, generators, additionalTexts, diagnostics);
+            compilation = RunGenerators(compilation, Arguments.ParseOptions, generators, additionalTexts, diagnostics, analyzerConfigSet, ref sourceFileAnalyzerConfigOptions);
+
+            // PROTOTYPE:
+            if (Arguments.AnalyzerConfigPaths.Length > 0)
+            {
+                sourceFileAnalyzerConfigOptions = compilation.SyntaxTrees.SelectAsArray(f => analyzerConfigSet.GetOptionsForSourcePath(f.FilePath));
+            }
 
             CompileAndEmit(
                 touchedFilesLogger,
