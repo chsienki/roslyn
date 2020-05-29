@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax;
 using Microsoft.CodeAnalysis.Text;
 using Roslyn.Utilities;
 
@@ -36,7 +37,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 CSharpSyntaxNode root,
                 Syntax.InternalSyntax.DirectiveStack directives,
                 ImmutableDictionary<string, ReportDiagnostic> diagnosticOptions,
-                bool? isGeneratedCode,
+                GeneratedCodeKind? generatedCodeType,
                 bool cloneRoot)
             {
                 Debug.Assert(root != null);
@@ -51,11 +52,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 _root = cloneRoot ? this.CloneNodeAsRoot(root) : root;
                 _hasCompilationUnitRoot = root.Kind() == SyntaxKind.CompilationUnit;
                 _diagnosticOptions = diagnosticOptions ?? EmptyDiagnosticOptions;
-                if (isGeneratedCode is bool b)
-                {
-                    _isGenerationConfigured = true;
-                    _lazyIsGeneratedCode = b.ToThreeState();
-                }
+                _generatedCodeType = generatedCodeType ?? GeneratedCodeKind.Unknown;
 
                 this.SetDirectiveStack(directives);
             }
@@ -141,9 +138,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     (CSharpSyntaxNode)root,
                     _directives,
                     _diagnosticOptions,
-                    isGeneratedCode: _isGenerationConfigured
-                        ? (bool?)_lazyIsGeneratedCode.Value()
-                        : null,
+                    _generatedCodeType,
                     cloneRoot: true);
             }
 
@@ -163,9 +158,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     _root,
                     _directives,
                     _diagnosticOptions,
-                    isGeneratedCode: _isGenerationConfigured
-                        ? (bool?)_lazyIsGeneratedCode.Value()
-                        : null,
+                    _generatedCodeType,
                     cloneRoot: true);
             }
 
@@ -190,10 +183,22 @@ namespace Microsoft.CodeAnalysis.CSharp
                     _root,
                     _directives,
                     options,
-                    isGeneratedCode: _isGenerationConfigured
-                        ? (bool?)_lazyIsGeneratedCode.Value()
-                        : null,
+                   _generatedCodeType,
                     cloneRoot: true);
+            }
+        }
+
+        private class GeneratedSyntaxTree : ParsedSyntaxTree
+        {
+            internal GeneratedSyntaxTree(
+                GeneratedSourceText text,
+                CSharpParseOptions options,
+                CSharpSyntaxNode root,
+                DirectiveStack directives,
+                ImmutableDictionary<string, ReportDiagnostic> diagnosticOptions,
+                bool cloneRoot)
+                : base(text.Text, text.Text.Encoding, text.Text.ChecksumAlgorithm, text.HintName/*PROTOTYPE*/, options, root, directives, diagnosticOptions, generatedCodeType: GeneratedCodeKind.SourceGenerator, cloneRoot)
+            {
             }
         }
     }

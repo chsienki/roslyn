@@ -324,11 +324,16 @@ namespace Microsoft.CodeAnalysis.CSharp
                 ((CompilationUnitSyntax)root).GetConditionalDirectivesStack() :
                 InternalSyntax.DirectiveStack.Empty;
 
-            bool isGenerated = isGeneratedCode ??
-                GeneratedCodeUtilities.IsGeneratedCode(
-                    path,
-                    root,
-                    isComment: trivia => trivia.Kind() == SyntaxKind.SingleLineCommentTrivia || trivia.Kind() == SyntaxKind.MultiLineCommentTrivia);
+            GeneratedCodeKind generatedType = isGeneratedCode switch
+            {
+                true => GeneratedCodeKind.Explicit,
+                false => GeneratedCodeKind.None,
+                //TODO: make a generated code helper for this scenario
+                null => GeneratedCodeUtilities.IsGeneratedCode(
+                            path,
+                            root,
+                            isComment: trivia => trivia.Kind() == SyntaxKind.SingleLineCommentTrivia || trivia.Kind() == SyntaxKind.MultiLineCommentTrivia) ? GeneratedCodeKind.Heuristic : GeneratedCodeKind.None
+            };
 
             return new ParsedSyntaxTree(
                 textOpt: null,
@@ -339,7 +344,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 root: root,
                 directives: directives,
                 diagnosticOptions,
-                isGenerated,
+                generatedType,
                 cloneRoot: true);
         }
 
@@ -375,7 +380,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 root: root,
                 directives: InternalSyntax.DirectiveStack.Empty,
                 diagnosticOptions: null,
-                isGeneratedCode: null,
+                generatedCodeType: GeneratedCodeKind.Unknown,
                 cloneRoot: false);
         }
 
@@ -424,11 +429,38 @@ namespace Microsoft.CodeAnalysis.CSharp
                 compilationUnit,
                 parser.Directives,
                 diagnosticOptions: diagnosticOptions,
-                isGeneratedCode: isGeneratedCode,
+                generatedCodeType: isGeneratedCode switch
+                {
+                    true => GeneratedCodeKind.Explicit,
+                    false => GeneratedCodeKind.None,
+                    null => GeneratedCodeKind.Unknown
+                },
                 cloneRoot: true);
             tree.VerifySource();
             return tree;
         }
+
+        internal static SyntaxTree ParseGeneratedText(
+            GeneratedSourceText generatedText,
+            CSharpParseOptions options,
+            CancellationToken cancellationToken = default)
+        {
+
+            using var lexer = new InternalSyntax.Lexer(generatedText.Text, options);
+            using var parser = new InternalSyntax.LanguageParser(lexer, oldTree: null, changes: null, cancellationToken: cancellationToken);
+            var compilationUnit = (CompilationUnitSyntax)parser.ParseCompilationUnit().CreateRed();
+            var tree = new GeneratedSyntaxTree(
+                generatedText,
+                options,
+                compilationUnit,
+                parser.Directives,
+                diagnosticOptions: null,
+                cloneRoot: true);
+            tree.VerifySource();
+            return tree;
+
+        }
+
 
         #endregion
 
@@ -492,7 +524,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 compilationUnit,
                 parser.Directives,
                 DiagnosticOptions,
-                isGeneratedCode: _isGenerationConfigured ? (bool?)_lazyIsGeneratedCode.Value() : null,
+                _generatedCodeType,
                 cloneRoot: true);
             tree.VerifySource(changes);
             return tree;
@@ -658,33 +690,47 @@ namespace Microsoft.CodeAnalysis.CSharp
             EnsureNullableContextMapInitialized();
             return _lazyNullableContextStateMap!.HasNullableEnables(); // Use MemberNotNull when available https://github.com/dotnet/roslyn/issues/41964
         }
+        //PROTOTYPE
+        private GeneratedCodeKind _generatedCodeType;
 
-        internal bool IsGeneratedCode()
+        internal override GeneratedCodeKind GeneratedCodeType
         {
-            if (_lazyIsGeneratedCode == ThreeState.Unknown)
+            get
             {
-                // Create the generated code status on demand
-                bool isGenerated = GeneratedCodeUtilities.IsGeneratedCode(
+                if (_generatedCodeType == GeneratedCodeKind.Unknown)
+                {
+                    // the generation status wasn't specified, so fall back to the heuristic
+                    bool isGenerated = GeneratedCodeUtilities.IsGeneratedCode(
                            this,
                            isComment: trivia => trivia.Kind() == SyntaxKind.SingleLineCommentTrivia || trivia.Kind() == SyntaxKind.MultiLineCommentTrivia,
                            cancellationToken: default);
-                _lazyIsGeneratedCode = isGenerated.ToThreeState();
-            }
 
-            return _lazyIsGeneratedCode == ThreeState.True;
+                    _generatedCodeType = isGenerated ? GeneratedCodeKind.Heuristic : GeneratedCodeKind.None;
+                }
+
+                return _generatedCodeType;
+            }
+        }
+
+        internal bool IsGeneratedCode()
+        {
+            return GeneratedCodeType != GeneratedCodeKind.None;
+            //if (_lazyIsGeneratedCode == ThreeState.Unknown)
+            //{
+            //    // Create the generated code status on demand
+            //    bool isGenerated = GeneratedCodeUtilities.IsGeneratedCode(
+            //               this,
+            //               isComment: trivia => trivia.Kind() == SyntaxKind.SingleLineCommentTrivia || trivia.Kind() == SyntaxKind.MultiLineCommentTrivia,
+            //               cancellationToken: default);
+            //    _lazyIsGeneratedCode = isGenerated.ToThreeState();
+            //}
+
+            //return _lazyIsGeneratedCode == ThreeState.True;
         }
 
         private CSharpLineDirectiveMap? _lazyLineDirectiveMap;
         private CSharpPragmaWarningStateMap? _lazyPragmaWarningStateMap;
         private NullableContextStateMap? _lazyNullableContextStateMap;
-
-        /// <summary>
-        /// True if this file was marked generated or not generated, in which
-        /// case the value is stored in <see cref="_lazyIsGeneratedCode"/>. False
-        /// if the value was not marked and we're falling back to heuristic.
-        /// </summary>
-        private bool _isGenerationConfigured;
-        private ThreeState _lazyIsGeneratedCode = ThreeState.Unknown;
 
         private LinePosition GetLinePosition(int position)
         {

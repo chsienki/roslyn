@@ -388,5 +388,25 @@ namespace Microsoft.CodeAnalysis
         {
             get { return this.HasCompilationUnitRoot; }
         }
+
+        //PROTOTYPE:
+        internal enum GeneratedCodeKind
+        {
+            // we don't know
+            Unknown,
+            // this definitely isn't generated
+            None,
+            // user specified it was generated
+            Explicit,
+            // we guessed it
+            Heuristic,
+            // a source generator did it
+            SourceGenerator
+        };
+
+        internal virtual GeneratedCodeKind GeneratedCodeType
+        {
+            get => SyntaxTree.GeneratedCodeKind.Unknown;
+        }
     }
 }
