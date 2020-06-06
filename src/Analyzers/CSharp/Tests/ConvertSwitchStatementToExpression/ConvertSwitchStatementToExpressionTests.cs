@@ -24,8 +24,6 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.UnitTests.ConvertSwitchStatementT
 
     public class ConvertSwitchStatementToExpressionTests
     {
-        private static readonly LanguageVersion CSharp9 = LanguageVersionExtensions.CSharp9;
-
         [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsConvertSwitchStatementToExpression)]
         public void TestStandardProperties()
             => VerifyCS.VerifyStandardProperties();
@@ -579,7 +577,7 @@ class Program
             {
                 TestCode = code,
                 FixedCode = code,
-                LanguageVersion = CSharp9,
+                LanguageVersion = LanguageVersion.CSharp9,
             }.RunAsync();
         }
 
@@ -620,7 +618,7 @@ class Program
             {
                 TestCode = testCode,
                 FixedCode = fixedCode,
-                LanguageVersion = CSharp9,
+                LanguageVersion = LanguageVersion.CSharp9,,
             }.RunAsync();
         }
 

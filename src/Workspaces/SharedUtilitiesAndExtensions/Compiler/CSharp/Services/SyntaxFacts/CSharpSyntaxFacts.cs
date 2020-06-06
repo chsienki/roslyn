@@ -2107,7 +2107,7 @@ namespace Microsoft.CodeAnalysis.CSharp.LanguageServices
 #else
 
         public bool SupportsNotPattern(ParseOptions options)
-            => ((CSharpParseOptions)options).LanguageVersion.IsCSharp9OrAbove();
+            => ((CSharpParseOptions)options).LanguageVersion >= LanguageVersion.CSharp9;
 
         public bool IsAndPattern(SyntaxNode node)
             => node.IsKind(SyntaxKind.AndPattern);

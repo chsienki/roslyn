@@ -34,7 +34,7 @@ namespace Microsoft.CodeAnalysis.CSharp.ConvertSwitchStatementToExpression
                 out bool shouldRemoveNextStatement)
             {
                 var parseOptions = (CSharpParseOptions)semanticModel.SyntaxTree.Options;
-                var analyzer = new Analyzer(supportsOrPatterns: parseOptions.LanguageVersion.IsCSharp9OrAbove());
+                var analyzer = new Analyzer(supportsOrPatterns: parseOptions.LanguageVersion >= LanguageVersion.CSharp9);
                 var nodeToGenerate = analyzer.AnalyzeSwitchStatement(node, out shouldRemoveNextStatement);
 
                 if (nodeToGenerate == SyntaxKind.SimpleAssignmentExpression &&

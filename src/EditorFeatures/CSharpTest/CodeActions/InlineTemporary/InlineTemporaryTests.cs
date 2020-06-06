@@ -5192,7 +5192,7 @@ using System;
             // Global statements in regular code are local variables, so Inline Temporary works. Script code is not
             // tested because global statements in script code are field declarations, which are not considered
             // temporary.
-            await TestAsync(code, expected, TestOptions.Regular.WithLanguageVersion(LanguageVersionExtensions.CSharp9));
+            await TestAsync(code, expected, TestOptions.Regular.WithLanguageVersion(LanguageVersion.CSharp9));
         }
 
         [WorkItem(44263, "https://github.com/dotnet/roslyn/issues/44263")]
@@ -5215,7 +5215,7 @@ global::System.Console.WriteLine(val + 1);
             // Global statements in regular code are local variables, so Inline Temporary works. Script code is not
             // tested because global statements in script code are field declarations, which are not considered
             // temporary.
-            await TestAsync(code, expected, TestOptions.Regular.WithLanguageVersion(LanguageVersionExtensions.CSharp9));
+            await TestAsync(code, expected, TestOptions.Regular.WithLanguageVersion(LanguageVersion.CSharp9));
         }
 
         [WorkItem(44263, "https://github.com/dotnet/roslyn/issues/44263")]
@@ -5237,7 +5237,7 @@ global::System.Console.WriteLine(val + 1);
     global::System.Console.WriteLine(val + 1);
 }
 ",
-                TestOptions.Regular.WithLanguageVersion(LanguageVersionExtensions.CSharp9));
+                TestOptions.Regular.WithLanguageVersion(LanguageVersion.CSharp9));
         }
     }
 }

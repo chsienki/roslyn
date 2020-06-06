@@ -50,7 +50,7 @@ namespace Microsoft.CodeAnalysis.CSharp.UseIsNullCheck
             var parseOptions = (CSharpParseOptions)argument.SyntaxTree.Options;
 
 #if !CODE_STYLE
-            if (parseOptions.LanguageVersion.IsCSharp9OrAbove())
+            if (parseOptions.LanguageVersion >= LanguageVersion.CSharp9)
             {
                 return IsPatternExpression(
                     argument,
