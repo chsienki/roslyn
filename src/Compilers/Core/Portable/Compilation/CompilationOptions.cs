@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Roslyn.Utilities;
 
@@ -246,6 +247,8 @@ namespace Microsoft.CodeAnalysis
         /// by default in those locations.
         /// </remarks>
         public abstract NullableContextOptions NullableContextOptions { get; protected set; }
+
+        public AnalyzerConfigDiagnosticsProvider AnalyzerConfigDiagnosticsProvider { get; protected set; }
 
         /// <summary>
         /// A set of strings designating experimental compiler features that are to be enabled.
@@ -520,6 +523,8 @@ namespace Microsoft.CodeAnalysis
 
         public CompilationOptions WithMetadataImportOptions(MetadataImportOptions value) => CommonWithMetadataImportOptions(value);
 
+        public CompilationOptions WithAnalyzerConfigDiagnosticsProvider(AnalyzerConfigDiagnosticsProvider? provider) => CommonWithAnalyzerConfigDiagnosticsProvider(provider);
+
         protected abstract CompilationOptions CommonWithConcurrentBuild(bool concurrent);
         protected abstract CompilationOptions CommonWithDeterministic(bool deterministic);
         protected abstract CompilationOptions CommonWithOutputKind(OutputKind kind);
@@ -544,6 +549,7 @@ namespace Microsoft.CodeAnalysis
         protected abstract CompilationOptions CommonWithDelaySign(bool? delaySign);
         protected abstract CompilationOptions CommonWithCheckOverflow(bool checkOverflow);
         protected abstract CompilationOptions CommonWithMetadataImportOptions(MetadataImportOptions value);
+        protected abstract CompilationOptions CommonWithAnalyzerConfigDiagnosticsProvider(AnalyzerConfigDiagnosticsProvider? provider);
 
         [Obsolete]
         protected abstract CompilationOptions CommonWithFeatures(ImmutableArray<string> features);

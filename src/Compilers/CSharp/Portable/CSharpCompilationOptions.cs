@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Linq;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Roslyn.Utilities;
 
@@ -88,7 +89,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                    referencesSupersedeLowerVersions: false,
                    publicSign: publicSign,
                    topLevelBinderFlags: BinderFlags.None,
-                   nullableContextOptions: nullableContextOptions)
+                   nullableContextOptions: nullableContextOptions,
+                   analyzerConfigDiagnosticsProvider: null)
         {
         }
 
@@ -211,7 +213,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             bool referencesSupersedeLowerVersions,
             bool publicSign,
             BinderFlags topLevelBinderFlags,
-            NullableContextOptions nullableContextOptions)
+            NullableContextOptions nullableContextOptions,
+            AnalyzerConfigDiagnosticsProvider analyzerConfigDiagnosticsProvider)
             : base(outputKind, reportSuppressedDiagnostics, moduleName, mainTypeName, scriptClassName,
                    cryptoKeyContainer, cryptoKeyFile, cryptoPublicKey, delaySign, publicSign, optimizationLevel, checkOverflow,
                    platform, generalDiagnosticOption, warningLevel, specificDiagnosticOptions.ToImmutableDictionaryOrEmpty(),
@@ -223,6 +226,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             this.AllowUnsafe = allowUnsafe;
             this.TopLevelBinderFlags = topLevelBinderFlags;
             this.NullableContextOptions = nullableContextOptions;
+            this.AnalyzerConfigDiagnosticsProvider = analyzerConfigDiagnosticsProvider;
         }
 
         private CSharpCompilationOptions(CSharpCompilationOptions other) : this(
@@ -256,7 +260,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             reportSuppressedDiagnostics: other.ReportSuppressedDiagnostics,
             publicSign: other.PublicSign,
             topLevelBinderFlags: other.TopLevelBinderFlags,
-            nullableContextOptions: other.NullableContextOptions)
+            nullableContextOptions: other.NullableContextOptions,
+            analyzerConfigDiagnosticsProvider: other.AnalyzerConfigDiagnosticsProvider)
         {
         }
 
@@ -605,6 +610,16 @@ namespace Microsoft.CodeAnalysis.CSharp
             return new CSharpCompilationOptions(this) { StrongNameProvider = provider };
         }
 
+        public new CSharpCompilationOptions WithAnalyzerConfigDiagnosticsProvider(AnalyzerConfigDiagnosticsProvider? provider)
+        {
+            if (ReferenceEquals(provider, this.AnalyzerConfigDiagnosticsProvider))
+            {
+                return this;
+            }
+
+            return new CSharpCompilationOptions(this) { AnalyzerConfigDiagnosticsProvider = provider };
+        }
+
         protected override CompilationOptions CommonWithConcurrentBuild(bool concurrent) => WithConcurrentBuild(concurrent);
         protected override CompilationOptions CommonWithDeterministic(bool deterministic) => WithDeterministic(deterministic);
 
@@ -633,6 +648,9 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         protected override CompilationOptions CommonWithMetadataImportOptions(MetadataImportOptions value) =>
             WithMetadataImportOptions(value);
+
+        protected override CompilationOptions CommonWithAnalyzerConfigDiagnosticsProvider(AnalyzerConfigDiagnosticsProvider? provider) =>
+            WithAnalyzerConfigDiagnosticsProvider(provider);
 
         [Obsolete]
         protected override CompilationOptions CommonWithFeatures(ImmutableArray<string> features)
@@ -741,7 +759,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         internal override Diagnostic FilterDiagnostic(Diagnostic diagnostic)
         {
-            return CSharpDiagnosticFilter.Filter(diagnostic, WarningLevel, NullableContextOptions, GeneralDiagnosticOption, SpecificDiagnosticOptions);
+            return CSharpDiagnosticFilter.Filter(diagnostic, WarningLevel, NullableContextOptions, GeneralDiagnosticOption, SpecificDiagnosticOptions, AnalyzerConfigDiagnosticsProvider?.Diagnostics);
         }
 
         protected override CompilationOptions CommonWithModuleName(string? moduleName)
@@ -908,7 +926,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                    referencesSupersedeLowerVersions: false,
                    publicSign: false,
                    topLevelBinderFlags: BinderFlags.None,
-                   nullableContextOptions: NullableContextOptions.Disable)
+                   nullableContextOptions: NullableContextOptions.Disable,
+                   analyzerConfigDiagnosticsProvider: null)
         {
         }
     }

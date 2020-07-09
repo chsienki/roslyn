@@ -796,8 +796,9 @@ namespace Microsoft.CodeAnalysis
             // merge the global analyzer and command line diagnostic options
             if (analyzerConfigSet is object)
             {
-                var diagnosticOptions = analyzerConfigSet.MergeGlobalTreeOptions(compilation.Options.SpecificDiagnosticOptions);
-                compilation = compilation.WithOptions(compilation.Options.WithSpecificDiagnosticOptions(diagnosticOptions));
+                /// var diagnosticOptions = analyzerConfigSet.MergeGlobalTreeOptions(compilation.Options.SpecificDiagnosticOptions);
+                //compilation = compilation.WithOptions(compilation.Options.WithSpecificDiagnosticOptions(diagnosticOptions));
+                compilation = compilation.WithOptions(compilation.Options.WithAnalyzerConfigDiagnosticsProvider(new CompilerAnalyzerConfigDiagnosticsProvider(analyzerConfigSet.GlobalConfigOptions.TreeOptions)));
             }
 
             var diagnosticInfos = new List<DiagnosticInfo>();

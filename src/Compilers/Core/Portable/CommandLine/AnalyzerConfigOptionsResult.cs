@@ -44,4 +44,21 @@ namespace Microsoft.CodeAnalysis
             Diagnostics = diagnostics;
         }
     }
+
+    public abstract class AnalyzerConfigDiagnosticsProvider
+    {
+        public abstract System.Collections.Immutable.ImmutableDictionary<string, Microsoft.CodeAnalysis.ReportDiagnostic> Diagnostics { get; }
+    }
+
+    internal class CompilerAnalyzerConfigDiagnosticsProvider : AnalyzerConfigDiagnosticsProvider
+    {
+        private readonly TreeOptions _diagnostics;
+
+        public CompilerAnalyzerConfigDiagnosticsProvider(TreeOptions diagnostics)
+        {
+            _diagnostics = diagnostics;
+        }
+
+        public override TreeOptions Diagnostics => _diagnostics;
+    }
 }

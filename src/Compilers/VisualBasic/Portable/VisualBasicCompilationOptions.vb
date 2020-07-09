@@ -95,7 +95,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             Optional strongNameProvider As StrongNameProvider = Nothing,
             Optional publicSign As Boolean = False,
             Optional reportSuppressedDiagnostics As Boolean = False,
-            Optional metadataImportOptions As MetadataImportOptions = MetadataImportOptions.Public)
+            Optional metadataImportOptions As MetadataImportOptions = MetadataImportOptions.Public,
+            Optional analyzerConfigDiagnosticsProvider As AnalyzerConfigDiagnosticsProvider = Nothing)
 
             MyClass.New(
                 outputKind,
@@ -133,7 +134,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                 strongNameProvider:=strongNameProvider,
                 metadataImportOptions:=metadataImportOptions,
                 referencesSupersedeLowerVersions:=False,
-                ignoreCorLibraryDuplicatedTypes:=False)
+                ignoreCorLibraryDuplicatedTypes:=False,
+                analyzerConfigDiagnosticsProvider:=Nothing)
 
         End Sub
 #Enable Warning RS0026 ' Do not add multiple overloads with optional parameters
@@ -243,7 +245,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             strongNameProvider As StrongNameProvider,
             metadataImportOptions As MetadataImportOptions,
             referencesSupersedeLowerVersions As Boolean,
-            ignoreCorLibraryDuplicatedTypes As Boolean)
+            ignoreCorLibraryDuplicatedTypes As Boolean,
+            analyzerConfigDiagnosticsProvider As AnalyzerConfigDiagnosticsProvider)
 
             MyBase.New(
                 outputKind:=outputKind,
@@ -326,7 +329,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                 metadataImportOptions:=other.MetadataImportOptions,
                 referencesSupersedeLowerVersions:=other.ReferencesSupersedeLowerVersions,
                 publicSign:=other.PublicSign,
-                ignoreCorLibraryDuplicatedTypes:=other.IgnoreCorLibraryDuplicatedTypes)
+                ignoreCorLibraryDuplicatedTypes:=other.IgnoreCorLibraryDuplicatedTypes,
+                analyzerConfigDiagnosticsProvider:=other.AnalyzerConfigDiagnosticsProvider)
         End Sub
 
         Public Overrides ReadOnly Property Language As String
@@ -963,6 +967,15 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             Return New VisualBasicCompilationOptions(Me) With {.StrongNameProvider = provider}
         End Function
 
+        Public Shadows Function WithAnalyzerConfigDiagnosticsProvider(provider As AnalyzerConfigDiagnosticsProvider) As VisualBasicCompilationOptions
+            If provider Is Me.AnalyzerConfigDiagnosticsProvider Then
+                Return Me
+            End If
+
+            Return New VisualBasicCompilationOptions(Me) With {.AnalyzerConfigDiagnosticsProvider = provider}
+
+        End Function
+
         Protected Overrides Function CommonWithOutputKind(kind As OutputKind) As CompilationOptions
             Return WithOutputKind(kind)
         End Function
@@ -997,6 +1010,10 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
 
         Protected Overrides Function CommonWithStrongNameProvider(provider As StrongNameProvider) As CompilationOptions
             Return WithStrongNameProvider(provider)
+        End Function
+
+        Protected Overrides Function CommonWithAnalyzerConfigDiagnosticsProvider(provider As AnalyzerConfigDiagnosticsProvider) As CompilationOptions
+            Return WithAnalyzerConfigDiagnosticsProvider(provider)
         End Function
 
         Friend Overrides Sub ValidateOptions(builder As ArrayBuilder(Of Diagnostic))
@@ -1313,7 +1330,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                 strongNameProvider:=strongNameProvider,
                 metadataImportOptions:=MetadataImportOptions.Public,
                 referencesSupersedeLowerVersions:=False,
-                ignoreCorLibraryDuplicatedTypes:=False)
+                ignoreCorLibraryDuplicatedTypes:=False,
+                analyzerConfigDiagnosticsProvider:=Nothing)
 
         End Sub
 #Enable Warning RS0027 ' Public API with optional parameter(s) should have the most parameters amongst its public overloads

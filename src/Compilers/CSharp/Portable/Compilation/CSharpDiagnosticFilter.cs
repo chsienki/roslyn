@@ -30,7 +30,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// <param name="nullableOption">Whether Nullable Reference Types feature is enabled globally</param>
         /// <param name="specificDiagnosticOptions">How specific diagnostics should be reported</param>
         /// <returns>A diagnostic updated to reflect the options, or null if it has been filtered out</returns>
-        public static Diagnostic Filter(Diagnostic d, int warningLevelOption, NullableContextOptions nullableOption, ReportDiagnostic generalDiagnosticOption, IDictionary<string, ReportDiagnostic> specificDiagnosticOptions)
+        public static Diagnostic Filter(Diagnostic d, int warningLevelOption, NullableContextOptions nullableOption, ReportDiagnostic generalDiagnosticOption, IDictionary<string, ReportDiagnostic> specificDiagnosticOptions, IDictionary<string, ReportDiagnostic> globalAnalyzerDiagnostics)
         {
             if (d == null)
             {
@@ -77,12 +77,13 @@ namespace Microsoft.CodeAnalysis.CSharp
                     nullableOption,
                     generalDiagnosticOption,
                     specificDiagnosticOptions,
+                    globalAnalyzerDiagnostics,
                     out hasPragmaSuppression);
             }
             else
             {
                 reportAction = GetDiagnosticReport(d.Severity, d.IsEnabledByDefault, d.Id, d.WarningLevel, d.Location as Location,
-                    d.Category, warningLevelOption, nullableOption, generalDiagnosticOption, specificDiagnosticOptions, out hasPragmaSuppression);
+                    d.Category, warningLevelOption, nullableOption, generalDiagnosticOption, specificDiagnosticOptions, globalAnalyzerDiagnostics, out hasPragmaSuppression);
             }
 
             if (hasPragmaSuppression)
@@ -95,12 +96,13 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         /// <summary>
         /// Take a warning and return the final disposition of the given warning,
-        /// based on both command line options and pragmas. The diagnostic options
-        /// have precedence in the following order:
+        /// based on both command line options, pragmas and global analyzer config.
+        /// The diagnostic options have precedence in the following order:
         ///     1. Warning level
         ///     2. Syntax tree level
         ///     3. Compilation level
         ///     4. Global warning level
+        ///     5. Global analyzer config
         ///
         /// Pragmas are considered separately. If a diagnostic would not otherwise
         /// be suppressed, but is suppressed by a pragma, <paramref name="hasPragmaSuppression"/>
@@ -117,6 +119,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             NullableContextOptions nullableOption,
             ReportDiagnostic generalDiagnosticOption,
             IDictionary<string, ReportDiagnostic> specificDiagnosticOptions,
+            IDictionary<string, ReportDiagnostic> analyzerConfigDiagnosticOptions,
             out bool hasPragmaSuppression)
         {
             hasPragmaSuppression = false;
@@ -236,6 +239,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                         }
                         break;
                 }
+            }
+
+            // 5. Global analyzer config
+            if (!isSpecified && analyzerConfigDiagnosticOptions is object && analyzerConfigDiagnosticOptions.TryGetValue(id, out var globalReport))
+            {
+                report = globalReport;
             }
 
             return report;
