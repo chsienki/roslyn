@@ -22,6 +22,10 @@ namespace Microsoft.CodeAnalysis
 
         internal class Builder
         {
+            internal bool SupportsInitialization { get; set; }
+
+            internal bool InitializeOnly { get; set; }
+
             internal EditCallback<AdditionalFileEdit>? EditCallback { get; set; }
 
             internal SyntaxReceiverCreator? SyntaxReceiverCreator { get; set; }

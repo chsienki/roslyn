@@ -18,7 +18,7 @@ namespace Microsoft.CodeAnalysis
     {
         private readonly DiagnosticBag _diagnostics;
 
-        internal SourceGeneratorContext(Compilation compilation, ImmutableArray<AdditionalText> additionalTexts, AnalyzerConfigOptionsProvider optionsProvider, ISyntaxReceiver? syntaxReceiver, DiagnosticBag diagnostics, CancellationToken cancellationToken = default)
+        internal SourceGeneratorContext(Compilation compilation, ImmutableArray<AdditionalText> additionalTexts, AnalyzerConfigOptionsProvider optionsProvider,  ISyntaxReceiver? syntaxReceiver, DiagnosticBag diagnostics, CancellationToken cancellationToken = default)
         {
             Compilation = compilation;
             AdditionalFiles = additionalTexts;
@@ -27,6 +27,7 @@ namespace Microsoft.CodeAnalysis
             CancellationToken = cancellationToken;
             AdditionalSources = new AdditionalSourcesCollection();
             _diagnostics = diagnostics;
+            ExecutionPhase = GeneratorExecutionPhase.Execution;
         }
 
         /// <summary>
@@ -59,6 +60,8 @@ namespace Microsoft.CodeAnalysis
         /// </summary>
         public CancellationToken CancellationToken { get; }
 
+        public GeneratorExecutionPhase ExecutionPhase { get; }
+
         internal AdditionalSourcesCollection AdditionalSources { get; }
 
         /// <summary>
@@ -77,6 +80,8 @@ namespace Microsoft.CodeAnalysis
         /// </remarks>
         public void ReportDiagnostic(Diagnostic diagnostic) => _diagnostics.Add(diagnostic);
     }
+
+    public enum GeneratorExecutionPhase {  Initialization, Execution };
 
     /// <summary>
     /// Context passed to a source generator when <see cref="ISourceGenerator.Initialize(InitializationContext)"/> is called
@@ -122,6 +127,12 @@ namespace Microsoft.CodeAnalysis
         {
             CheckIsEmpty(InfoBuilder.SyntaxReceiverCreator);
             InfoBuilder.SyntaxReceiverCreator = receiverCreator;
+        }
+
+        public void RegisterForInitialization(bool initializeOnly = false)
+        {
+            InfoBuilder.SupportsInitialization = true;
+            InfoBuilder.InitializeOnly = initializeOnly;
         }
 
         private static void CheckIsEmpty<T>(T x)
