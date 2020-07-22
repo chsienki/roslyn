@@ -82,6 +82,7 @@ namespace Microsoft.CodeAnalysis.Features.EmbeddedLanguages.RegularExpressions
             }
 
             var position = context.Position;
+            
             var (tree, stringToken) = await _language.TryGetTreeAndTokenAtPositionAsync(
                 context.Document, position, context.CancellationToken).ConfigureAwait(false);
 
