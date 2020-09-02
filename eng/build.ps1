@@ -245,7 +245,7 @@ function BuildSolution() {
       /p:Publish=$publish `
       /p:ContinuousIntegrationBuild=$ci `
       /p:OfficialBuildId=$officialBuildId `
-      /p:UseRoslynAnalyzers=$runAnalyzers `
+      /p:RunAnalyzersDuringBuild=$runAnalyzers `
       /p:BootstrapBuildPath=$bootstrapDir `
       /p:TestTargetFrameworks=$testTargetFrameworks `
       /p:TreatWarningsAsErrors=$warnAsError `
