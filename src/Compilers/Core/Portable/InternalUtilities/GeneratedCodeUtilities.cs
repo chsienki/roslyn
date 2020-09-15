@@ -62,25 +62,28 @@ namespace Roslyn.Utilities
 
         private static bool IsGeneratedCodeFile([NotNullWhen(returnValue: true)] string? filePath)
         {
-            if (!RoslynString.IsNullOrEmpty(filePath))
+            if (RoslynString.IsNullOrEmpty(filePath))
             {
-                var fileName = PathUtilities.GetFileName(filePath);
-                if (fileName.StartsWith("TemporaryGeneratedFile_", StringComparison.OrdinalIgnoreCase))
+                // we consider no file path to be an indicator that this file was generated.
+                return true;
+            }
+
+            var fileName = PathUtilities.GetFileName(filePath);
+            if (fileName.StartsWith("TemporaryGeneratedFile_", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var extension = PathUtilities.GetExtension(fileName);
+            if (!string.IsNullOrEmpty(extension))
+            {
+                var fileNameWithoutExtension = PathUtilities.GetFileName(filePath, includeExtension: false);
+                if (fileNameWithoutExtension.EndsWith(".designer", StringComparison.OrdinalIgnoreCase) ||
+                    fileNameWithoutExtension.EndsWith(".generated", StringComparison.OrdinalIgnoreCase) ||
+                    fileNameWithoutExtension.EndsWith(".g", StringComparison.OrdinalIgnoreCase) ||
+                    fileNameWithoutExtension.EndsWith(".g.i", StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
-                }
-
-                var extension = PathUtilities.GetExtension(fileName);
-                if (!string.IsNullOrEmpty(extension))
-                {
-                    var fileNameWithoutExtension = PathUtilities.GetFileName(filePath, includeExtension: false);
-                    if (fileNameWithoutExtension.EndsWith(".designer", StringComparison.OrdinalIgnoreCase) ||
-                        fileNameWithoutExtension.EndsWith(".generated", StringComparison.OrdinalIgnoreCase) ||
-                        fileNameWithoutExtension.EndsWith(".g", StringComparison.OrdinalIgnoreCase) ||
-                        fileNameWithoutExtension.EndsWith(".g.i", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
                 }
             }
 

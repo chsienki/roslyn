@@ -10,6 +10,14 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis
 {
+    public enum GeneratedCodeKind
+    {
+        None,
+        SourceGenerator,
+        UserIndicated,
+        Heuristic
+    }
+
     public abstract class SyntaxTreeOptionsProvider
     {
         public abstract bool? IsGenerated(SyntaxTree tree, CancellationToken cancellationToken);
