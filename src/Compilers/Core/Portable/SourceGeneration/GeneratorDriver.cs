@@ -10,6 +10,7 @@ using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.PooledObjects;
+using Roslyn.Utilities;
 
 #nullable enable
 namespace Microsoft.CodeAnalysis
@@ -166,6 +167,7 @@ namespace Microsoft.CodeAnalysis
                 {
                     var context = new GeneratorInitializationContext(cancellationToken);
                     Exception? ex = null;
+                    var initTimer = SharedStopwatch.StartNew();
                     try
                     {
                         generator.Initialize(context);
@@ -175,8 +177,8 @@ namespace Microsoft.CodeAnalysis
                         ex = e;
                     }
                     generatorState = ex is null
-                                     ? new GeneratorState(context.InfoBuilder.ToImmutable())
-                                     : SetGeneratorException(MessageProvider, GeneratorState.Uninitialized, generator, ex, diagnosticsBag, isInit: true);
+                                     ? new GeneratorState(context.InfoBuilder.ToImmutable(), initTimer.Elapsed)
+                                     : SetGeneratorException(MessageProvider, GeneratorState.Uninitialized, generator, new GeneratorTiming(initTimer.Elapsed), ex, diagnosticsBag, isInit: true);
                 }
 
                 // create the syntax receiver if requested
@@ -191,7 +193,7 @@ namespace Microsoft.CodeAnalysis
                     }
                     catch (Exception e)
                     {
-                        generatorState = SetGeneratorException(MessageProvider, generatorState, generator, e, diagnosticsBag);
+                        generatorState = SetGeneratorException(MessageProvider, generatorState, generator, generatorState.Timing, GeneratorTimingInfo.Default, e, diagnosticsBag);
                     }
                 }
 
@@ -218,11 +220,20 @@ namespace Microsoft.CodeAnalysis
                             }
                             catch (Exception e)
                             {
-                                stateBuilder[i] = SetGeneratorException(MessageProvider, stateBuilder[i], state.Generators[i], e, diagnosticsBag);
+                                var timing = state.GeneratorStates[i].Timing.With(syntaxWalkTime: walker.ElapsedTime);
+                                stateBuilder[i] = SetGeneratorException(MessageProvider, stateBuilder[i], state.Generators[i], timing, e, diagnosticsBag);
                                 walkerBuilder.SetItem(i, null); // don't re-visit this walker for any other trees
                             }
                         }
                     }
+                }
+
+                // record the total walk times
+                for(int i = 0; i < walkerBuilder.Count; i++)
+                {
+                    // TODO: hmm. does this work? I think we need a particular overload, no?
+                    // no consider the exception case. It'll get overwritten by this call. (and we'll nullref at walkerBuilder[i].)
+                    stateBuilder[i] = new GeneratorState(stateBuilder[i].Info, stateBuilder[i].Timing.With(syntaxWalkTime: walkerBuilder[i].ElapsedTime));
                 }
             }
             walkerBuilder.Free();
@@ -242,18 +253,19 @@ namespace Microsoft.CodeAnalysis
 
                 // we create a new context for each run of the generator. We'll never re-use existing state, only replace anything we have 
                 var context = new GeneratorExecutionContext(compilation, state.ParseOptions, state.AdditionalTexts.NullToEmpty(), state.OptionsProvider, generatorState.SyntaxReceiver);
+                var execTimer = SharedStopwatch.StartNew();
                 try
                 {
                     generator.Execute(context);
                 }
                 catch (Exception e)
                 {
-                    stateBuilder[i] = SetGeneratorException(MessageProvider, generatorState, generator, e, diagnosticsBag);
+                    stateBuilder[i] = SetGeneratorException(MessageProvider, generatorState, generator, generatorState.Timing.With(executionTime: execTimer.Elapsed), e, diagnosticsBag);
                     continue;
                 }
 
                 (var sources, var diagnostics) = context.ToImmutableAndFree();
-                stateBuilder[i] = new GeneratorState(generatorState.Info, sources, ParseAdditionalSources(generator, sources, cancellationToken), diagnostics);
+                stateBuilder[i] = new GeneratorState(generatorState.Info, generatorState.Timing.With(executionTime: execTimer.Elapsed), sources, ParseAdditionalSources(generator, sources, cancellationToken), diagnostics);
                 diagnosticsBag?.AddRange(diagnostics);
             }
             state = state.With(generatorStates: stateBuilder.ToImmutableAndFree());
@@ -291,7 +303,7 @@ namespace Microsoft.CodeAnalysis
 
                     // update the state with the new edits
                     var additionalSources = context.AdditionalSources.ToImmutableAndFree();
-                    state = state.With(generatorStates: state.GeneratorStates.SetItem(i, new GeneratorState(generatorState.Info, sourceTexts: additionalSources, trees: ParseAdditionalSources(generator, additionalSources, cancellationToken), diagnostics: ImmutableArray<Diagnostic>.Empty)));
+                    state = state.With(generatorStates: state.GeneratorStates.SetItem(i, new GeneratorState(generatorState.Info, generatorState.Timing, sourceTexts: additionalSources, trees: ParseAdditionalSources(generator, additionalSources, cancellationToken), diagnostics: ImmutableArray<Diagnostic>.Empty)));
                 }
             }
             state = edit.Commit(state);
@@ -358,7 +370,7 @@ namespace Microsoft.CodeAnalysis
             return FromState(state);
         }
 
-        private static GeneratorState SetGeneratorException(CommonMessageProvider provider, GeneratorState generatorState, ISourceGenerator generator, Exception e, DiagnosticBag? diagnosticBag, bool isInit = false)
+        private static GeneratorState SetGeneratorException(CommonMessageProvider provider, GeneratorState generatorState, ISourceGenerator generator, GeneratorTiming timing, Exception e, DiagnosticBag ? diagnosticBag, TimeSpan? syntaxWalkTime = null, bool isInit = false)
         {
             var errorCode = isInit ? provider.WRN_GeneratorFailedDuringInitialization : provider.WRN_GeneratorFailedDuringGeneration;
 
@@ -381,7 +393,7 @@ namespace Microsoft.CodeAnalysis
             var diagnostic = Diagnostic.Create(descriptor, Location.None, generator.GetType().Name, e.GetType().Name, e.Message);
 
             diagnosticBag?.Add(diagnostic);
-            return new GeneratorState(generatorState.Info, e, diagnostic);
+            return new GeneratorState(generatorState.Info, timing, e, diagnostic);
         }
 
         internal abstract CommonMessageProvider MessageProvider { get; }

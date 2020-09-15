@@ -33,6 +33,11 @@ namespace Microsoft.CodeAnalysis
         public ImmutableArray<GeneratorRunResult> Results { get; }
 
         /// <summary>
+        /// Gets the total wall clock time that elapsed during this generation pass.
+        /// </summary>
+        public TimeSpan WallClockTime { get; }
+
+        /// <summary>
         /// The <see cref="Diagnostic"/>s produced by all generators run during this generation pass.
         /// </summary>
         /// <remarks>

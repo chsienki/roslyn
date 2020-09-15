@@ -23,32 +23,33 @@ namespace Microsoft.CodeAnalysis
         /// Creates a new generator state that just contains information
         /// </summary>
         public GeneratorState(GeneratorInfo info)
-            : this(info, ImmutableArray<GeneratedSourceText>.Empty, ImmutableArray<SyntaxTree>.Empty, ImmutableArray<Diagnostic>.Empty, syntaxReceiver: null, exception: null)
+            : this(info, default, ImmutableArray<GeneratedSourceText>.Empty, ImmutableArray<SyntaxTree>.Empty, ImmutableArray<Diagnostic>.Empty, syntaxReceiver: null, exception: null)
         {
         }
 
         /// <summary>
         /// Creates a new generator state that contains an exception and the associated diagnostic
         /// </summary>
-        public GeneratorState(GeneratorInfo info, Exception e, Diagnostic error)
-            : this(info, ImmutableArray<GeneratedSourceText>.Empty, ImmutableArray<SyntaxTree>.Empty, ImmutableArray.Create(error), syntaxReceiver: null, exception: e)
+        public GeneratorState(GeneratorInfo info, GeneratorTiming timing, Exception e, Diagnostic error)
+            : this(info, timing, ImmutableArray<GeneratedSourceText>.Empty, ImmutableArray<SyntaxTree>.Empty, ImmutableArray.Create(error), syntaxReceiver: null, exception: e)
         {
         }
 
         /// <summary>
         /// Creates a generator state that contains results
         /// </summary>
-        public GeneratorState(GeneratorInfo info, ImmutableArray<GeneratedSourceText> sourceTexts, ImmutableArray<SyntaxTree> trees, ImmutableArray<Diagnostic> diagnostics)
-            : this(info, sourceTexts, trees, diagnostics, syntaxReceiver: null, exception: null)
+        public GeneratorState(GeneratorInfo info, GeneratorTiming timing, ImmutableArray<GeneratedSourceText> sourceTexts, ImmutableArray<SyntaxTree> trees, ImmutableArray<Diagnostic> diagnostics)
+            : this(info, timing, sourceTexts, trees, diagnostics, syntaxReceiver: null, exception: null)
         {
         }
 
-        private GeneratorState(GeneratorInfo info, ImmutableArray<GeneratedSourceText> sourceTexts, ImmutableArray<SyntaxTree> trees, ImmutableArray<Diagnostic> diagnostics, ISyntaxReceiver? syntaxReceiver, Exception? exception)
+        private GeneratorState(GeneratorInfo info, GeneratorTiming timing, ImmutableArray<GeneratedSourceText> sourceTexts, ImmutableArray<SyntaxTree> trees, ImmutableArray<Diagnostic> diagnostics, ISyntaxReceiver? syntaxReceiver, Exception? exception)
         {
             this.SourceTexts = sourceTexts;
             this.Trees = trees;
             this.Info = info;
             this.Diagnostics = diagnostics;
+            this.Timing = timing;
             this.SyntaxReceiver = syntaxReceiver;
             this.Exception = exception;
         }
@@ -65,6 +66,8 @@ namespace Microsoft.CodeAnalysis
 
         internal ImmutableArray<Diagnostic> Diagnostics { get; }
 
+        internal GeneratorTiming Timing { get; }
+
         /// <summary>
         /// Adds an <see cref="ISyntaxReceiver"/> to this generator state
         /// </summary>
@@ -72,11 +75,23 @@ namespace Microsoft.CodeAnalysis
         {
             Debug.Assert(this.Exception is null);
             return new GeneratorState(this.Info,
+                                      timing: this.Timing,
                                       sourceTexts: this.SourceTexts,
                                       trees: this.Trees,
                                       diagnostics: this.Diagnostics,
                                       syntaxReceiver: syntaxReceiver,
                                       exception: null);
+        }
+
+        internal GeneratorState WithTiming(GeneratorTiming timing)
+        {
+            return new GeneratorState(this.Info,
+                                      timing,
+                                      this.SourceTexts,
+                                      this.Trees,
+                                      this.Diagnostics,
+                                      this.SyntaxReceiver,
+                                      this.Exception);
         }
     }
 }
