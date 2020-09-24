@@ -185,7 +185,7 @@ namespace Microsoft.CodeAnalysis
                     try
                     {
                         var rx = generatorState.Info.SyntaxReceiverCreator();
-                        walkerBuilder.SetItem(i, new GeneratorSyntaxWalker(rx));
+                        walkerBuilder.SetItem(i, new GeneratorSyntaxWalker(rx, cancellationToken));
                         generatorState = generatorState.WithReceiver(rx);
                         receiverCount++;
                     }
@@ -198,6 +198,12 @@ namespace Microsoft.CodeAnalysis
                 stateBuilder.Add(generatorState);
             }
 
+            if (cancellationToken.IsCancellationRequested)
+            {
+                // we can gracefully cancel here without having to throw away all the initialization work we just did
+                walkerBuilder.Free();
+                return _state.With(generatorStates: stateBuilder.ToImmutableAndFree());
+            }
 
             // Run a syntax walk if any of the generators requested it
             if (receiverCount > 0)
