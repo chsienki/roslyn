@@ -417,6 +417,32 @@ class C
                 );
         }
 
+        [Fact]
+        public void Syntax_Receiver_Can_Take_Context()
+        {
+            var source = @"
+class C { }
+";
+            var parseOptions = TestOptions.Regular;
+            Compilation compilation = CreateCompilation(source, options: TestOptions.DebugDll, parseOptions: parseOptions);
+            compilation.VerifyDiagnostics();
+
+            Assert.Single(compilation.SyntaxTrees);
+
+            ISyntaxReceiver? receiver = null;
+
+            var testGenerator = new CallbackGenerator(
+                onInit: (i) => i.RegisterForSyntaxNotifications((ctx) => new TestSyntaxReceiver(ctx: ctx)),
+                onExecute: (e) => receiver = e.SyntaxReceiver
+                );
+
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { testGenerator }, parseOptions: parseOptions);
+            driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+
+            Assert.NotNull(receiver);
+            Assert.IsType<TestSyntaxReceiver>(receiver);
+        }
+
         class TestSyntaxReceiver : ISyntaxReceiver
         {
             private readonly Action<SyntaxNode>? _callback;
@@ -425,10 +451,13 @@ class C
 
             public int Tag { get; }
 
-            public TestSyntaxReceiver(int tag = 0, Action<SyntaxNode>? callback = null)
+            public GeneratorSyntaxWalkerContext Context { get; }
+
+            public TestSyntaxReceiver(int tag = 0, Action<SyntaxNode>? callback = null, GeneratorSyntaxWalkerContext ctx = default)
             {
                 Tag = tag;
                 _callback = callback;
+                Context = ctx;
             }
 
             public void OnVisitSyntaxNode(SyntaxNode syntaxNode)

@@ -11,6 +11,14 @@ using Microsoft.CodeAnalysis.Text;
 namespace Microsoft.CodeAnalysis
 {
     /// <summary>
+    /// Allows a generator to provide instances of an <see cref="ISyntaxReceiver"/>
+    /// </summary>
+    /// <returns>An instance of an <see cref="ISyntaxReceiver"/></returns>
+    public delegate ISyntaxReceiver SyntaxReceiverCreator();
+
+    public delegate ISyntaxReceiver SyntaxReceiverWithContextCreator(GeneratorSyntaxWalkerContext context);
+
+    /// <summary>
     /// Context passed to a source generator when <see cref="ISourceGenerator.Execute(GeneratorExecutionContext)"/> is called
     /// </summary>
     public readonly struct GeneratorExecutionContext
@@ -135,18 +143,26 @@ namespace Microsoft.CodeAnalysis
         /// <param name="receiverCreator">A <see cref="SyntaxReceiverCreator"/> that can be invoked to create an instance of <see cref="ISyntaxReceiver"/></param>
         public void RegisterForSyntaxNotifications(SyntaxReceiverCreator receiverCreator)
         {
-            CheckIsEmpty(InfoBuilder.SyntaxReceiverCreator);
+            CheckIsEmpty(InfoBuilder.SyntaxReceiverCreator, nameof(SyntaxReceiverCreator));
+            InfoBuilder.SyntaxReceiverCreator = (cx) => receiverCreator();
+        }
+
+        public void RegisterForSyntaxNotifications(SyntaxReceiverWithContextCreator receiverCreator)
+        {
+            CheckIsEmpty(InfoBuilder.SyntaxReceiverCreator, nameof(SyntaxReceiverCreator));
             InfoBuilder.SyntaxReceiverCreator = receiverCreator;
         }
 
-        private static void CheckIsEmpty<T>(T x)
+        private static void CheckIsEmpty<T>(T x, string? name = null)
         {
             if (x is object)
             {
-                throw new InvalidOperationException(string.Format(CodeAnalysisResources.Single_type_per_generator_0, typeof(T).Name));
+                throw new InvalidOperationException(string.Format(CodeAnalysisResources.Single_type_per_generator_0, name ?? typeof(T).Name));
             }
         }
     }
+
+    public struct GeneratorSyntaxWalkerContext { }
 
     internal readonly struct GeneratorEditContext
     {

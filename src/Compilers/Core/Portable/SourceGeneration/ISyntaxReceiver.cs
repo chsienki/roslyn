@@ -31,10 +31,4 @@ namespace Microsoft.CodeAnalysis
         /// <param name="syntaxNode">The current <see cref="SyntaxNode"/> being visited</param>
         void OnVisitSyntaxNode(SyntaxNode syntaxNode);
     }
-
-    /// <summary>
-    /// Allows a generator to provide instances of an <see cref="ISyntaxReceiver"/>
-    /// </summary>
-    /// <returns>An instance of an <see cref="ISyntaxReceiver"/></returns>
-    public delegate ISyntaxReceiver SyntaxReceiverCreator();
 }
