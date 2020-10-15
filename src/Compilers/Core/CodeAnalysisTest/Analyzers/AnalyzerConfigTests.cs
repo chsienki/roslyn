@@ -1641,13 +1641,45 @@ option1 = value2",
         {
             var configs = ArrayBuilder<AnalyzerConfig>.GetInstance();
             configs.Add(Parse(@"is_global = true
-option1 = value1", "/.globalconfig1"));
+option1 = value1", "/.globalconfig"));
 
             configs.Add(Parse(@"
-option1 = value2", "/.globalconfig2"));
+option1 = value2", "/.editorconfig"));
 
             var globalConfig = AnalyzerConfigSet.MergeGlobalConfigs(configs, out var diagnostics);
             diagnostics.Verify();
+        }
+
+        [Fact]
+        public void DuplicateOptionsInGlobalConfigsAreKeptWhenMatching()
+        {
+            var configs = ArrayBuilder<AnalyzerConfig>.GetInstance();
+
+            // two matching
+            configs.Add(Parse(@"is_global = true
+option1 = value1", "/.globalconfig1"));
+
+            configs.Add(Parse(@"is_global = true
+option1 = value1", "/.globalconfig2"));
+
+            var globalConfig = AnalyzerConfigSet.MergeGlobalConfigs(configs, out var diagnostics);
+            diagnostics.Verify();
+
+            // three matching
+            configs.Add(Parse(@"is_global = true
+option1 = value1", "/.globalconfig3"));
+
+            globalConfig = AnalyzerConfigSet.MergeGlobalConfigs(configs, out diagnostics);
+            diagnostics.Verify();
+
+            // one differs
+            configs.Add(Parse(@"is_global = true
+option1 = value2", "/.globalconfig4"));
+
+            globalConfig = AnalyzerConfigSet.MergeGlobalConfigs(configs, out diagnostics);
+            diagnostics.Verify(
+                Diagnostic("MultipleGlobalAnalyzerKeys").WithArguments("option1", "Global Section", "/.globalconfig1, /.globalconfig2", "/.globalconfig3", "./globalconfig4").WithLocation(1, 1)
+                );
         }
 
         [Fact]
@@ -2174,6 +2206,58 @@ is_global = true
         [InlineData("c:/*.cs", false, false)]
         public void GlobalConfigIssuesWarningWithInvalidSectionNames_PlatformSpecific(string sectionName, bool isValidWindows, bool isValidOther)
             => GlobalConfigIssuesWarningWithInvalidSectionNames(sectionName, ExecutionConditionUtil.IsWindows ? isValidWindows : isValidOther);
+
+        [Fact]
+        public void GlobalConfigCanHaveLevel()
+        {
+            var configs = ArrayBuilder<AnalyzerConfig>.GetInstance();
+            configs.Add(Parse(@"
+is_global = true
+global_level = 1
+", "/.globalconfig"));
+
+            _ = AnalyzerConfigSet.Create(configs.ToImmutableAndFree(), out var diags);
+            diags.Verify();
+        }
+
+        [Fact]
+        public void GlobalConfigCanHaveDifferentLevels()
+        {
+            var configs = ArrayBuilder<AnalyzerConfig>.GetInstance();
+            configs.Add(Parse(@"
+is_global = true
+global_level = 1
+", "/.globalconfig"));
+
+            configs.Add(Parse(@"
+is_global = true
+global_level = 2
+", "/.globalconfig2"));
+
+            _ = AnalyzerConfigSet.Create(configs.ToImmutableAndFree(), out var diags);
+            diags.Verify();
+        }
+
+        [Fact]
+        public void GlobalConfigHasADefaultLevelOf0()
+        {
+            var configs = ArrayBuilder<AnalyzerConfig>.GetInstance();
+            configs.Add(Parse(@"
+is_global = true
+option1 = value
+", "/.globalconfig1"));
+
+            configs.Add(Parse(@"
+is_global = true
+global_level = 0
+option1 = value2
+", "/.globalconfig2"));
+
+            _ = AnalyzerConfigSet.Create(configs.ToImmutableAndFree(), out var diagnostics);
+            diagnostics.Verify(
+                Diagnostic("MultipleGlobalAnalyzerKeys").WithArguments("option1", "Global Section", "/.globalconfig1, /.globalconfig2").WithLocation(1, 1)
+            );
+        }
 
         #endregion
     }
