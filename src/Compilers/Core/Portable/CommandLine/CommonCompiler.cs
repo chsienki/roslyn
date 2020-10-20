@@ -85,9 +85,7 @@ namespace Microsoft.CodeAnalysis
         public abstract Compilation? CreateCompilation(
             TextWriter consoleOutput,
             TouchedFileLogger? touchedFilesLogger,
-            ErrorLogger? errorLoggerOpt,
-            ImmutableArray<AnalyzerConfigOptionsResult> analyzerConfigOptions,
-            AnalyzerConfigOptionsResult globalConfigOptions);
+            ErrorLogger? errorLoggerOpt);
 
         public abstract void PrintLogo(TextWriter consoleOutput);
         public abstract void PrintHelp(TextWriter consoleOutput);
@@ -730,6 +728,12 @@ namespace Microsoft.CodeAnalysis
         /// <returns>A compilation that represents the original compilation with any additional, generated texts added to it.</returns>
         private protected virtual Compilation RunGenerators(Compilation input, ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider, ImmutableArray<AdditionalText> additionalTexts, DiagnosticBag generatorDiagnostics) { return input; }
 
+        /// <summary>
+        /// Reports the final compilation that was created during <see cref="RunCore(TextWriter, ErrorLogger?, CancellationToken)"/>
+        /// </summary>
+        /// <param name="compilation">The created compilation</param>
+        private protected virtual void OnCompilationFinished(Compilation compilation) { }
+
         private int RunCore(TextWriter consoleOutput, ErrorLogger? errorLogger, CancellationToken cancellationToken)
         {
             Debug.Assert(!Arguments.IsScriptRunner);
@@ -766,32 +770,15 @@ namespace Microsoft.CodeAnalysis
 
             var touchedFilesLogger = (Arguments.TouchedFilesPath != null) ? new TouchedFileLogger() : null;
 
-            var diagnostics = DiagnosticBag.GetInstance();
-
-            AnalyzerConfigSet? analyzerConfigSet = null;
-            ImmutableArray<AnalyzerConfigOptionsResult> sourceFileAnalyzerConfigOptions = default;
-            AnalyzerConfigOptionsResult globalConfigOptions = default;
-
-            if (Arguments.AnalyzerConfigPaths.Length > 0)
+            Compilation? compilation = CreateCompilation(consoleOutput, touchedFilesLogger, errorLogger);
+            if (compilation == null)
             {
-                if (!TryGetAnalyzerConfigSet(Arguments.AnalyzerConfigPaths, diagnostics, out analyzerConfigSet))
-                {
-                    var hadErrors = ReportDiagnostics(diagnostics, consoleOutput, errorLogger);
-                    Debug.Assert(hadErrors);
-                    return Failed;
-                }
-
-                globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
-                sourceFileAnalyzerConfigOptions = Arguments.SourceFiles.SelectAsArray(f => analyzerConfigSet.GetOptionsForSourcePath(f.Path));
-
-                foreach (var sourceFileAnalyzerConfigOption in sourceFileAnalyzerConfigOptions)
-                {
-                    diagnostics.AddRange(sourceFileAnalyzerConfigOption.Diagnostics);
-                }
+                return Failed;
             }
 
-            Compilation? compilation = CreateCompilation(consoleOutput, touchedFilesLogger, errorLogger, sourceFileAnalyzerConfigOptions, globalConfigOptions);
-            if (compilation == null)
+            var diagnostics = DiagnosticBag.GetInstance();
+            ParseAnalyzerConfigs(ref compilation, diagnostics, out var analyzerConfigSet, out var sourceFileAnalyzerConfigOptions);
+            if (ReportDiagnostics(diagnostics, consoleOutput, errorLogger))
             {
                 return Failed;
             }
@@ -857,7 +844,37 @@ namespace Microsoft.CodeAnalysis
                 ReportAnalyzerExecutionTime(consoleOutput, analyzerDriver, Culture, compilation.Options.ConcurrentBuild);
             }
 
+            OnCompilationFinished(compilation);
             return exitCode;
+        }
+
+        private void ParseAnalyzerConfigs(ref Compilation compilation, DiagnosticBag diagnostics, out AnalyzerConfigSet? analyzerConfigSet, out ImmutableArray<AnalyzerConfigOptionsResult> results)
+        {
+            if (Arguments.AnalyzerConfigPaths.Length == 0)
+            {
+                analyzerConfigSet = null;
+                results = ImmutableArray<AnalyzerConfigOptionsResult>.Empty;
+                return;
+            }
+
+            if (!TryGetAnalyzerConfigSet(Arguments.AnalyzerConfigPaths, diagnostics, out analyzerConfigSet))
+            {
+                Debug.Assert(diagnostics.HasAnyErrors());
+                return;
+            }
+
+            var treeOptionsBuilder = new CompilerSyntaxTreeOptionsProvider.Builder(analyzerConfigSet.GlobalConfigOptions);
+            var optionsBuilder = ArrayBuilder<AnalyzerConfigOptionsResult>.GetInstance();
+            foreach (var tree in compilation.SyntaxTrees)
+            {
+                var options = analyzerConfigSet.GetOptionsForSourcePath(tree.FilePath);
+                optionsBuilder.Add(options);
+                treeOptionsBuilder.AddResult(tree, options);
+                diagnostics.AddRange(options.Diagnostics);
+            }
+
+            compilation = compilation.WithOptions(compilation.Options.WithSyntaxTreeOptionsProvider(treeOptionsBuilder.ToImmutable()));
+            results = optionsBuilder.ToImmutableAndFree();
         }
 
         private static CompilerAnalyzerConfigOptionsProvider UpdateAnalyzerConfigOptionsProvider(

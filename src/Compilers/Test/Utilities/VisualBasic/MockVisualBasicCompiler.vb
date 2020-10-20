@@ -54,14 +54,9 @@ Friend Class MockVisualBasicCompiler
         End If
     End Sub
 
-    Public Overloads Function CreateCompilation(consoleOutput As TextWriter, touchedFilesLogger As TouchedFileLogger, errorLogger As ErrorLogger, syntaxTreeDiagnosticOptionsOpt As ImmutableArray(Of AnalyzerConfigOptionsResult)) As Compilation
-        Return Me.CreateCompilation(consoleOutput, touchedFilesLogger, errorLogger, syntaxTreeDiagnosticOptionsOpt, Nothing)
-    End Function
-
-    Public Overrides Function CreateCompilation(consoleOutput As TextWriter, touchedFilesLogger As TouchedFileLogger, errorLogger As ErrorLogger, syntaxTreeDiagnosticOptionsOpt As ImmutableArray(Of AnalyzerConfigOptionsResult), globalConfigOptions As AnalyzerConfigOptionsResult) As Compilation
-        Compilation = MyBase.CreateCompilation(consoleOutput, touchedFilesLogger, errorLogger, syntaxTreeDiagnosticOptionsOpt, globalConfigOptions)
-        Return Compilation
-    End Function
+    Private Protected Overrides Sub OnCompilationFinished(compilation As Compilation)
+        Me.Compilation = compilation
+    End Sub
 
     Protected Overrides Function CreateAnalyzerOptions(
         additionalTextFiles As ImmutableArray(Of AdditionalText),

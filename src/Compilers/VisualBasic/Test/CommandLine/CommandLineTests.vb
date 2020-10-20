@@ -351,7 +351,7 @@ End Class"
             file.WriteAllText(source)
 
             Dim cmd = New MockVisualBasicCompiler(dir.Path, {"/nologo", "a.vb", "/keyfile:key.snk"})
-            Dim comp = cmd.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance, Nothing)
+            Dim comp = cmd.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance)
 
             Assert.IsType(Of DesktopStrongNameProvider)(comp.Options.StrongNameProvider)
         End Sub
@@ -370,7 +370,7 @@ End Class"
             file.WriteAllText(source)
 
             Dim cmd = New MockVisualBasicCompiler(dir.Path, {"/nologo", "a.vb", "/keycontainer:aaa"})
-            Dim comp = cmd.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance, Nothing)
+            Dim comp = cmd.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance)
 
             Assert.True(TypeOf comp.Options.StrongNameProvider Is DesktopStrongNameProvider)
         End Sub
@@ -389,7 +389,7 @@ End Class"
             file.WriteAllText(source)
 
             Dim cmd = New MockVisualBasicCompiler(dir.Path, {"/nologo", "a.vb", "/features:UseLegacyStrongNameProvider"})
-            Dim comp = cmd.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance, Nothing)
+            Dim comp = cmd.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance)
 
             Assert.True(TypeOf comp.Options.StrongNameProvider Is DesktopStrongNameProvider)
         End Sub
@@ -9550,7 +9550,7 @@ End Module
 
             Dim vbc = New MockVisualBasicCompiler(Nothing, New BuildPaths("", workingDir.Path, Nothing, tempDir.Path),
                               {"/features:UseLegacyStrongNameProvider", "/nostdlib", "a.vb"})
-            Dim comp = vbc.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance, Nothing)
+            Dim comp = vbc.CreateCompilation(TextWriter.Null, New TouchedFileLogger(), NullErrorLogger.Instance)
             Assert.False(comp.SignUsingBuilder)
         End Sub
 

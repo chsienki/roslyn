@@ -38,9 +38,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         public override Compilation? CreateCompilation(
             TextWriter consoleOutput,
             TouchedFileLogger? touchedFilesLogger,
-            ErrorLogger? errorLogger,
-            ImmutableArray<AnalyzerConfigOptionsResult> analyzerConfigOptions,
-            AnalyzerConfigOptionsResult globalConfigOptions)
+            ErrorLogger? errorLogger)
         {
             var parseOptions = Arguments.ParseOptions;
 
@@ -155,7 +153,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             var loggingFileSystem = new LoggingStrongNameFileSystem(touchedFilesLogger, _tempDirectory);
-            var optionsProvider = new CompilerSyntaxTreeOptionsProvider(trees, analyzerConfigOptions, globalConfigOptions);
 
             return CSharpCompilation.Create(
                 Arguments.CompilationName,
@@ -166,8 +163,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     .WithAssemblyIdentityComparer(assemblyIdentityComparer)
                     .WithXmlReferenceResolver(xmlFileResolver)
                     .WithStrongNameProvider(Arguments.GetStrongNameProvider(loggingFileSystem))
-                    .WithSourceReferenceResolver(sourceFileResolver)
-                    .WithSyntaxTreeOptionsProvider(optionsProvider));
+                    .WithSourceReferenceResolver(sourceFileResolver));
         }
 
         private SyntaxTree? ParseFile(

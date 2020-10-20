@@ -85,9 +85,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
 
         Public Overrides Function CreateCompilation(consoleOutput As TextWriter,
                                                     touchedFilesLogger As TouchedFileLogger,
-                                                    errorLogger As ErrorLogger,
-                                                    analyzerConfigOptions As ImmutableArray(Of AnalyzerConfigOptionsResult),
-                                                    globalAnalyzerConfigOptions As AnalyzerConfigOptionsResult) As Compilation
+                                                    errorLogger As ErrorLogger) As Compilation
             Dim parseOptions = Arguments.ParseOptions
 
             ' We compute script parse options once so we don't have to do it repeatedly in
@@ -159,7 +157,6 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             Dim sourceFileResolver = New LoggingSourceFileResolver(ImmutableArray(Of String).Empty, Arguments.BaseDirectory, Arguments.PathMap, touchedFilesLogger)
 
             Dim loggingFileSystem = New LoggingStrongNameFileSystem(touchedFilesLogger, _tempDirectory)
-            Dim syntaxTreeOptions = New CompilerSyntaxTreeOptionsProvider(trees, analyzerConfigOptions, globalAnalyzerConfigOptions)
 
             Return VisualBasicCompilation.Create(
                  Arguments.CompilationName,
@@ -170,8 +167,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                      WithAssemblyIdentityComparer(assemblyIdentityComparer).
                      WithXmlReferenceResolver(xmlFileResolver).
                      WithStrongNameProvider(Arguments.GetStrongNameProvider(loggingFileSystem)).
-                     WithSourceReferenceResolver(sourceFileResolver).
-                     WithSyntaxTreeOptionsProvider(syntaxTreeOptions))
+                     WithSourceReferenceResolver(sourceFileResolver))
         End Function
 
         Private Sub PrintReferences(resolvedReferences As List(Of MetadataReference), consoleOutput As TextWriter)

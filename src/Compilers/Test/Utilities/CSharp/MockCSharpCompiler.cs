@@ -35,6 +35,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Test.Utilities
 
         private static BuildPaths CreateBuildPaths(string workingDirectory, string sdkDirectory = null) => RuntimeUtilities.CreateBuildPaths(workingDirectory, sdkDirectory);
 
+        private protected override void OnCompilationFinished(Compilation compilation) => Compilation = compilation;
+
         protected override void ResolveAnalyzersFromArguments(
             List<DiagnosticInfo> diagnostics,
             CommonMessageProvider messageProvider,
@@ -51,23 +53,6 @@ namespace Microsoft.CodeAnalysis.CSharp.Test.Utilities
             {
                 generators = generators.InsertRange(0, _generators);
             }
-        }
-
-        public Compilation CreateCompilation(
-            TextWriter consoleOutput,
-            TouchedFileLogger touchedFilesLogger,
-            ErrorLogger errorLogger)
-            => CreateCompilation(consoleOutput, touchedFilesLogger, errorLogger, syntaxDiagOptionsOpt: default, globalDiagnosticOptionsOpt: default);
-
-        public override Compilation CreateCompilation(
-            TextWriter consoleOutput,
-            TouchedFileLogger touchedFilesLogger,
-            ErrorLogger errorLogger,
-            ImmutableArray<AnalyzerConfigOptionsResult> syntaxDiagOptionsOpt,
-            AnalyzerConfigOptionsResult globalDiagnosticOptionsOpt)
-        {
-            Compilation = base.CreateCompilation(consoleOutput, touchedFilesLogger, errorLogger, syntaxDiagOptionsOpt, globalDiagnosticOptionsOpt);
-            return Compilation;
         }
 
         protected override AnalyzerOptions CreateAnalyzerOptions(

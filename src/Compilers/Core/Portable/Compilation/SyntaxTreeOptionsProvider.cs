@@ -52,23 +52,12 @@ namespace Microsoft.CodeAnalysis
 
         private readonly AnalyzerConfigOptionsResult _globalOptions;
 
-        public CompilerSyntaxTreeOptionsProvider(
-            SyntaxTree?[] trees,
-            ImmutableArray<AnalyzerConfigOptionsResult> results,
-            AnalyzerConfigOptionsResult globalResults)
+        private CompilerSyntaxTreeOptionsProvider(
+            ImmutableDictionary<SyntaxTree, Options> options,
+            AnalyzerConfigOptionsResult globalOptions)
         {
-            var builder = ImmutableDictionary.CreateBuilder<SyntaxTree, Options>();
-            for (int i = 0; i < trees.Length; i++)
-            {
-                if (trees[i] != null)
-                {
-                    builder.Add(
-                        trees[i]!,
-                        new Options(results.IsDefault ? null : (AnalyzerConfigOptionsResult?)results[i]));
-                }
-            }
-            _options = builder.ToImmutableDictionary();
-            _globalOptions = globalResults;
+            _options = options;
+            _globalOptions = globalOptions;
         }
 
         public override GeneratedKind IsGenerated(SyntaxTree tree, CancellationToken _)
@@ -92,6 +81,23 @@ namespace Microsoft.CodeAnalysis
             }
             severity = ReportDiagnostic.Default;
             return false;
+        }
+
+        public class Builder
+        {
+            private readonly ImmutableDictionary<SyntaxTree, Options>.Builder _optionsBuilder;
+
+            private readonly AnalyzerConfigOptionsResult _globalOptions;
+
+            public Builder(AnalyzerConfigOptionsResult globalOptions)
+            {
+                _optionsBuilder = ImmutableDictionary.CreateBuilder<SyntaxTree, Options>();
+                _globalOptions = globalOptions;
+            }
+
+            public void AddResult(SyntaxTree tree, AnalyzerConfigOptionsResult result) => _optionsBuilder.Add(tree, new Options(result));
+
+            public CompilerSyntaxTreeOptionsProvider ToImmutable() => new CompilerSyntaxTreeOptionsProvider(_optionsBuilder.ToImmutable(), _globalOptions);
         }
     }
 }
