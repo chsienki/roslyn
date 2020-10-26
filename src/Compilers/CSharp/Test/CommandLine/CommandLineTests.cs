@@ -7088,9 +7088,9 @@ public class C
             file.WriteAllText(source);
 
             var cmd = CreateCSharpCompiler(null, dir.Path, new[] { "/nologo", "a.cs", "/keyfile:key.snk", });
-            var comp = cmd.CreateCompilation(TextWriter.Null, new TouchedFileLogger(), NullErrorLogger.Instance);
+            var exitCode = cmd.Run(TextWriter.Null);
 
-            Assert.IsType<DesktopStrongNameProvider>(comp.Options.StrongNameProvider);
+            Assert.IsType<DesktopStrongNameProvider>(cmd.Compilation.Options.StrongNameProvider);
         }
 
         [Fact]
@@ -7110,9 +7110,9 @@ public class C
             file.WriteAllText(source);
 
             var cmd = CreateCSharpCompiler(null, dir.Path, new[] { "/nologo", "a.cs", "/keycontainer:bbb", });
-            var comp = cmd.CreateCompilation(TextWriter.Null, new TouchedFileLogger(), NullErrorLogger.Instance);
+            var exitCode = cmd.Run(TextWriter.Null);
 
-            Assert.Equal(typeof(DesktopStrongNameProvider), comp.Options.StrongNameProvider.GetType());
+            Assert.Equal(typeof(DesktopStrongNameProvider), cmd.Compilation.Options.StrongNameProvider.GetType());
         }
 
         [Fact]
@@ -7132,9 +7132,9 @@ public class C
             file.WriteAllText(source);
 
             var cmd = CreateCSharpCompiler(null, dir.Path, new[] { "/nologo", "a.cs", "/keyFile:key.snk", "/features:UseLegacyStrongNameProvider" });
-            var comp = cmd.CreateCompilation(TextWriter.Null, new TouchedFileLogger(), NullErrorLogger.Instance);
+            var exitCode = cmd.Run(TextWriter.Null);
 
-            Assert.Equal(typeof(DesktopStrongNameProvider), comp.Options.StrongNameProvider.GetType());
+            Assert.Equal(typeof(DesktopStrongNameProvider), cmd.Compilation.Options.StrongNameProvider.GetType());
         }
 
         [Fact]
