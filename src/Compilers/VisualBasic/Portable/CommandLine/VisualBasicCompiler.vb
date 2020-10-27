@@ -19,15 +19,16 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
         Private Shared ReadOnly s_responseFileName As String
         Private ReadOnly _responseFile As String
         Private ReadOnly _diagnosticFormatter As CommandLineDiagnosticFormatter
-        Private ReadOnly _tempDirectory As String
         Private _additionalTextFiles As ImmutableArray(Of AdditionalTextFile)
+
+        Private Protected Overrides ReadOnly Property TempDirectory As String
 
         Protected Sub New(parser As VisualBasicCommandLineParser, responseFile As String, args As String(), buildPaths As BuildPaths, additionalReferenceDirectories As String, analyzerLoader As IAnalyzerAssemblyLoader)
             MyBase.New(parser, responseFile, args, buildPaths, additionalReferenceDirectories, analyzerLoader)
 
             _diagnosticFormatter = New CommandLineDiagnosticFormatter(buildPaths.WorkingDirectory, AddressOf GetAdditionalTextFiles)
             _additionalTextFiles = Nothing
-            _tempDirectory = buildPaths.TempDirectory
+            TempDirectory = buildPaths.TempDirectory
         End Sub
 
         Private Function GetAdditionalTextFiles() As ImmutableArray(Of AdditionalTextFile)
@@ -151,12 +152,9 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                 PrintReferences(resolvedReferences, consoleOutput)
             End If
 
-            Dim xmlFileResolver = New LoggingXmlFileResolver(Arguments.BaseDirectory, touchedFilesLogger)
-
             ' TODO: support for #load search paths
             Dim sourceFileResolver = New LoggingSourceFileResolver(ImmutableArray(Of String).Empty, Arguments.BaseDirectory, Arguments.PathMap, touchedFilesLogger)
 
-            Dim loggingFileSystem = New LoggingStrongNameFileSystem(touchedFilesLogger, _tempDirectory)
 
             Return VisualBasicCompilation.Create(
                  Arguments.CompilationName,
@@ -165,8 +163,6 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
                  Arguments.CompilationOptions.
                      WithMetadataReferenceResolver(referenceDirectiveResolver).
                      WithAssemblyIdentityComparer(assemblyIdentityComparer).
-                     WithXmlReferenceResolver(xmlFileResolver).
-                     WithStrongNameProvider(Arguments.GetStrongNameProvider(loggingFileSystem)).
                      WithSourceReferenceResolver(sourceFileResolver))
         End Function
 

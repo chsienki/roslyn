@@ -109,6 +109,8 @@ namespace Microsoft.CodeAnalysis
             out ImmutableArray<DiagnosticAnalyzer> analyzers,
             out ImmutableArray<ISourceGenerator> generators);
 
+        private protected abstract string? TempDirectory { get; }
+
         public CommonCompiler(CommandLineParser parser, string? responseFile, string[] args, BuildPaths buildPaths, string? additionalReferenceDirectories, IAnalyzerAssemblyLoader assemblyLoader)
         {
             IEnumerable<string> allArgs = args;
@@ -776,6 +778,11 @@ namespace Microsoft.CodeAnalysis
                 return Failed;
             }
 
+            var loggingFileSystem = new LoggingStrongNameFileSystem(touchedFilesLogger, TempDirectory);
+            var xmlFileResolver = new LoggingXmlFileResolver(Arguments.BaseDirectory, touchedFilesLogger);
+            compilation = compilation.WithOptions(compilation.Options.WithXmlReferenceResolver(xmlFileResolver)
+                                                                     .WithStrongNameProvider(Arguments.GetStrongNameProvider(loggingFileSystem)));
+
             var diagnostics = DiagnosticBag.GetInstance();
             ParseAnalyzerConfigs(ref compilation, diagnostics, out var analyzerConfigSet, out var sourceFileAnalyzerConfigOptions);
             if (ReportDiagnostics(diagnostics, consoleOutput, errorLogger))
@@ -860,6 +867,7 @@ namespace Microsoft.CodeAnalysis
             if (!TryGetAnalyzerConfigSet(Arguments.AnalyzerConfigPaths, diagnostics, out analyzerConfigSet))
             {
                 Debug.Assert(diagnostics.HasAnyErrors());
+                results = ImmutableArray<AnalyzerConfigOptionsResult>.Empty;
                 return;
             }
 

@@ -23,13 +23,14 @@ namespace Microsoft.CodeAnalysis.CSharp
         internal const string ResponseFileName = "csc.rsp";
 
         private readonly CommandLineDiagnosticFormatter _diagnosticFormatter;
-        private readonly string? _tempDirectory;
+
+        private protected override string? TempDirectory { get; }
 
         protected CSharpCompiler(CSharpCommandLineParser parser, string? responseFile, string[] args, BuildPaths buildPaths, string? additionalReferenceDirectories, IAnalyzerAssemblyLoader assemblyLoader)
             : base(parser, responseFile, args, buildPaths, additionalReferenceDirectories, assemblyLoader)
         {
             _diagnosticFormatter = new CommandLineDiagnosticFormatter(buildPaths.WorkingDirectory, Arguments.PrintFullPaths, Arguments.ShouldIncludeErrorEndLocation);
-            _tempDirectory = buildPaths.TempDirectory;
+            TempDirectory = buildPaths.TempDirectory;
         }
 
         public override DiagnosticFormatter DiagnosticFormatter { get { return _diagnosticFormatter; } }
@@ -142,7 +143,6 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
             }
 
-            var xmlFileResolver = new LoggingXmlFileResolver(Arguments.BaseDirectory, touchedFilesLogger);
             var sourceFileResolver = new LoggingSourceFileResolver(ImmutableArray<string>.Empty, Arguments.BaseDirectory, Arguments.PathMap, touchedFilesLogger);
 
             MetadataReferenceResolver referenceDirectiveResolver;
@@ -152,7 +152,6 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return null;
             }
 
-            var loggingFileSystem = new LoggingStrongNameFileSystem(touchedFilesLogger, _tempDirectory);
 
             return CSharpCompilation.Create(
                 Arguments.CompilationName,
@@ -161,8 +160,6 @@ namespace Microsoft.CodeAnalysis.CSharp
                 Arguments.CompilationOptions
                     .WithMetadataReferenceResolver(referenceDirectiveResolver)
                     .WithAssemblyIdentityComparer(assemblyIdentityComparer)
-                    .WithXmlReferenceResolver(xmlFileResolver)
-                    .WithStrongNameProvider(Arguments.GetStrongNameProvider(loggingFileSystem))
                     .WithSourceReferenceResolver(sourceFileResolver));
         }
 
