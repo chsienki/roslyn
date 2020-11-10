@@ -1,4 +1,4 @@
-' Licensed to the .NET Foundation under one or more agreements.
+﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
 
@@ -33,14 +33,32 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.CommandLine.UnitTests
     Partial Public Class CommandLineTests
         Inherits BasicTestBase
 
+#If NETCOREAPP Then
+        Private Shared ReadOnly s_basicCompilerExecutable As String
+        Private Shared ReadOnly s_DotnetVbcRun As String
+#Else
         Private Shared ReadOnly s_basicCompilerExecutable As String = Path.Combine(
             Path.GetDirectoryName(GetType(CommandLineTests).Assembly.Location),
             Path.Combine("dependency", "vbc.exe"))
-        Private Shared ReadOnly s_DotnetCscRun As String = If(ExecutionConditionUtil.IsMono, "mono", String.Empty)
-
+        Private Shared ReadOnly s_DotnetVbcRun As String = If(ExecutionConditionUtil.IsMono, "mono", String.Empty)
+#End If
         Private ReadOnly _baseDirectory As String = TempRoot.Root
         Private Shared ReadOnly s_defaultSdkDirectory As String = RuntimeEnvironment.GetRuntimeDirectory()
         Private Shared ReadOnly s_compilerVersion As String = CommonCompiler.GetProductVersion(GetType(CommandLineTests))
+
+        Shared Sub New()
+#If NETCOREAPP Then
+            Dim vbDllPath = Path.Combine(
+                Path.GetDirectoryName(GetType(CommandLineTests).GetTypeInfo().Assembly.Location),
+                Path.Combine("dependency", "vbc.dll"))
+            Dim dotnetExe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName
+            Dim netStandardDllPath = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(Function(assembly) Not assembly.IsDynamic AndAlso assembly.Location.EndsWith("netstandard.dll")).Location
+            Dim netStandardDllDir = Path.GetDirectoryName(netStandardDllPath)
+
+            s_basicCompilerExecutable = $"""{dotnetExe}"" ""{vbDllPath}"" /nostdlib /r:""{netStandardDllPath}"" /r:""{netStandardDllDir}/System.Private.CoreLib.dll"" /r:""{netStandardDllDir}/System.Console.dll"" /r:""{netStandardDllDir}/System.Runtime.dll"" /vbruntime:""{netStandardDllDir}/Microsoft.VisualBasic.dll"""
+            s_DotnetVbcRun = $"""{dotnetExe}"" exec --runtimeconfig ""{Path.Combine(Path.GetDirectoryName(vbDllPath), "vbc.runtimeconfig.json")}"""
+#End If
+        End Sub
 
         Private Shared Function DefaultParse(args As IEnumerable(Of String), baseDirectory As String, Optional sdkDirectory As String = Nothing, Optional additionalReferenceDirectories As String = Nothing) As VisualBasicCommandLineArguments
             sdkDirectory = If(sdkDirectory, s_defaultSdkDirectory)
@@ -624,7 +642,7 @@ Module Program
         System.Console.WriteLine(""Hello World!"")
     End Sub
 End Module")
-                result = ProcessUtilities.Run("cmd", $"/C {s_basicCompilerExecutable} /nologo /t:exe - < {sourceFile}", workingDirectory:=tempDir)
+                result = ProcessUtilities.Run("cmd", $"/C ""{s_basicCompilerExecutable}"" /nologo /t:exe - < {sourceFile}", workingDirectory:=tempDir)
 
                 File.Delete(sourceFile)
             Else
@@ -645,8 +663,8 @@ End Module | {s_basicCompilerExecutable} /nologo /t:exe -""", workingDirectory:=
             Assert.False(result.ContainsErrors, $"Compilation error(s) occurred: {result.Output} {result.Errors}")
 
             Dim output As String = If(RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
-                ProcessUtilities.RunAndGetOutput("cmd.exe", $"/C ""{s_DotnetCscRun} -.exe""", expectedRetCode:=0, startFolder:=tempDir),
-                ProcessUtilities.RunAndGetOutput("sh", $"-c ""{s_DotnetCscRun} -.exe""", expectedRetCode:=0, startFolder:=tempDir))
+                ProcessUtilities.RunAndGetOutput("cmd.exe", $"/C ""{s_DotnetVbcRun} -.exe""", expectedRetCode:=0, startFolder:=tempDir),
+                ProcessUtilities.RunAndGetOutput("sh", $"-c ""{s_DotnetVbcRun} -.exe""", expectedRetCode:=0, startFolder:=tempDir))
 
             Assert.Equal("Hello World!", output.Trim())
         End Sub
@@ -665,7 +683,7 @@ Class A
         Return Nothing
     End Function
 End Class")
-                result = ProcessUtilities.Run("cmd", $"/C {s_basicCompilerExecutable} /nologo /t:library /out:{name} - < {sourceFile}", workingDirectory:=tempDir)
+                result = ProcessUtilities.Run("cmd", $"/C ""{s_basicCompilerExecutable}"" /nologo /t:library /out:{name} - < {sourceFile}", workingDirectory:=tempDir)
 
                 File.Delete(sourceFile)
             Else
@@ -8933,7 +8951,7 @@ Dummy File Line 1!
 </text>.Value).Path
 
             Dim analyzer = New AdditionalFileDiagnosticAnalyzer(nonCompilerInputFile)
-            Dim arguments = {"/nologo", "/preferreduilang:en", "/vbruntime", "/t:library",
+            Dim arguments = {"/nologo", "/preferreduilang:en", "/t:library",
                 "/additionalfile:" & additionalFile, ' Valid additional text file
                 "/additionalfile:" & Assembly.GetExecutingAssembly.Location, ' Non-text file specified as an additional text file
                 source}

@@ -44,7 +44,7 @@ namespace Microsoft.CodeAnalysis.Test.Utilities
             return new BuildPaths(
                 clientDir: AppContext.BaseDirectory,
                 workingDir: workingDirectory,
-                sdkDir: sdkDirectory,
+                sdkDir: sdkDirectory ?? RuntimeEnvironment.GetRuntimeDirectory(),
                 tempDir: tempDirectory);
 #endif
         }

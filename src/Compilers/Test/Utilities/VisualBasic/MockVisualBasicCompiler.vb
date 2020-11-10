@@ -32,8 +32,9 @@ Friend Class MockVisualBasicCompiler
     End Sub
 
     Public Sub New(responseFile As String, buildPaths As BuildPaths, args As String(), analyzers As ImmutableArray(Of DiagnosticAnalyzer))
-        MyBase.New(VisualBasicCommandLineParser.Default, responseFile, args, buildPaths, Environment.GetEnvironmentVariable("LIB"), New DefaultAnalyzerAssemblyLoader())
-
+        MyBase.New(VisualBasicCommandLineParser.Default, responseFile, args _
+            .Append("/d:_MyType=\""Empty\""") _
+            .Append("/reference:" & buildPaths.SdkDirectory & "System.Private.CoreLib.dll"), buildPaths, Environment.GetEnvironmentVariable("LIB"), New DefaultAnalyzerAssemblyLoader())
         _analyzers = analyzers
     End Sub
 
