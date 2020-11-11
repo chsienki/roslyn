@@ -175,7 +175,7 @@ namespace Microsoft.CodeAnalysis
                     }
                     generatorState = ex is null
                                      ? new GeneratorState(context.InfoBuilder.ToImmutable())
-                                     : SetGeneratorException(MessageProvider, GeneratorState.Uninitialized, generator, ex, diagnosticsBag, isInit: true);
+                                     : SetGeneratorException(compilation, MessageProvider, GeneratorState.Uninitialized, generator, ex, diagnosticsBag, isInit: true);
                 }
 
                 // create the syntax receiver if requested
@@ -359,7 +359,7 @@ namespace Microsoft.CodeAnalysis
             return FromState(state);
         }
 
-        private static GeneratorState SetGeneratorException(CommonMessageProvider provider, GeneratorState generatorState, ISourceGenerator generator, Exception e, DiagnosticBag? diagnosticBag, bool isInit = false)
+        private static GeneratorState SetGeneratorException(Compilation compilation, CommonMessageProvider provider, GeneratorState generatorState, ISourceGenerator generator, Exception e, DiagnosticBag? diagnosticBag, bool isInit = false)
         {
             var errorCode = isInit ? provider.WRN_GeneratorFailedDuringInitialization : provider.WRN_GeneratorFailedDuringGeneration;
 
@@ -375,11 +375,12 @@ namespace Microsoft.CodeAnalysis
                 provider.GetMessageFormat(errorCode),
                 description: description,
                 category: "Compiler",
-                defaultSeverity: DiagnosticSeverity.Warning,
+                defaultSeverity: provider.GetSeverity(errorCode),
                 isEnabledByDefault: true,
                 customTags: WellKnownDiagnosticTags.AnalyzerException);
 
             var diagnostic = Diagnostic.Create(descriptor, Location.None, generator.GetType().Name, e.GetType().Name, e.Message);
+
 
             diagnosticBag?.Add(diagnostic);
             return new GeneratorState(generatorState.Info, e, diagnostic);
