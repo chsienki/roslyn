@@ -2947,8 +2947,14 @@ namespace Microsoft.CodeAnalysis.CSharp
             this.InitializerOpt = initializerOpt;
             this.ArgumentsOpt = argumentsOpt;
             this.InferredType = inferredType;
+            var x = this.HasErrors;
         }
 
+        [System.Diagnostics.CodeAnalysis.MemberNotNullWhen(false, nameof(DeclaredTypeOpt))]
+        public new bool HasErrors 
+        {
+            get => base.HasErrors;
+        } 
 
         public LocalSymbol LocalSymbol { get; }
 

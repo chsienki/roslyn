@@ -481,6 +481,7 @@ namespace Microsoft.CodeAnalysis.Operations
                         return CreateFromArray<BoundExpression, IOperation>(((BoundLocalDeclaration)declaration).DeclaredTypeOpt.BoundDimensionsOpt);
                     }
                 case BoundKind.MultipleLocalDeclarations:
+#nullable enable
                 case BoundKind.UsingLocalDeclarations:
                     {
                         var declarations = ((BoundMultipleLocalDeclarationsBase)declaration).LocalDeclarations;
@@ -489,6 +490,7 @@ namespace Microsoft.CodeAnalysis.Operations
                             : ImmutableArray<BoundExpression>.Empty;
                         return CreateFromArray<BoundExpression, IOperation>(dimensions);
                     }
+#nullable disable
                 default:
                     throw ExceptionUtilities.UnexpectedValue(declaration.Kind);
             }
