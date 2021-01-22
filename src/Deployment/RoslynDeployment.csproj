@@ -20,6 +20,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\GeneratorDebug\GeneratorDebug.csproj">
+      <Name>GeneratorDebug</Name>
+      <VSIXSubPath>Vsixes</VSIXSubPath>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <IncludeOutputGroupsInVSIX>VSIXContainerProjectOutputGroup%3b</IncludeOutputGroupsInVSIX>
+    </ProjectReference>
     <ProjectReference Include="..\Compilers\Extension\Roslyn.Compilers.Extension.csproj">
       <Name>CompilerExtension</Name>
       <VSIXSubPath>Vsixes</VSIXSubPath>

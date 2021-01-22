@@ -1,0 +1,24 @@
+﻿<UserControl x:Class="GeneratorDebug.ComponentDebuggerOptions"
+             x:ClassModifier="internal"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d"
+             Width="Auto"
+             HorizontalAlignment="Left"
+             VerticalAlignment="Top">
+    <Grid Margin="0,2,0,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="158" />
+            <ColumnDefinition Width="350" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Label Margin="4,4,3,5">Target Project:</Label>
+        <ComboBox Grid.Column="1" Margin="5,7,2,6" ItemsSource="{Binding ProjectNames}" SelectedIndex="{Binding SelectedProjectIndex, Mode=TwoWay}" />
+
+        <Label Visibility="Hidden" Margin="4,4,3,5" Grid.ColumnSpan="3">No suitable projects found. Ensure there is at least one project that uses this component.</Label>
+
+    </Grid>
+</UserControl>
