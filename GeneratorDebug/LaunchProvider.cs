@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using Microsoft.VisualStudio.ProjectSystem;
+using Microsoft.VisualStudio.ProjectSystem.Build;
 using Microsoft.VisualStudio.ProjectSystem.Debug;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
@@ -26,7 +27,7 @@ namespace GeneratorDebug
 
         [ImportingConstructor]
         [Obsolete("This exported object must be obtained through the MEF export provider.", error: true)]
-        public LaunchProvider(UnconfiguredProject unconfiguredProject, ILaunchSettingsProvider settingsProvider)
+        public LaunchProvider(UnconfiguredProject unconfiguredProject, ILaunchSettingsProvider settingsProvider/*, IProjectBuildSnapshotService snapshotService*/)
         {
             _unconfiguredProject = unconfiguredProject;
             _settingsProvider = settingsProvider;
