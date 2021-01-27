@@ -24,19 +24,19 @@ namespace GeneratorDebug
                 throw new ArgumentNullException(nameof(project));
             }
 
-            var args = ImmutableArray<string>.Empty;
+           // var args = ImmutableArray<string>.Empty;
 
-            var latest3 = await project.Services.ProjectSnapshotService.GetLatestVersionAsync(project).ConfigureAwait(false);
-            //latest.Value.ProjectInstance.
-            var latest2 = await project.Services.PropertyPagesCatalog.GetLatestVersionAsync(project);
-           // latest2.Value.NamedCatalogs
+           // var latest3 = await project.Services.ProjectSnapshotService.GetLatestVersionAsync(project).ConfigureAwait(false);
+           // //latest.Value.ProjectInstance.
+           // var latest2 = await project.Services.PropertyPagesCatalog.GetLatestVersionAsync(project);
+           //// latest2.Value.NamedCatalogs
 
             var subscriptionService = project.Services.ProjectSubscription;
             if (subscriptionService is object)
             {
                 // get the latest snapshot of the command line args rules
-                await new ProjectLockAwareJoinableTaskFactory.MainThreadAwaitable();
-                var snapshots = await subscriptionService.JointRuleSource.GetLatestVersionAsync(project, CommandLineSchemaRuleNames).ConfigureAwait(false);
+               //await new ProjectLockAwareJoinableTaskFactory.MainThreadAwaitable();
+                var snapshots = await subscriptionService.ProjectRuleSource.GetLatestVersionAsync(project, CommandLineSchemaRuleNames).ConfigureAwait(false);
                 var latest = snapshots.Values.FirstOrDefault();
 
                 // extract the actual command line arguments
