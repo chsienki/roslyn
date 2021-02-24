@@ -4,7 +4,7 @@
 
 using System.Windows.Controls;
 
-namespace GeneratorDebug
+namespace Roslyn.ComponentDebugger
 {
     /// <summary>
     /// Interaction logic for ComponentDebuggerOptions.xaml

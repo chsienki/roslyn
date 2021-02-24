@@ -2114,7 +2114,7 @@ option2 = config3
         [InlineData("/path{", false)]
         [InlineData("/path}", false)]
         [InlineData("/path?", false)]
-        [InlineData("/path,", false)]
+        [InlineData("/path,", true)]
         [InlineData("/path\"", true)]
         [InlineData(@"/path\", false)] //editorconfig sees a single escape character (special)
         [InlineData(@"/path\\", true)] //editorconfig sees an escaped backslash
@@ -2134,6 +2134,7 @@ option2 = config3
         [InlineData(".", false)]
         [InlineData("/", true)]
         [InlineData("", true)] // only true because [] isn't a valid editorconfig section name either and thus never gets parsed
+        [InlineData("C:/public/aircon/ConsoleApp24/WpfApp1/obj/Debug/net5.0-windows/.NETCoreApp,Version=v5.0.AssemblyAttributes.cs", true)]
         public void GlobalConfigIssuesWarningWithInvalidSectionNames(string sectionName, bool isValid)
         {
             var configs = ArrayBuilder<AnalyzerConfig>.GetInstance();

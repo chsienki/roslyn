@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using Microsoft.Build.Evaluation;
 using Microsoft.VisualStudio.ProjectSystem;
 
-namespace GeneratorDebug
+namespace Roslyn.ComponentDebugger
 {
     [Export(ExportContractNames.Scopes.ConfiguredProject, typeof(IProjectCapabilitiesProvider))]
     [AppliesTo(ProjectCapabilities.CSharp + " | " + ProjectCapabilities.VB)]

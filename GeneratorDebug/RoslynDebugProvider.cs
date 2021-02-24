@@ -21,7 +21,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Diagnostics = System.Diagnostics;
 using Task = System.Threading.Tasks.Task;
 
-namespace GeneratorDebug
+namespace Roslyn.ComponentDebugger
 {
     [Export(typeof(IDebugProfileLaunchTargetsProvider))]
     [AppliesTo("RoslynComponent")]

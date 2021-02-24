@@ -147,11 +147,18 @@ namespace Microsoft.CodeAnalysis
             int logicalIndex = 0;
             while (!nameLexer.IsDone)
             {
-                if (nameLexer.Lex() != TokenKind.SimpleCharacter)
+                char simpleChar;
+                switch (nameLexer.Lex())
                 {
-                    return false;
+                    case TokenKind.SimpleCharacter:
+                        simpleChar = nameLexer.EatCurrentCharacter();
+                        break;
+                    case TokenKind.Comma:
+                        simpleChar = ',';
+                        break;
+                    default:
+                        return false;
                 }
-                var simpleChar = nameLexer.EatCurrentCharacter();
 
                 // check the path starts with '/'
                 if (logicalIndex == 0)

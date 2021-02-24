@@ -15,7 +15,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Utilities;
 
-namespace GeneratorDebug
+namespace Roslyn.ComponentDebugger
 {
     [Export(typeof(ILaunchSettingsUIProvider))]
     [AppliesTo("RoslynComponent")]

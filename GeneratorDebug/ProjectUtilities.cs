@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.ProjectSystem;
 
-namespace GeneratorDebug
+namespace Roslyn.ComponentDebugger
 {
     public static class ProjectUtilities
     {
@@ -26,25 +26,10 @@ namespace GeneratorDebug
 
             var args = ImmutableArray<string>.Empty;
 
-
-            //project.Services.e
-
-           // var latest3 = await project.Services.ProjectSnapshotService.GetLatestVersionAsync(project).ConfigureAwait(false);
-           // //latest.Value.ProjectInstance.
-            var latest2 = await project.Services.PropertyPagesCatalog.GetLatestVersionAsync(project);
-
-
-            //project.Services.build
-
-            var exists = latest2.Value.NamedCatalogs["ProjectSubscriptionService"].GetSchema("CompilerCommandLineArgs");
-
-            var t = latest2.Value.NamedCatalogs["ProjectSubscriptionService"].BindToContext("CompilerCommandLineArgs", latest2.Value.Project.ProjectInstance, null, null);
-
             var subscriptionService = project.Services.ProjectSubscription;
             if (subscriptionService is object)
             {
                 // get the latest snapshot of the command line args rules
-               //await new ProjectLockAwareJoinableTaskFactory.MainThreadAwaitable();
                 var snapshots = await subscriptionService.JointRuleSource.GetLatestVersionAsync(project, CommandLineSchemaRuleNames).ConfigureAwait(false);
                 var latest = snapshots.Values.FirstOrDefault();
 

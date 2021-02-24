@@ -10,7 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace GeneratorDebug
+namespace Roslyn.ComponentDebugger
 {
     internal class Constants
     {

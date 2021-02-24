@@ -172,7 +172,7 @@ namespace Microsoft.CodeAnalysis
         internal static bool CheckPipeConnectionOwnership(NamedPipeClientStream pipeStream) => true;
 
         // Validation is handled by CurrentUserOnly
-        internal static PipeSecurity? CreatePipeSecurity() => null;
+        //internal static PipeSecurity? CreatePipeSecurity() => null;
 
         private static NamedPipeServerStream CreateServer(
             string pipeName,

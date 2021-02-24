@@ -20,7 +20,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\GeneratorDebug\GeneratorDebug.csproj">
+    <ProjectReference Include="..\..\GeneratorDebug\Roslyn.ComponentDebugger.csproj">
       <Name>GeneratorDebug</Name>
       <VSIXSubPath>Vsixes</VSIXSubPath>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
