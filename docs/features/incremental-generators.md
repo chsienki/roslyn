@@ -447,7 +447,7 @@ var withComparer = context.Sources.AdditionalTexts
                                   .WithComparer(myComparer);
 ```
 
-Note that the comparer is on a per-transformation basis, meaning an author can specify different comparers for different parts of the pipeline. 
+Note that the comparer is on a per-transformation basis, meaning an author can specify different comparers for different parts of the pipeline.
 
 ```csharp
 var transform = context.Sources.AdditionalTexts.Transform(t => t.Path);
@@ -469,7 +469,63 @@ can be less ergonomic as it requires the author to define a type not inline and
 reference it here. Should we provided a 'functional' overload that creates the
 equality comparer for the author under the hood given a lambda?
 
-### Syntax Trees
+### Syntax Based Transformation
+
+The original `ISourceGenerator` API had a mechanism to explore syntax trees
+known as `ISyntaxReceiver` and `ISyntaxContextReceiver`. This pair of interfaces
+essentially allow a stateful object to be registered with the generator driver
+and receive a callback for every syntax node during a shared walk. The shared
+walk aimed for multiple generators to share the work involved in exploring
+Syntax Trees and share `SemanticModel`s reducing duplicate work. However on
+large scale solutions with many syntax trees the performance of this approach
+begins to suffer as each tree in the solution must be walked each time the
+generators are invoked. This can lead to page thrashing where each keystroke
+causes the generators to run but the earlier trees are removed from memory in
+the previous operation because of the later ones, and each run essentially
+re-page in every tree.
+
+The naive approach for incremental generators would be to make an
+`IncrementalValueSource` of either `SyntaxTree` or `SyntaxNode`. The
+`SyntaxTree` approach leads to each generator performing duplicate work, while
+the `SyntaxNode` approach leads to an impractically large data structure in
+memory for large solutions, causing worse issues than the original receiver
+implementation.
+
+Instead, `IIncrementalGenerators` takes a slightly different approach to this
+problem. Rather than having a single `IncrementalValueSource` for syntax, it
+exposes a factory that can be used to _create_ a custom `IncrementalValueSource`
+on demand by the generator. This source is updated outside of the regular graph
+execution, allowing a single syntax walk to be shared amongst multiple custom
+value sources. In terms of performance, this brings `IIncrementalGenerators`
+back into line with `ISourceGenerators` but doesn't fundamentally solve the
+issue for large solutions.
+
+In order to enhance the performance, the syntax factory methods take _two_
+functions. A first filter function that applies only to `SyntaxNodes`, allowing
+the generator to specify precisely what syntax it is interested in' and a second
+function that takes the filtered syntax nodes along with their respective
+semantic model and allows them to be transformed. In this way every time a
+change is made to a tree it is a non-expensive operation to calculate which
+nodes need their initial function re-running, and only on the tree that actually
+changed: the driver no longer needs to iterate every tree. The second function
+ensures that any cross-tree information is correctly looked up, without the need
+to re-walk the entirety of the trees.
+
+``` csharp
+initContext.RegisterExecutionPipeline(context =>
+{
+    // get all fields with an attribute
+    IncrementalValueSource<IFieldSymbol> fields = context.Sources.Syntax.Transform(static node => node is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: FieldDeclarationSyntax { AttributeLists: { Count: > 0 } } } },
+                                                                                   static nodeContext => nodeContext.SemanticModel.GetDeclaredSymbol(nodeContext.Node) as IFieldSymbol)
+```
+
+For further performance tuning there would also be an optional parameter,
+`usesNoImplicitTrees` with a default value of `false` that allows the transform
+to indicate that the information it looks up in the semantic model is not going
+to cross tree boundaries, and therefore the results of the second function can
+also be looked up in the cache when the nodes have not changed. This is an
+advanced scenario where it is easy to end up with incorrect code generation,
+hence the default of `false`.
 
 ## Internal Implementation
 
