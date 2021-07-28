@@ -403,11 +403,12 @@ namespace Microsoft.CodeAnalysis.CSharp.Semantic.UnitTests.SourceGeneration
             var c = CSharpCompilation.Create("empty");
             var state = new GeneratorDriverState(options,
                     CompilerAnalyzerConfigOptionsProvider.Empty,
-                    ImmutableArray<ISourceGenerator>.Empty,
-                    ImmutableArray<IIncrementalGenerator>.Empty,
+                    ImmutableArray.Create(new GeneratorDriverPhase(
+                        ImmutableArray<ISourceGenerator>.Empty,
+                        ImmutableArray<IIncrementalGenerator>.Empty,
+                        ImmutableArray<GeneratorState>.Empty,
+                        previous)),
                     ImmutableArray<AdditionalText>.Empty,
-                    ImmutableArray<GeneratorState>.Empty,
-                    previous,
                     enableIncremental: true,
                     disabledOutputs: IncrementalGeneratorOutputKind.None);
 

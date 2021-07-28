@@ -12,26 +12,85 @@ namespace Microsoft.CodeAnalysis
     {
         internal GeneratorDriverState(ParseOptions parseOptions,
                                       AnalyzerConfigOptionsProvider optionsProvider,
-                                      ImmutableArray<ISourceGenerator> sourceGenerators,
-                                      ImmutableArray<IIncrementalGenerator> incrementalGenerators,
+                                      ImmutableArray<GeneratorDriverPhase> driverPhases,
                                       ImmutableArray<AdditionalText> additionalTexts,
-                                      ImmutableArray<GeneratorState> generatorStates,
-                                      DriverStateTable stateTable,
                                       bool enableIncremental,
                                       IncrementalGeneratorOutputKind disabledOutputs)
+        {
+            AdditionalTexts = additionalTexts;
+            ParseOptions = parseOptions;
+            OptionsProvider = optionsProvider;
+            EnableIncremental = enableIncremental;
+            DisabledOutputs = disabledOutputs;
+            DriverPhases = driverPhases;
+        }
+
+        /// <summary>
+        /// The set of <see cref="AdditionalText"/>s available to source generators during a run
+        /// </summary>
+        internal readonly ImmutableArray<AdditionalText> AdditionalTexts;
+
+        /// <summary>
+        /// Gets a provider for analyzer options
+        /// </summary>
+        internal readonly AnalyzerConfigOptionsProvider OptionsProvider;
+
+        /// <summary>
+        /// ParseOptions to use when parsing generator provided source.
+        /// </summary>
+        internal readonly ParseOptions ParseOptions;
+
+        internal readonly ImmutableArray<GeneratorDriverPhase> DriverPhases;
+
+        /// <summary>
+        /// Should this driver run incremental generators or not
+        /// </summary>
+        /// <remarks>
+        /// Only used during preview period when incremental generators are enabled/disabled by preview flag
+        /// </remarks>
+        internal readonly bool EnableIncremental;
+
+        /// <summary>
+        /// A bit field containing the output kinds that should not be produced by this generator driver.
+        /// </summary>
+        internal readonly IncrementalGeneratorOutputKind DisabledOutputs;
+
+        internal GeneratorDriverState With(
+            ImmutableArray<GeneratorDriverPhase>? driverPhases = null,
+            ImmutableArray<AdditionalText>? additionalTexts = null,
+            ParseOptions? parseOptions = null,
+            AnalyzerConfigOptionsProvider? optionsProvider = null,
+            IncrementalGeneratorOutputKind? disabledOutputs = null)
+        {
+            return new GeneratorDriverState(
+                parseOptions ?? this.ParseOptions,
+                optionsProvider ?? this.OptionsProvider,
+                driverPhases ?? this.DriverPhases,
+                additionalTexts ?? this.AdditionalTexts,
+                this.EnableIncremental,
+                disabledOutputs ?? this.DisabledOutputs
+                );
+        }
+    }
+
+    internal readonly struct GeneratorDriverPhase
+    {
+        public GeneratorDriverPhase(ImmutableArray<ISourceGenerator> sourceGenerators,
+                                    ImmutableArray<IIncrementalGenerator> incrementalGenerators,
+                                    ImmutableArray<GeneratorState> generatorStates,
+                                    DriverStateTable stateTable)
         {
             Generators = sourceGenerators;
             IncrementalGenerators = incrementalGenerators;
             GeneratorStates = generatorStates;
-            AdditionalTexts = additionalTexts;
-            ParseOptions = parseOptions;
-            OptionsProvider = optionsProvider;
             StateTable = stateTable;
-            EnableIncremental = enableIncremental;
-            DisabledOutputs = disabledOutputs;
+
             Debug.Assert(Generators.Length == GeneratorStates.Length);
             Debug.Assert(IncrementalGenerators.Length == GeneratorStates.Length);
         }
+
+        internal readonly DriverStateTable StateTable;
+
 
         /// <summary>
         /// The set of <see cref="ISourceGenerator"/>s associated with this state.
@@ -60,57 +119,5 @@ namespace Microsoft.CodeAnalysis
         /// </remarks>
         internal readonly ImmutableArray<GeneratorState> GeneratorStates;
 
-        /// <summary>
-        /// The set of <see cref="AdditionalText"/>s available to source generators during a run
-        /// </summary>
-        internal readonly ImmutableArray<AdditionalText> AdditionalTexts;
-
-        /// <summary>
-        /// Gets a provider for analyzer options
-        /// </summary>
-        internal readonly AnalyzerConfigOptionsProvider OptionsProvider;
-
-        /// <summary>
-        /// ParseOptions to use when parsing generator provided source.
-        /// </summary>
-        internal readonly ParseOptions ParseOptions;
-
-        internal readonly DriverStateTable StateTable;
-
-        /// <summary>
-        /// Should this driver run incremental generators or not
-        /// </summary>
-        /// <remarks>
-        /// Only used during preview period when incremental generators are enabled/disabled by preview flag
-        /// </remarks>
-        internal readonly bool EnableIncremental;
-
-        /// <summary>
-        /// A bit field containing the output kinds that should not be produced by this generator driver.
-        /// </summary>
-        internal readonly IncrementalGeneratorOutputKind DisabledOutputs;
-
-        internal GeneratorDriverState With(
-            ImmutableArray<ISourceGenerator>? sourceGenerators = null,
-            ImmutableArray<IIncrementalGenerator>? incrementalGenerators = null,
-            ImmutableArray<GeneratorState>? generatorStates = null,
-            ImmutableArray<AdditionalText>? additionalTexts = null,
-            DriverStateTable? stateTable = null,
-            ParseOptions? parseOptions = null,
-            AnalyzerConfigOptionsProvider? optionsProvider = null,
-            IncrementalGeneratorOutputKind? disabledOutputs = null)
-        {
-            return new GeneratorDriverState(
-                parseOptions ?? this.ParseOptions,
-                optionsProvider ?? this.OptionsProvider,
-                sourceGenerators ?? this.Generators,
-                incrementalGenerators ?? this.IncrementalGenerators,
-                additionalTexts ?? this.AdditionalTexts,
-                generatorStates ?? this.GeneratorStates,
-                stateTable ?? this.StateTable,
-                this.EnableIncremental,
-                disabledOutputs ?? this.DisabledOutputs
-                );
-        }
     }
 }

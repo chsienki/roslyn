@@ -48,7 +48,7 @@ namespace Microsoft.CodeAnalysis
             {
                 Compilation = compilation;
                 DriverState = driverState;
-                _previousTable = driverState.StateTable;
+                _previousTable = driverState.DriverPhases[0].StateTable; // PROTOTYPE: we should pass this in instead
                 _syntaxInputNodes = syntaxInputNodes;
                 _cancellationToken = cancellationToken;
             }

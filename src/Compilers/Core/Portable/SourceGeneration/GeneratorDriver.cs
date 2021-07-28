@@ -29,14 +29,14 @@ namespace Microsoft.CodeAnalysis
 
         internal GeneratorDriver(GeneratorDriverState state)
         {
-            Debug.Assert(state.Generators.GroupBy(s => s.GetGeneratorType()).Count() == state.Generators.Length); // ensure we don't have duplicate generator types
+            Debug.Assert(state.DriverPhases[0].Generators.GroupBy(s => s.GetGeneratorType()).Count() == state.DriverPhases[0].Generators.Length); // ensure we don't have duplicate generator types
             _state = state;
         }
 
         internal GeneratorDriver(ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, AnalyzerConfigOptionsProvider optionsProvider, ImmutableArray<AdditionalText> additionalTexts, bool enableIncremental, GeneratorDriverOptions driverOptions)
         {
             (var filteredGenerators, var incrementalGenerators) = GetIncrementalGenerators(generators, enableIncremental);
-            _state = new GeneratorDriverState(parseOptions, optionsProvider, filteredGenerators, incrementalGenerators, additionalTexts, ImmutableArray.Create(new GeneratorState[filteredGenerators.Length]), DriverStateTable.Empty, enableIncremental, driverOptions.DisabledOutputs);
+            _state = new GeneratorDriverState(parseOptions, optionsProvider, ImmutableArray.Create(new GeneratorDriverPhase(filteredGenerators, incrementalGenerators, ImmutableArray.Create(new GeneratorState[filteredGenerators.Length]), DriverStateTable.Empty)), additionalTexts, enableIncremental, driverOptions.DisabledOutputs);
         }
 
         public GeneratorDriver RunGenerators(Compilation compilation, CancellationToken cancellationToken = default)
@@ -53,7 +53,7 @@ namespace Microsoft.CodeAnalysis
             // build the output compilation
             diagnostics = diagnosticsBag.ToReadOnlyAndFree();
             ArrayBuilder<SyntaxTree> trees = ArrayBuilder<SyntaxTree>.GetInstance();
-            foreach (var generatorState in state.GeneratorStates)
+            foreach (var generatorState in state.DriverPhases[0].GeneratorStates)
             {
                 trees.AddRange(generatorState.PostInitTrees.Select(t => t.Tree));
                 trees.AddRange(generatorState.GeneratedTrees.Select(t => t.Tree));
@@ -67,17 +67,20 @@ namespace Microsoft.CodeAnalysis
         public GeneratorDriver AddGenerators(ImmutableArray<ISourceGenerator> generators)
         {
             (var filteredGenerators, var incrementalGenerators) = GetIncrementalGenerators(generators, _state.EnableIncremental);
-            var newState = _state.With(sourceGenerators: _state.Generators.AddRange(filteredGenerators),
-                                       incrementalGenerators: _state.IncrementalGenerators.AddRange(incrementalGenerators),
-                                       generatorStates: _state.GeneratorStates.AddRange(new GeneratorState[filteredGenerators.Length]));
+            var newState = _state.With(driverPhases: _state.DriverPhases.Replace(_state.DriverPhases[0],
+                                         new GeneratorDriverPhase(
+                                            sourceGenerators: _state.DriverPhases[0].Generators.AddRange(filteredGenerators),
+                                            incrementalGenerators: _state.DriverPhases[0].IncrementalGenerators.AddRange(incrementalGenerators),
+                                            generatorStates: _state.DriverPhases[0].GeneratorStates.AddRange(new GeneratorState[filteredGenerators.Length]),
+                                            stateTable: _state.DriverPhases[0].StateTable)));
             return FromState(newState);
         }
 
         public GeneratorDriver RemoveGenerators(ImmutableArray<ISourceGenerator> generators)
         {
-            var newGenerators = _state.Generators;
-            var newStates = _state.GeneratorStates;
-            var newIncrementalGenerators = _state.IncrementalGenerators;
+            var newGenerators = _state.DriverPhases[0].Generators;
+            var newStates = _state.DriverPhases[0].GeneratorStates;
+            var newIncrementalGenerators = _state.DriverPhases[0].IncrementalGenerators;
             for (int i = 0; i < newGenerators.Length; i++)
             {
                 if (generators.Contains(newGenerators[i]))
@@ -89,7 +92,12 @@ namespace Microsoft.CodeAnalysis
                 }
             }
 
-            return FromState(_state.With(sourceGenerators: newGenerators, incrementalGenerators: newIncrementalGenerators, generatorStates: newStates));
+            return FromState(_state.With(driverPhases: _state.DriverPhases.Replace(_state.DriverPhases[0],
+                                         new GeneratorDriverPhase(
+                                            sourceGenerators: newGenerators,
+                                            incrementalGenerators: newIncrementalGenerators,
+                                            generatorStates: newStates,
+                                            stateTable: _state.DriverPhases[0].StateTable))));
         }
 
         public GeneratorDriver AddAdditionalTexts(ImmutableArray<AdditionalText> additionalTexts)
@@ -129,8 +137,8 @@ namespace Microsoft.CodeAnalysis
 
         public GeneratorDriverRunResult GetRunResult()
         {
-            var results = _state.Generators.ZipAsArray(
-                            _state.GeneratorStates,
+            var results = _state.DriverPhases[0].Generators.ZipAsArray(
+                            _state.DriverPhases[0].GeneratorStates,
                             (generator, generatorState)
                                 => new GeneratorRunResult(generator,
                                                           diagnostics: generatorState.Diagnostics,
@@ -156,22 +164,22 @@ namespace Microsoft.CodeAnalysis
         internal GeneratorDriverState RunGeneratorsCore(Compilation compilation, DiagnosticBag? diagnosticsBag, CancellationToken cancellationToken = default)
         {
             // with no generators, there is no work to do
-            if (_state.Generators.IsEmpty)
+            if (_state.DriverPhases[0].Generators.IsEmpty)
             {
-                return _state.With(stateTable: DriverStateTable.Empty);
+                return _state.With(driverPhases: _state.DriverPhases.Replace(_state.DriverPhases[0], new GeneratorDriverPhase(_state.DriverPhases[0].Generators, _state.DriverPhases[0].IncrementalGenerators, _state.DriverPhases[0].GeneratorStates, DriverStateTable.Empty)));
             }
 
             // run the actual generation
             var state = _state;
-            var stateBuilder = ArrayBuilder<GeneratorState>.GetInstance(state.Generators.Length);
+            var stateBuilder = ArrayBuilder<GeneratorState>.GetInstance(state.DriverPhases[0].Generators.Length);
             var constantSourcesBuilder = ArrayBuilder<SyntaxTree>.GetInstance();
             var syntaxInputNodes = ArrayBuilder<ISyntaxInputNode>.GetInstance();
 
-            for (int i = 0; i < state.IncrementalGenerators.Length; i++)
+            for (int i = 0; i < state.DriverPhases[0].IncrementalGenerators.Length; i++)
             {
-                var generator = state.IncrementalGenerators[i];
-                var generatorState = state.GeneratorStates[i];
-                var sourceGenerator = state.Generators[i];
+                var generator = state.DriverPhases[0].IncrementalGenerators[i];
+                var generatorState = state.DriverPhases[0].GeneratorStates[i];
+                var sourceGenerator = state.DriverPhases[0].Generators[i];
 
                 // initialize the generator if needed
                 if (!generatorState.Initialized)
@@ -236,7 +244,7 @@ namespace Microsoft.CodeAnalysis
             constantSourcesBuilder.Free();
 
             var driverStateBuilder = new DriverStateTable.Builder(compilation, _state, syntaxInputNodes.ToImmutableAndFree(), cancellationToken);
-            for (int i = 0; i < state.IncrementalGenerators.Length; i++)
+            for (int i = 0; i < state.DriverPhases[0].IncrementalGenerators.Length; i++)
             {
                 var generatorState = stateBuilder[i];
                 if (generatorState.Exception is object)
@@ -250,15 +258,15 @@ namespace Microsoft.CodeAnalysis
                     (var sources, var generatorDiagnostics) = context.ToImmutableAndFree();
                     generatorDiagnostics = FilterDiagnostics(compilation, generatorDiagnostics, driverDiagnostics: diagnosticsBag, cancellationToken);
 
-                    stateBuilder[i] = new GeneratorState(generatorState.Info, generatorState.PostInitTrees, generatorState.InputNodes, generatorState.OutputNodes, ParseAdditionalSources(state.Generators[i], sources, cancellationToken), generatorDiagnostics);
+                    stateBuilder[i] = new GeneratorState(generatorState.Info, generatorState.PostInitTrees, generatorState.InputNodes, generatorState.OutputNodes, ParseAdditionalSources(state.DriverPhases[0].Generators[i], sources, cancellationToken), generatorDiagnostics);
                 }
                 catch (UserFunctionException ufe)
                 {
-                    stateBuilder[i] = SetGeneratorException(MessageProvider, stateBuilder[i], state.Generators[i], ufe.InnerException, diagnosticsBag);
+                    stateBuilder[i] = SetGeneratorException(MessageProvider, stateBuilder[i], state.DriverPhases[0].Generators[i], ufe.InnerException, diagnosticsBag);
                 }
             }
 
-            state = state.With(stateTable: driverStateBuilder.ToImmutable(), generatorStates: stateBuilder.ToImmutableAndFree());
+            state = state.With(driverPhases: _state.DriverPhases.Replace(_state.DriverPhases[0], new GeneratorDriverPhase(_state.DriverPhases[0].Generators, incrementalGenerators: _state.DriverPhases[0].IncrementalGenerators, stateTable: driverStateBuilder.ToImmutable(), generatorStates: stateBuilder.ToImmutableAndFree())));
             return state;
         }
 
