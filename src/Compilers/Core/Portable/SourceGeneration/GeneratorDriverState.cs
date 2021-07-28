@@ -78,13 +78,14 @@ namespace Microsoft.CodeAnalysis
         public GeneratorDriverPhase(ImmutableArray<ISourceGenerator> sourceGenerators,
                                     ImmutableArray<IIncrementalGenerator> incrementalGenerators,
                                     ImmutableArray<GeneratorState> generatorStates,
-                                    DriverStateTable stateTable)
+                                    DriverStateTable stateTable,
+                                    int phaseId)
         {
             Generators = sourceGenerators;
             IncrementalGenerators = incrementalGenerators;
             GeneratorStates = generatorStates;
             StateTable = stateTable;
-
+            PhaseId = phaseId;
             Debug.Assert(Generators.Length == GeneratorStates.Length);
             Debug.Assert(IncrementalGenerators.Length == GeneratorStates.Length);
         }
@@ -119,5 +120,6 @@ namespace Microsoft.CodeAnalysis
         /// </remarks>
         internal readonly ImmutableArray<GeneratorState> GeneratorStates;
 
+        internal readonly int PhaseId;
     }
 }

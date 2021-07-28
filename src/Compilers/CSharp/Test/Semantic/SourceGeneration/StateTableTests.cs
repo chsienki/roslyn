@@ -407,7 +407,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Semantic.UnitTests.SourceGeneration
                         ImmutableArray<ISourceGenerator>.Empty,
                         ImmutableArray<IIncrementalGenerator>.Empty,
                         ImmutableArray<GeneratorState>.Empty,
-                        previous)),
+                        previous,
+                        0)),
                     ImmutableArray<AdditionalText>.Empty,
                     enableIncremental: true,
                     disabledOutputs: IncrementalGeneratorOutputKind.None);
