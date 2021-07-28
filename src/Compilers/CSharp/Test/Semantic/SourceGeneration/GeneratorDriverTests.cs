@@ -2047,5 +2047,65 @@ class C { }
             }
 
         }
+
+        [Fact]
+        public void IncrementalGenerator_Ordering()
+        {
+            var source = @"
+class C { }
+";
+            var parseOptions = TestOptions.RegularPreview;
+            Compilation compilation = CreateCompilation(source, options: TestOptions.DebugDll, parseOptions: parseOptions);
+            compilation.VerifyDiagnostics();
+
+            Assert.Single(compilation.SyntaxTrees);
+
+            List<ClassDeclarationSyntax> classes = new List<ClassDeclarationSyntax>();
+
+            var generator1 = new IncrementalGeneratorWrapper(new PipelineCallbackGenerator((ctx) =>
+            {
+                ctx.RegisterSourceOutput(ctx.CompilationProvider, (spc, c) =>
+                {
+                    spc.AddSource("a", "public class A{}");
+                });
+            }, -1));
+
+            var generator2 = new IncrementalGeneratorWrapper(new PipelineCallbackGenerator((ctx) =>
+            {
+                ctx.RegisterSourceOutput(ctx.CompilationProvider, (spc, c) =>
+                {
+                    Assert.Contains(c.SyntaxTrees, t => t.GetText().ToString() == "public class A{}");
+                    spc.AddSource("b", "public class B{}");
+                });
+            }));
+
+            var generator3 = new IncrementalGeneratorWrapper(new PipelineCallbackGenerator((ctx) =>
+            {
+                ctx.RegisterSourceOutput(ctx.CompilationProvider, (spc, c) =>
+                {
+                    Assert.Contains(c.SyntaxTrees, t => t.GetText().ToString() == "public class A{}");
+                    Assert.Contains(c.SyntaxTrees, t => t.GetText().ToString() == "public class B{}");
+                });
+            }, 1));
+
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new ISourceGenerator[] { generator1, generator2, generator3 }, parseOptions: parseOptions);
+            driver = driver.RunGenerators(compilation);
+
+            //Assert.Equal(2, classes.Count);
+            //Assert.Equal("C", classes[0].Identifier.ValueText);
+            //Assert.Equal("D", classes[1].Identifier.ValueText);
+
+            //// clear classes, re-run
+            //classes.Clear();
+            //driver = driver.RunGenerators(compilation);
+            //Assert.Empty(classes);
+
+            //// modify the original tree, see that the post init is still cached
+            //var c2 = compilation.ReplaceSyntaxTree(compilation.SyntaxTrees.First(), CSharpSyntaxTree.ParseText("class E{}", parseOptions));
+            //classes.Clear();
+            //driver = driver.RunGenerators(c2);
+            //Assert.Single(classes);
+            //Assert.Equal("E", classes[0].Identifier.ValueText);
+        }
     }
 }

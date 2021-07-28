@@ -86,14 +86,17 @@ namespace Roslyn.Test.Utilities.TestGenerators
 
     }
 
-    internal sealed class PipelineCallbackGenerator : IIncrementalGenerator
+    internal sealed class PipelineCallbackGenerator : IIncrementalGenerator, IOrderedComponent
     {
         private readonly Action<IncrementalGeneratorInitializationContext> _registerPipelineCallback;
 
-        public PipelineCallbackGenerator(Action<IncrementalGeneratorInitializationContext> registerPipelineCallback)
+        public PipelineCallbackGenerator(Action<IncrementalGeneratorInitializationContext> registerPipelineCallback, int priority = 0)
         {
             _registerPipelineCallback = registerPipelineCallback;
+            Priority = priority;
         }
+
+        public int Priority { get; }
 
         public void Initialize(IncrementalGeneratorInitializationContext context) => _registerPipelineCallback(context);
     }
