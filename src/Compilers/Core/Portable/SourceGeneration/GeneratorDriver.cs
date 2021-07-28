@@ -35,8 +35,13 @@ namespace Microsoft.CodeAnalysis
 
         internal GeneratorDriver(ParseOptions parseOptions, ImmutableArray<ISourceGenerator> generators, AnalyzerConfigOptionsProvider optionsProvider, ImmutableArray<AdditionalText> additionalTexts, bool enableIncremental, GeneratorDriverOptions driverOptions)
         {
-            (var filteredGenerators, var incrementalGenerators) = GetIncrementalGenerators(generators, enableIncremental);
-            _state = new GeneratorDriverState(parseOptions, optionsProvider, ImmutableArray.Create(new GeneratorDriverPhase(filteredGenerators, incrementalGenerators, ImmutableArray.Create(new GeneratorState[filteredGenerators.Length]), DriverStateTable.Empty)), additionalTexts, enableIncremental, driverOptions.DisabledOutputs);
+            var phases = generators.GroupBy(g => g is IOrderedComponent c ? c.Priority : 0).OrderBy(g => g.Key).Select(g =>
+            {
+                (var filteredGenerators, var incrementalGenerators) = GetIncrementalGenerators(g.ToImmutableArray(), enableIncremental);
+                return new GeneratorDriverPhase(filteredGenerators, incrementalGenerators, ImmutableArray.Create(new GeneratorState[filteredGenerators.Length]), DriverStateTable.Empty);
+            }).ToImmutableArray();
+
+            _state = new GeneratorDriverState(parseOptions, optionsProvider, phases, additionalTexts, enableIncremental, driverOptions.DisabledOutputs);
         }
 
         public GeneratorDriver RunGenerators(Compilation compilation, CancellationToken cancellationToken = default)
@@ -137,9 +142,11 @@ namespace Microsoft.CodeAnalysis
 
         public GeneratorDriverRunResult GetRunResult()
         {
-            var results = _state.DriverPhases[0].Generators.ZipAsArray(
-                            _state.DriverPhases[0].GeneratorStates,
-                            (generator, generatorState)
+            var results = _state.DriverPhases.IsEmpty
+                          ? ImmutableArray<GeneratorRunResult>.Empty
+                          : _state.DriverPhases[0].Generators.ZipAsArray(
+                             _state.DriverPhases[0].GeneratorStates,
+                             (generator, generatorState)
                                 => new GeneratorRunResult(generator,
                                                           diagnostics: generatorState.Diagnostics,
                                                           exception: generatorState.Exception,
@@ -164,7 +171,7 @@ namespace Microsoft.CodeAnalysis
         internal GeneratorDriverState RunGeneratorsCore(Compilation compilation, DiagnosticBag? diagnosticsBag, CancellationToken cancellationToken = default)
         {
             // with no generators, there is no work to do
-            if (_state.DriverPhases[0].Generators.IsEmpty)
+            if (_state.DriverPhases.IsEmpty || _state.DriverPhases[0].Generators.IsEmpty)
             {
                 return _state.With(driverPhases: _state.DriverPhases.Replace(_state.DriverPhases[0], new GeneratorDriverPhase(_state.DriverPhases[0].Generators, _state.DriverPhases[0].IncrementalGenerators, _state.DriverPhases[0].GeneratorStates, DriverStateTable.Empty)));
             }

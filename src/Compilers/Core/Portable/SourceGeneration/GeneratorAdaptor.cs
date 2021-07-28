@@ -13,9 +13,11 @@ namespace Microsoft.CodeAnalysis
     /// Adapts an ISourceGenerator to an incremental generator that
     /// by providing an execution environment that matches the old one
     /// </summary>
-    internal sealed class SourceGeneratorAdaptor : IIncrementalGenerator
+    internal sealed class SourceGeneratorAdaptor : IIncrementalGenerator, IOrderedComponent
     {
         internal ISourceGenerator SourceGenerator { get; }
+
+        public int Priority => (SourceGenerator is IOrderedComponent c) ? c.Priority : 0;
 
         public SourceGeneratorAdaptor(ISourceGenerator generator)
         {
