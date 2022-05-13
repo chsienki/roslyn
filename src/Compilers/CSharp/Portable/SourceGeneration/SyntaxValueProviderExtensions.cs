@@ -24,7 +24,6 @@ internal static partial class SyntaxValueProviderExtensions
     {
         private readonly object _aliasKey = new object();
         private readonly object _nodesKey = new object();
-        private readonly object _compilationUnitsKey = new object();
         private readonly string _attributeName;
 
         public CSharpAttributeSyntaxSelectionStrategy(string attributeName)
@@ -34,7 +33,7 @@ internal static partial class SyntaxValueProviderExtensions
 
         public ISyntaxInputBuilder GetBuilder(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T> comparer)
         {
-            return new Builder(tableStore, key, _aliasKey, _nodesKey, _compilationUnitsKey, _attributeName);
+            return new Builder(tableStore, syntaxTreeTable, key, _aliasKey, _nodesKey, _attributeName);
         }
 
         internal class Builder : ISyntaxInputBuilder
@@ -42,101 +41,58 @@ internal static partial class SyntaxValueProviderExtensions
             private readonly StateTableStore _tableStore;
             private readonly object _key;
             private readonly object _nodesKey;
-            private readonly NodeStateTable<GlobalAliases>.Builder _aliasPerTreeNode;
-            private readonly NodeStateTable<CompilationUnitSyntax>.Builder _compilationUnits;
+            private readonly GlobalAliases _globalAliases;
+            private readonly NodeStateTable<GlobalAliases> _aliasesPerTree;
+            private readonly NodeStateTable<ImmutableArray<SyntaxNode>>.Builder _nodesPerTree;
+
             private readonly NodeStateTable<SyntaxNode> _previousTable;
             private readonly string _attributeName;
 
 
-            public Builder(StateTableStore tableStore, object key, object aliasKey, object nodesKey, object compilationUnitsKey, string attributeName)
+            public Builder(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, object aliasKey, object nodesKey, string attributeName)
             {
                 _tableStore = tableStore;
                 _key = key;
                 _nodesKey = nodesKey;
                 _attributeName = attributeName;
                 _previousTable = tableStore.GetStateTableOrEmpty<SyntaxNode>(_key);
-                _aliasPerTreeNode = tableStore.GetStateTableOrEmpty<GlobalAliases>(aliasKey).ToBuilder(stepName: null, false); //TODO: step tracking
-                _compilationUnits = tableStore.GetStateTableOrEmpty<CompilationUnitSyntax>(nodesKey).ToBuilder(stepName: null, false);
+                _nodesPerTree = _tableStore.GetStateTableOrEmpty<ImmutableArray<SyntaxNode>>(_nodesKey).ToBuilder(null, false);
 
-                // TODO: we need to do the global alias look up here, not below
+                _aliasesPerTree = BuildGlobalAliasesPerTree(tableStore, syntaxTreeTable, aliasKey);
+                _globalAliases = FlattenAliasList(_aliasesPerTree);
             }
 
             public void VisitTree(Lazy<CodeAnalysis.SyntaxNode> root, EntryState state, SemanticModel? model, CancellationToken cancellationToken)
             {
+                // build up a table of attributes per tree
                 if (state == EntryState.Removed)
                 {
-                    // remove the entries from the intermediate tables
-                    _aliasPerTreeNode.TryRemoveEntries(TimeSpan.Zero, default);
-                    _compilationUnits.TryRemoveEntries(TimeSpan.Zero, default);
-                    return;
+                    _nodesPerTree.TryRemoveEntries(TimeSpan.Zero, default);
                 }
-
-                var compilationUnitSyntax = (CompilationUnitSyntax)root.Value;
-
-                // update the global aliases
-                if (state != EntryState.Cached || _aliasPerTreeNode.TryUseCachedEntries(TimeSpan.Zero, default)) //TODO: tracking info
+                else if (state != EntryState.Cached || _aliasesPerTree.IsCached || _nodesPerTree.TryUseCachedEntries(TimeSpan.Zero, default))
                 {
-                    // get the global aliases 
-                    var aliases = GetGlobalAliasesInCompilationUnit(compilationUnitSyntax);
+                    // get the actual nodes
+                    var matchingNodes = GetMatchingNodes<SyntaxNode>(_globalAliases, (CompilationUnitSyntax)root.Value, _attributeName, default); //TODO: we should thread the CT through to here
 
-                    if (state == EntryState.Added || _aliasPerTreeNode.TryModifyEntry(aliases, EqualityComparer<GlobalAliases>.Default, TimeSpan.Zero, default, state))
-                    {
-                        _aliasPerTreeNode.AddEntry(aliases, EntryState.Added, TimeSpan.Zero, default, state);
-                    }
-                }
-
-                // now update the syntax
-                if (state != EntryState.Cached || _compilationUnits.TryUseCachedEntries(TimeSpan.Zero, default))
-                {
-                    //TODO: will this comparer work correctly?
-                    if (state == EntryState.Added || _compilationUnits.TryModifyEntry(compilationUnitSyntax, EqualityComparer<CompilationUnitSyntax>.Default, TimeSpan.Zero, default, state))
-                    {
-                        _compilationUnits.AddEntry(compilationUnitSyntax, EntryState.Added, TimeSpan.Zero, default, state);
-                    }
+                    // don't bother checking for modification at this point, we'll handle that when we combine them together
+                    _nodesPerTree.AddEntry(matchingNodes, EntryState.Added, TimeSpan.Zero, default, state);
                 }
             }
 
             public void SaveStateAndFree(StateTableStore.Builder tableStoreBuilder)
             {
-                var aliasesPerTree = _aliasPerTreeNode.ToImmutableAndFree();
-                var compilationUnits = _compilationUnits.ToImmutableAndFree();
+                var nodesPerTree = _nodesPerTree.ToImmutableAndFree();
 
-                // if both trees and aliases are cached, there is no work to do
-                if (compilationUnits.IsCached && aliasesPerTree.IsCached)
+                // if all the trees came back cached, there is nothing to do
+                if (nodesPerTree.IsCached)
                 {
                     tableStoreBuilder.SetTable(_key, _previousTable);
                     return;
                 }
 
-                // combine all the aliases
-                Aliases aliases = Aliases.GetInstance();
-                foreach (var entry in aliasesPerTree)
-                {
-                    aliases.AddRange(entry.Item.AliasAndSymbolNames);
-                }
-                GlobalAliases allAliases = GlobalAliases.Create(aliases.ToImmutableAndFree());
-
-                // build up a table of attributes per tree
-                var nodesPerTree = _tableStore.GetStateTableOrEmpty<ImmutableArray<SyntaxNode>>(_nodesKey).ToBuilder(null, false);
-                foreach (var entry in compilationUnits)
-                {
-                    if (entry.State == EntryState.Removed)
-                    {
-                        nodesPerTree.TryRemoveEntries(TimeSpan.Zero, default);
-                    }
-                    else if (entry.State != EntryState.Cached || aliasesPerTree.IsCached || nodesPerTree.TryUseCachedEntries(TimeSpan.Zero, default))
-                    {
-                        // get the actual nodes
-                        var matchingNodes = GetMatchingNodes<SyntaxNode>(allAliases, entry.Item, _attributeName, default); //TODO: we should thread the CT through to here
-
-                        // don't bother checking for modification at this point, we'll handle it when we amalgamate them together
-                        nodesPerTree.AddEntry(matchingNodes, EntryState.Added, TimeSpan.Zero, default, entry.State);
-                    }
-                }
-
                 // collect all the nodes
                 ArrayBuilder<SyntaxNode> allNodesBuilder = ArrayBuilder<SyntaxNode>.GetInstance();
-                foreach (var entry in nodesPerTree.ToImmutableAndFree())
+                foreach (var entry in nodesPerTree)
                 {
                     if (entry.State != EntryState.Removed)
                     {
@@ -153,11 +109,46 @@ internal static partial class SyntaxValueProviderExtensions
                 }
                 tableStoreBuilder.SetTable(_key, stateTable.ToImmutableAndFree());
             }
+
+            private static NodeStateTable<GlobalAliases> BuildGlobalAliasesPerTree(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object aliasKey)
+            {
+                var builder = tableStore.GetStateTableOrEmpty<GlobalAliases>(aliasKey).ToBuilder(stepName: null, false);
+
+                // we have to iterate the trees before we do the regular walk in order to build up the global aliases
+                // this will be bad for cache locality the first time we do it, but subsequent updates will only 
+                // touch the altered trees, so should be pretty minimal thereafter
+                foreach (var entry in syntaxTreeTable)
+                {
+                    if (entry.State == EntryState.Removed)
+                    {
+                        builder.TryRemoveEntries(TimeSpan.Zero, default);
+                    }
+                    else if (entry.State != EntryState.Cached || !builder.TryUseCachedEntries(TimeSpan.Zero, default))
+                    {
+                        // get the global aliases 
+                        var aliases = GetGlobalAliasesInCompilationUnit(entry.Item.GetCompilationUnitRoot());
+
+                        if (entry.State == EntryState.Added || builder.TryModifyEntry(aliases, EqualityComparer<GlobalAliases>.Default, TimeSpan.Zero, default, entry.State))
+                        {
+                            builder.AddEntry(aliases, EntryState.Added, TimeSpan.Zero, default, entry.State);
+                        }
+                    }
+                }
+
+                return builder.ToImmutableAndFree();
+            }
+
+            private static GlobalAliases FlattenAliasList(NodeStateTable<GlobalAliases> aliasesPerTree)
+            {
+                Aliases aliases = Aliases.GetInstance();
+                foreach (var entry in aliasesPerTree)
+                {
+                    aliases.AddRange(entry.Item.AliasAndSymbolNames);
+                }
+                return GlobalAliases.Create(aliases.ToImmutableAndFree());
+            }
         }
     }
-
-
-
 
 
     private static readonly ObjectPool<Stack<string>> s_stackPool = new(() => new());
