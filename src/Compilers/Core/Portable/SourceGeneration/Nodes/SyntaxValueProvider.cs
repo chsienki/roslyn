@@ -46,7 +46,7 @@ namespace Microsoft.CodeAnalysis
             return new IncrementalValueProvider<ISyntaxContextReceiver?>(node);
         }
 
-        private void RegisterOutputAndDeferredInput(SyntaxInputNode node, IIncrementalGeneratorOutputNode output)
+        internal void RegisterOutputAndDeferredInput(SyntaxInputNode node, IIncrementalGeneratorOutputNode output)
         {
             _registerOutput(output);
             if (!_inputNodes.Contains(node))
