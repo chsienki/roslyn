@@ -21,7 +21,7 @@ namespace Microsoft.CodeAnalysis
             _registerOutput = registerOutput;
         }
 
-        public ISyntaxInputBuilder GetBuilder(StateTableStore table, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T>? comparer) => new Builder(this, key, table, trackIncrementalSteps);
+        public ISyntaxInputBuilder GetBuilder(StateTableStore table, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T>? comparer) => new Builder(this, key, table, trackIncrementalSteps);
 
         private sealed class Builder : ISyntaxInputBuilder
         {

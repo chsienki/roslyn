@@ -32,7 +32,7 @@ internal static partial class SyntaxValueProviderExtensions
             _attributeName = attributeName;
         }
 
-        public ISyntaxInputBuilder GetBuilder(StateTableStore tableStore, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T> comparer)
+        public ISyntaxInputBuilder GetBuilder(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T> comparer)
         {
             return new Builder(tableStore, key, _aliasKey, _nodesKey, _compilationUnitsKey, _attributeName);
         }
@@ -57,6 +57,8 @@ internal static partial class SyntaxValueProviderExtensions
                 _previousTable = tableStore.GetStateTableOrEmpty<SyntaxNode>(_key);
                 _aliasPerTreeNode = tableStore.GetStateTableOrEmpty<GlobalAliases>(aliasKey).ToBuilder(stepName: null, false); //TODO: step tracking
                 _compilationUnits = tableStore.GetStateTableOrEmpty<CompilationUnitSyntax>(nodesKey).ToBuilder(stepName: null, false);
+
+                // TODO: we need to do the global alias look up here, not below
             }
 
             public void VisitTree(Lazy<CodeAnalysis.SyntaxNode> root, EntryState state, SemanticModel? model, CancellationToken cancellationToken)

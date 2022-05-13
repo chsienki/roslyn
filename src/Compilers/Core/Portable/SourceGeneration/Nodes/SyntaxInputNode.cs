@@ -10,7 +10,7 @@ namespace Microsoft.CodeAnalysis
 {
     internal abstract class SyntaxInputNode
     {
-        internal abstract ISyntaxInputBuilder GetBuilder(StateTableStore table, bool trackIncrementalSteps);
+        internal abstract ISyntaxInputBuilder GetBuilder(StateTableStore table, NodeStateTable<SyntaxTree> syntaxTreeTable, bool trackIncrementalSteps);
     }
 
     internal sealed class SyntaxInputNode<T> : SyntaxInputNode, IIncrementalGeneratorNode<T>
@@ -39,6 +39,6 @@ namespace Microsoft.CodeAnalysis
 
         public void RegisterOutput(IIncrementalGeneratorOutputNode output) => _registerOutput(this, output);
 
-        internal override ISyntaxInputBuilder GetBuilder(StateTableStore table, bool trackIncrementalSteps) => _inputNode.GetBuilder(table, this, trackIncrementalSteps, _name, _comparer);
+        internal override ISyntaxInputBuilder GetBuilder(StateTableStore table, NodeStateTable<SyntaxTree> syntaxTreeTable, bool trackIncrementalSteps) => _inputNode.GetBuilder(table, this, trackIncrementalSteps, _name, _comparer);
     }
 }

@@ -69,7 +69,7 @@ namespace Microsoft.CodeAnalysis
                         }
                         else
                         {
-                            syntaxInputBuilders.Add((node, node.GetBuilder(_previous._tables, _enableTracking)));
+                            syntaxInputBuilders.Add((node, node.GetBuilder(_previous._tables, syntaxTreeTable, _enableTracking)));
                             _syntaxTimes[node] = TimeSpan.Zero;
                         }
                     }

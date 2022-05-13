@@ -11,7 +11,7 @@ namespace Microsoft.CodeAnalysis
 {
     internal interface ISyntaxSelectionStrategy<T>
     {
-        ISyntaxInputBuilder GetBuilder(StateTableStore tableStore, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T> comparer);
+        ISyntaxInputBuilder GetBuilder(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T> comparer);
     }
 
     internal interface ISyntaxInputBuilder
