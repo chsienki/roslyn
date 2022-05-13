@@ -33,33 +33,39 @@ internal static partial class SyntaxValueProviderExtensions
 
         public ISyntaxInputBuilder GetBuilder(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, bool trackIncrementalSteps, string? name, IEqualityComparer<T> comparer)
         {
-            return new Builder(tableStore, syntaxTreeTable, key, _aliasKey, _nodesKey, _attributeName);
+            return new Builder(tableStore, syntaxTreeTable, key, _aliasKey, _nodesKey, _attributeName, trackIncrementalSteps, name);
         }
 
         internal class Builder : ISyntaxInputBuilder
         {
             private readonly StateTableStore _tableStore;
             private readonly object _key;
+            private readonly object _aliasKey;
             private readonly object _nodesKey;
             private readonly GlobalAliases _globalAliases;
             private readonly NodeStateTable<GlobalAliases> _aliasesPerTree;
-            private readonly NodeStateTable<ImmutableArray<SyntaxNode>>.Builder _nodesPerTree;
+            private readonly NodeStateTable<ImmutableArray<T>>.Builder _nodesPerTree;
 
-            private readonly NodeStateTable<SyntaxNode> _previousTable;
+            private readonly NodeStateTable<T> _previousTable;
             private readonly string _attributeName;
+            private readonly string _name;
+            private readonly ImmutableArray<(IncrementalGeneratorRunStep, int)> _stepInfo;
 
-
-            public Builder(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, object aliasKey, object nodesKey, string attributeName)
+            public Builder(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object key, object aliasKey, object nodesKey, string attributeName, bool trackIncrementalSteps, string name)
             {
                 _tableStore = tableStore;
                 _key = key;
+                _aliasKey = aliasKey;
                 _nodesKey = nodesKey;
                 _attributeName = attributeName;
-                _previousTable = tableStore.GetStateTableOrEmpty<SyntaxNode>(_key);
-                _nodesPerTree = _tableStore.GetStateTableOrEmpty<ImmutableArray<SyntaxNode>>(_nodesKey).ToBuilder(null, false);
+                _name = name;
+                _previousTable = tableStore.GetStateTableOrEmpty<T>(_key);
+                _nodesPerTree = _tableStore.GetStateTableOrEmpty<ImmutableArray<T>>(_nodesKey).ToBuilder(null, trackIncrementalSteps);
+                _stepInfo = trackIncrementalSteps ? ImmutableArray<(IncrementalGeneratorRunStep, int)>.Empty : default;
 
                 _aliasesPerTree = BuildGlobalAliasesPerTree(tableStore, syntaxTreeTable, aliasKey);
                 _globalAliases = FlattenAliasList(_aliasesPerTree);
+
             }
 
             public void VisitTree(Lazy<CodeAnalysis.SyntaxNode> root, EntryState state, SemanticModel? model, CancellationToken cancellationToken)
@@ -67,21 +73,24 @@ internal static partial class SyntaxValueProviderExtensions
                 // build up a table of attributes per tree
                 if (state == EntryState.Removed)
                 {
-                    _nodesPerTree.TryRemoveEntries(TimeSpan.Zero, default);
+                    _nodesPerTree.TryRemoveEntries(TimeSpan.Zero, _stepInfo);
                 }
-                else if (state != EntryState.Cached || _aliasesPerTree.IsCached || _nodesPerTree.TryUseCachedEntries(TimeSpan.Zero, default))
+                else if (state != EntryState.Cached || _aliasesPerTree.IsCached || _nodesPerTree.TryUseCachedEntries(TimeSpan.Zero, _stepInfo))
                 {
                     // get the actual nodes
-                    var matchingNodes = GetMatchingNodes<SyntaxNode>(_globalAliases, (CompilationUnitSyntax)root.Value, _attributeName, default); //TODO: we should thread the CT through to here
+                    var matchingNodes = GetMatchingNodes<T>(_globalAliases, (CompilationUnitSyntax)root.Value, _attributeName, cancellationToken: default); //TODO: we should thread the CT through to here
 
                     // don't bother checking for modification at this point, we'll handle that when we combine them together
-                    _nodesPerTree.AddEntry(matchingNodes, EntryState.Added, TimeSpan.Zero, default, state);
+                    _nodesPerTree.AddEntry(matchingNodes, EntryState.Added, TimeSpan.Zero, _stepInfo, state);
                 }
             }
 
             public void SaveStateAndFree(StateTableStore.Builder tableStoreBuilder)
             {
+                tableStoreBuilder.SetTable(_aliasKey, _aliasesPerTree);
+
                 var nodesPerTree = _nodesPerTree.ToImmutableAndFree();
+                tableStoreBuilder.SetTable(_nodesKey, nodesPerTree);
 
                 // if all the trees came back cached, there is nothing to do
                 if (nodesPerTree.IsCached)
@@ -91,7 +100,7 @@ internal static partial class SyntaxValueProviderExtensions
                 }
 
                 // collect all the nodes
-                ArrayBuilder<SyntaxNode> allNodesBuilder = ArrayBuilder<SyntaxNode>.GetInstance();
+                ArrayBuilder<T> allNodesBuilder = ArrayBuilder<T>.GetInstance();
                 foreach (var entry in nodesPerTree)
                 {
                     if (entry.State != EntryState.Removed)
@@ -102,17 +111,17 @@ internal static partial class SyntaxValueProviderExtensions
                 var allNodes = allNodesBuilder.ToImmutableAndFree();
 
                 // now combine all the nodes into a single table
-                var stateTable = _previousTable.ToBuilder(stepName: null, false); //TODO: tracking
-                if (!stateTable.TryModifyEntries(allNodes, EqualityComparer<SyntaxNode>.Default, TimeSpan.Zero, default, EntryState.Modified))
+                var stateTable = _previousTable.ToBuilder(stepName: _name, nodesPerTree.HasTrackedSteps);
+                if (!stateTable.TryModifyEntries(allNodes, EqualityComparer<SyntaxNode>.Default, TimeSpan.Zero, _stepInfo, EntryState.Modified))
                 {
-                    stateTable.AddEntries(allNodes, EntryState.Added, TimeSpan.Zero, default, EntryState.Modified);
+                    stateTable.AddEntries(allNodes, EntryState.Added, TimeSpan.Zero, _stepInfo, EntryState.Modified);
                 }
                 tableStoreBuilder.SetTable(_key, stateTable.ToImmutableAndFree());
             }
 
-            private static NodeStateTable<GlobalAliases> BuildGlobalAliasesPerTree(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object aliasKey)
+            private NodeStateTable<GlobalAliases> BuildGlobalAliasesPerTree(StateTableStore tableStore, NodeStateTable<SyntaxTree> syntaxTreeTable, object aliasKey)
             {
-                var builder = tableStore.GetStateTableOrEmpty<GlobalAliases>(aliasKey).ToBuilder(stepName: null, false);
+                var builder = tableStore.GetStateTableOrEmpty<GlobalAliases>(aliasKey).ToBuilder(stepName: null, _nodesPerTree.TrackIncrementalSteps);
 
                 // we have to iterate the trees before we do the regular walk in order to build up the global aliases
                 // this will be bad for cache locality the first time we do it, but subsequent updates will only 
@@ -123,14 +132,14 @@ internal static partial class SyntaxValueProviderExtensions
                     {
                         builder.TryRemoveEntries(TimeSpan.Zero, default);
                     }
-                    else if (entry.State != EntryState.Cached || !builder.TryUseCachedEntries(TimeSpan.Zero, default))
+                    else if (entry.State != EntryState.Cached || !builder.TryUseCachedEntries(TimeSpan.Zero, _stepInfo))
                     {
                         // get the global aliases 
                         var aliases = GetGlobalAliasesInCompilationUnit(entry.Item.GetCompilationUnitRoot());
 
-                        if (entry.State == EntryState.Added || builder.TryModifyEntry(aliases, EqualityComparer<GlobalAliases>.Default, TimeSpan.Zero, default, entry.State))
+                        if (entry.State == EntryState.Added || builder.TryModifyEntry(aliases, EqualityComparer<GlobalAliases>.Default, TimeSpan.Zero, _stepInfo, entry.State))
                         {
-                            builder.AddEntry(aliases, EntryState.Added, TimeSpan.Zero, default, entry.State);
+                            builder.AddEntry(aliases, EntryState.Added, TimeSpan.Zero, _stepInfo, entry.State);
                         }
                     }
                 }
@@ -214,7 +223,7 @@ internal static partial class SyntaxValueProviderExtensions
 
 
     public static IncrementalValuesProvider<T> CreateSyntaxProviderForAttribute2<T>(this SyntaxValueProvider provider, string attributeName)
-    where T : SyntaxNode
+        where T : SyntaxNode
     {
         return new IncrementalValuesProvider<T>(new SyntaxInputNode<T>(new CSharpAttributeSyntaxSelectionStrategy<T>(attributeName), provider.RegisterOutputAndDeferredInput));
     }
