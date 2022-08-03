@@ -38,7 +38,8 @@ namespace Microsoft.CodeAnalysis
         {
             if (generators.GroupBy(s => s.GetGeneratorType()).Count() != generators.Length)
             {
-                var types = generators.Select(s => s.GetGeneratorType().AssemblyQualifiedName).Join("\r\n");
+                var types = generators.Select(s => s.GetGeneratorType().AssemblyQualifiedName + " " + s.GetGeneratorType().Assembly.Location).Join("\r\n");
+                Environment.FailFast("Duplicate generators: " + types);
                 Debug.Fail(types);
             }
 
