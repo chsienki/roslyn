@@ -1550,11 +1550,15 @@ class C { }
 
             var generator = new IncrementalGeneratorWrapper(new PipelineCallbackGenerator(ctx =>
             {
+                var identity = ctx.CompilationProvider.Select((c, ct) => c).WithTrackingName("IdentityTransform");
                 ctx.RegisterSourceOutput(ctx.CompilationProvider.Select((c, ct) => c).WithTrackingName("IdentityTransform"), (spc, c) => { });
             }));
 
             // run the generator once, and check it was passed the compilation
-            GeneratorDriver driver = CSharpGeneratorDriver.Create(new ISourceGenerator[] { generator }, parseOptions: parseOptions, driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new ISourceGenerator[] { generator },
+                                                                  parseOptions: parseOptions,
+                                                                  driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None,
+                                                                                                            trackIncrementalGeneratorSteps: true));
             driver = driver.RunGenerators(compilation);
             var runResult = driver.GetRunResult().Results[0];
 
