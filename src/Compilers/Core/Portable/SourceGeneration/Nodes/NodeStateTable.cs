@@ -111,7 +111,7 @@ namespace Microsoft.CodeAnalysis
             if (IsCached)
                 return this;
 
-            var nonRemovedCount = CanBeCompacted ? _states.Count(static e => !e.IsRemoved) : _states.Length;
+            var nonRemovedCount = _states.Count(static e => !e.IsRemoved);
 
             var compacted = ArrayBuilder<TableEntry>.GetInstance(nonRemovedCount);
             foreach (var entry in _states)
@@ -119,10 +119,6 @@ namespace Microsoft.CodeAnalysis
                 if (!entry.IsRemoved)
                 {
                     compacted.Add(entry.AsCached());
-                }
-                else if (!CanBeCompacted)
-                {
-                    compacted.Add(entry);
                 }
             }
 
@@ -481,6 +477,7 @@ namespace Microsoft.CodeAnalysis
             private static readonly ImmutableArray<EntryState> s_allCachedEntries = ImmutableArray.Create(EntryState.Cached);
             private static readonly ImmutableArray<EntryState> s_allModifiedEntries = ImmutableArray.Create(EntryState.Modified);
             private static readonly ImmutableArray<EntryState> s_allRemovedEntries = ImmutableArray.Create(EntryState.Removed);
+            private static readonly ImmutableArray<EntryState> s_allRemovedDueToInputRemoval = ImmutableArray.Create(EntryState.Removed);
 
             private readonly OneOrMany<T> _items;
 
@@ -521,7 +518,7 @@ namespace Microsoft.CodeAnalysis
 
             public bool IsCached => this._states == s_allCachedEntries || this._states.All(s => s == EntryState.Cached);
 
-            public bool IsRemoved => this._states == s_allRemovedEntries || this._states.All(s => s == EntryState.Removed);
+            public bool IsRemoved => this._states == s_allRemovedDueToInputRemoval;
 
             public int Count => _items.Count;
 
@@ -531,9 +528,22 @@ namespace Microsoft.CodeAnalysis
 
             public OneOrMany<T> Items => _items;
 
-            public TableEntry AsCached() => new(_items, s_allCachedEntries);
+            public TableEntry AsCached()
+            {
+                //TODO: we should cache if it contains any removed instances or not, and short circuit when not
 
-            public TableEntry AsRemoved() => new(_items, s_allRemovedEntries);
+                var itemBuilder = ArrayBuilder<T>.GetInstance();
+                for (int i = 0; i < this.Count; i++)
+                {
+                    if (this.GetState(i) != EntryState.Removed)
+                    {
+                        itemBuilder.Add(this.GetItem(i));
+                    }
+                }
+                return new TableEntry(OneOrMany.Create(itemBuilder.ToImmutableArray()), s_allCachedEntries);
+            }
+
+            public TableEntry AsRemoved() => new(_items, s_allRemovedDueToInputRemoval);
 
             private static ImmutableArray<EntryState> GetSingleArray(EntryState state) => state switch
             {
