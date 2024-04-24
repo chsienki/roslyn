@@ -36,29 +36,27 @@ namespace Microsoft.CodeAnalysis
 
     internal partial class AnalyzerAssemblyLoader
     {
-        private readonly AssemblyLoadContext _compilerLoadContext;
         private readonly Dictionary<string, DirectoryLoadContext> _loadContextByDirectory = new Dictionary<string, DirectoryLoadContext>(StringComparer.Ordinal);
         private readonly AnalyzerLoadOption _loadOption;
 
-        internal AssemblyLoadContext CompilerLoadContext => _compilerLoadContext;
         internal AnalyzerLoadOption AnalyzerLoadOption => _loadOption;
 
         internal AnalyzerAssemblyLoader(ImmutableArray<IAnalyzerAssemblyResolver> externalResolvers)
-            : this(null, AnalyzerLoadOption.LoadFromDisk, externalResolvers)
+            : this(AnalyzerLoadOption.LoadFromDisk, externalResolvers)
         {
         }
 
-        internal AnalyzerAssemblyLoader(AssemblyLoadContext? compilerLoadContext, AnalyzerLoadOption loadOption, ImmutableArray<IAnalyzerAssemblyResolver> externalResolvers)
+        internal AnalyzerAssemblyLoader(AnalyzerLoadOption loadOption, ImmutableArray<IAnalyzerAssemblyResolver> externalResolvers)
         {
             _loadOption = loadOption;
-            _compilerLoadContext = compilerLoadContext ?? AssemblyLoadContext.GetLoadContext(typeof(AnalyzerAssemblyLoader).GetTypeInfo().Assembly)!;
             _externalResolvers = externalResolvers;
         }
 
         public bool IsHostAssembly(Assembly assembly)
         {
             var alc = AssemblyLoadContext.GetLoadContext(assembly);
-            return alc == _compilerLoadContext || alc == AssemblyLoadContext.Default;
+            // PROTOTYPE: fix this
+            return /*alc == _compilerLoadContext ||*/ alc == AssemblyLoadContext.Default;
         }
 
         private partial Assembly Load(AssemblyName assemblyName, string assemblyOriginalPath)
@@ -70,7 +68,7 @@ namespace Microsoft.CodeAnalysis
             {
                 if (!_loadContextByDirectory.TryGetValue(fullDirectoryPath, out loadContext))
                 {
-                    loadContext = new DirectoryLoadContext(fullDirectoryPath, this, _compilerLoadContext);
+                    loadContext = new DirectoryLoadContext(fullDirectoryPath, this);
                     _loadContextByDirectory[fullDirectoryPath] = loadContext;
                 }
             }
@@ -108,14 +106,12 @@ namespace Microsoft.CodeAnalysis
         {
             internal string Directory { get; }
             private readonly AnalyzerAssemblyLoader _loader;
-            private readonly AssemblyLoadContext _compilerLoadContext;
 
-            public DirectoryLoadContext(string directory, AnalyzerAssemblyLoader loader, AssemblyLoadContext compilerLoadContext)
+            public DirectoryLoadContext(string directory, AnalyzerAssemblyLoader loader)
                 : base(isCollectible: true)
             {
                 Directory = directory;
                 _loader = loader;
-                _compilerLoadContext = compilerLoadContext;
             }
 
             protected override Assembly? Load(AssemblyName assemblyName)
@@ -123,19 +119,6 @@ namespace Microsoft.CodeAnalysis
                 if (_loader.ResolveAssemblyExternally(assemblyName) is { } externallyResolvedAssembly)
                 {
                     return externallyResolvedAssembly;
-                }
-
-                try
-                {
-                    if (_compilerLoadContext.LoadFromAssemblyName(assemblyName) is { } compilerAssembly)
-                    {
-                        return compilerAssembly;
-                    }
-                }
-                catch
-                {
-                    // Expected to happen when the assembly cannot be resolved in the compiler / host
-                    // AssemblyLoadContext.
                 }
 
                 // Prefer registered dependencies in the same directory first.

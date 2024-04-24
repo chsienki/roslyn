@@ -28,8 +28,8 @@ namespace Microsoft.CodeAnalysis
 
 #if NETCOREAPP
 
-        internal DefaultAnalyzerAssemblyLoader(System.Runtime.Loader.AssemblyLoadContext? compilerLoadContext = null, AnalyzerLoadOption loadOption = AnalyzerLoadOption.LoadFromDisk, ImmutableArray<IAnalyzerAssemblyResolver>? externalResolvers = null)
-            : base(compilerLoadContext, loadOption, externalResolvers ?? [])
+        internal DefaultAnalyzerAssemblyLoader(AnalyzerLoadOption loadOption = AnalyzerLoadOption.LoadFromDisk, ImmutableArray<IAnalyzerAssemblyResolver>? externalResolvers = null)
+            : base(loadOption, externalResolvers ?? [])
         {
         }
 

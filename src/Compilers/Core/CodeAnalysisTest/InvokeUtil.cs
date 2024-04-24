@@ -45,12 +45,14 @@ namespace Microsoft.CodeAnalysis.UnitTests
             var defaultContextCount = AssemblyLoadContext.Default.Assemblies.Count();
             var compilerContextCount = compilerContext.Assemblies.Count();
 
+            ImmutableArray<IAnalyzerAssemblyResolver> resolvers = [.. externalResolvers, new CompilerAnalyzerAssemblyResolver(compilerContext)];
+
             using var tempRoot = new TempRoot();
             AnalyzerAssemblyLoader loader = kind switch
             {
-                AnalyzerTestKind.LoadDirect => new DefaultAnalyzerAssemblyLoader(compilerContext, AnalyzerLoadOption.LoadFromDisk, externalResolvers.ToImmutableArray()),
-                AnalyzerTestKind.LoadStream => new DefaultAnalyzerAssemblyLoader(compilerContext, AnalyzerLoadOption.LoadFromStream, externalResolvers.ToImmutableArray()),
-                AnalyzerTestKind.ShadowLoad => new ShadowCopyAnalyzerAssemblyLoader(compilerContext, tempRoot.CreateDirectory().Path, externalResolvers.ToImmutableArray()),
+                AnalyzerTestKind.LoadDirect => new DefaultAnalyzerAssemblyLoader(AnalyzerLoadOption.LoadFromDisk, resolvers),
+                AnalyzerTestKind.LoadStream => new DefaultAnalyzerAssemblyLoader(AnalyzerLoadOption.LoadFromStream, resolvers),
+                AnalyzerTestKind.ShadowLoad => new ShadowCopyAnalyzerAssemblyLoader(tempRoot.CreateDirectory().Path, resolvers),
                 _ => throw ExceptionUtilities.Unreachable()
             };
 
