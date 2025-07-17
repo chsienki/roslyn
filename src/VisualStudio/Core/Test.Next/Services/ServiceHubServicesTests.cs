@@ -1480,6 +1480,65 @@ public sealed partial class ServiceHubServicesTests
         }
     }
 
+    [Theory, CombinatorialData]
+    internal async Task TestSourceGenerationExecution_RazorGeneratorAlwaysRuns_OtherGeneratorsRespectPreference(SourceGeneratorExecutionPreference executionPreference)
+    {
+
+        using var workspace = CreateWorkspace([typeof(TestWorkspaceConfigurationService)]);
+
+        var globalOptionService = workspace.ExportProvider.GetExportedValue<IGlobalOptionService>();
+        globalOptionService.SetGlobalOption(WorkspaceConfigurationOptionsStorage.SourceGeneratorExecution, executionPreference);
+
+        var callCount = 0;
+        var generator1 = new CallbackGenerator(() => ("hintName.cs", "// callCount: " + callCount++));
+        var generator2 = new Microsoft.NET.Sdk.Razor.SourceGenerators.RazorSourceGenerator();
+
+        var projectId = ProjectId.CreateNewId();
+        var project = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(projectId, VersionStamp.Default, name: "Test", assemblyName: "Test", language: LanguageNames.CSharp))
+            .GetRequiredProject(projectId)
+            .WithCompilationOutputInfo(new CompilationOutputInfo(
+                assemblyPath: Path.Combine(TempRoot.Root, "Test.dll"),
+                generatedFilesOutputDirectory: null))
+            .AddAnalyzerReference(new TestGeneratorReference(generator1))
+            .AddAnalyzerReference(new TestGeneratorReference(generator2));
+        var tempDoc = project.AddDocument("X.cs", SourceText.From("// "));
+
+        Assert.True(workspace.SetCurrentSolution(_ => tempDoc.Project.Solution, WorkspaceChangeKind.SolutionChanged));
+        project = workspace.CurrentSolution.Projects.Single();
+        var documents = await project.GetSourceGeneratedDocumentsAsync();
+
+        var callBackDocument = documents.Single(d => d.Identity.Generator.TypeName == "Roslyn.Test.Utilities.TestGenerators.CallbackGenerator");
+        Assert.Equal("// callCount: 0", (await callBackDocument.GetTextAsync()).ToString());
+
+        var razorDocument = documents.Single(d => d.Identity.Generator.TypeName == "Microsoft.NET.Sdk.Razor.SourceGenerators.RazorSourceGenerator");
+        Assert.Equal("// callCount: 0", (await razorDocument.GetTextAsync()).ToString());
+        await WaitForSourceGeneratorsAsync(workspace);
+
+        // Now, make a simple edit to the main document.
+        Contract.ThrowIfFalse(workspace.TryApplyChanges(workspace.CurrentSolution.WithDocumentText(tempDoc.Id, SourceText.From("// new text"))));
+
+        await WaitForSourceGeneratorsAsync(workspace);
+
+        project = workspace.CurrentSolution.Projects.Single();
+        documents = await project.GetSourceGeneratedDocumentsAsync();
+
+        callBackDocument = documents.Single(d => d.Identity.Generator.TypeName == "Roslyn.Test.Utilities.TestGenerators.CallbackGenerator");
+        razorDocument = documents.Single(d => d.Identity.Generator.TypeName == "Microsoft.NET.Sdk.Razor.SourceGenerators.RazorSourceGenerator");
+
+        if (executionPreference == SourceGeneratorExecutionPreference.Automatic)
+        {
+            Assert.Equal("// callCount: 1", (await callBackDocument.GetTextAsync()).ToString());
+            Assert.Equal("// callCount: 1", (await razorDocument.GetTextAsync()).ToString());
+
+        }
+        else
+        {
+            Assert.Equal("// callCount: 0", (await callBackDocument.GetTextAsync()).ToString());
+            Assert.Equal("// callCount: 1", (await razorDocument.GetTextAsync()).ToString());
+        }
+    }
+
     private static async Task<Solution> VerifyIncrementalUpdatesAsync(
         TestWorkspace localWorkspace,
         Workspace remoteWorkspace,

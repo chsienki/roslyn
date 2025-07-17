@@ -1228,15 +1228,35 @@ internal sealed partial class SolutionCompilationState
     /// Returns the generated document states for source generated documents.
     /// </summary>
     public ValueTask<TextDocumentStates<SourceGeneratedDocumentState>> GetSourceGeneratedDocumentStatesAsync(ProjectState project, CancellationToken cancellationToken)
-        => GetSourceGeneratedDocumentStatesAsync(project, withFrozenSourceGeneratedDocuments: true, cancellationToken);
+    {
+        return GetSourceGeneratedDocumentStatesAsync(project, withFrozenSourceGeneratedDocuments: true, requiredDocumentsOnly: false, cancellationToken);
+    }
 
     /// <inheritdoc cref="GetSourceGeneratedDocumentStatesAsync(ProjectState, CancellationToken)"/>
     public ValueTask<TextDocumentStates<SourceGeneratedDocumentState>> GetSourceGeneratedDocumentStatesAsync(
-        ProjectState project, bool withFrozenSourceGeneratedDocuments, CancellationToken cancellationToken)
+        ProjectState project, bool withFrozenSourceGeneratedDocuments, bool requiredDocumentsOnly, CancellationToken cancellationToken)
     {
         return project.SupportsCompilation
-            ? GetCompilationTracker(project.Id).GetSourceGeneratedDocumentStatesAsync(this, withFrozenSourceGeneratedDocuments, cancellationToken)
+            ? GetRequiredDocumentsTracker().GetSourceGeneratedDocumentStatesAsync(this, withFrozenSourceGeneratedDocuments, requiredDocumentsOnly, cancellationToken)
             : new(TextDocumentStates<SourceGeneratedDocumentState>.Empty);
+
+        ICompilationTracker GetRequiredDocumentsTracker()
+        {
+            var tracker = GetCompilationTracker(project.Id);
+
+            bool hasRun = tracker.GeneratorDriver is not null;
+
+            if (requiredDocumentsOnly)
+            {
+                tracker = tracker.WithDoNotCreateCreationPolicy();
+            }
+            return tracker;
+
+            //return tracker;
+            //return requiredDocumentsOnly
+            //    ? tracker.WithDoNotCreateCreationPolicy()
+            //    : tracker.WithCreateCreationPolicy(forceRegeneration: false);
+        }
     }
 
     public ValueTask<ImmutableArray<Diagnostic>> GetSourceGeneratorDiagnosticsAsync(

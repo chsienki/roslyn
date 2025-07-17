@@ -119,7 +119,7 @@ internal sealed partial class SolutionCompilationState
             // level of compilation tracker wrapping.  So pass along `withFrozenSourceGeneratedDocuments: true` to get a
             // full view of that.
             var underlyingSourceGeneratedDocuments = await UnderlyingTracker.GetSourceGeneratedDocumentStatesAsync(
-                compilationState, withFrozenSourceGeneratedDocuments: true, cancellationToken).ConfigureAwait(false);
+                compilationState, withFrozenSourceGeneratedDocuments: true, requiredDocumentsOnly: true, cancellationToken).ConfigureAwait(false);
             var newCompilation = await UnderlyingTracker.GetCompilationAsync(compilationState, cancellationToken).ConfigureAwait(false);
 
             foreach (var (id, replacementState) in _replacementDocumentStates.States)
@@ -157,10 +157,10 @@ internal sealed partial class SolutionCompilationState
             => UnderlyingTracker.GetDependentSemanticVersionAsync(compilationState, cancellationToken);
 
         public async ValueTask<TextDocumentStates<SourceGeneratedDocumentState>> GetSourceGeneratedDocumentStatesAsync(
-            SolutionCompilationState compilationState, bool withFrozenSourceGeneratedDocuments, CancellationToken cancellationToken)
+            SolutionCompilationState compilationState, bool withFrozenSourceGeneratedDocuments, bool requiredDocumentsOnly, CancellationToken cancellationToken)
         {
             var newStates = await UnderlyingTracker.GetSourceGeneratedDocumentStatesAsync(
-                compilationState, withFrozenSourceGeneratedDocuments, cancellationToken).ConfigureAwait(false);
+                compilationState, withFrozenSourceGeneratedDocuments, requiredDocumentsOnly, cancellationToken).ConfigureAwait(false);
 
             // Only if the caller *wants* frozen source generated documents, then we will overlay the real underlying
             // generated docs with the frozen ones we're pointing at.

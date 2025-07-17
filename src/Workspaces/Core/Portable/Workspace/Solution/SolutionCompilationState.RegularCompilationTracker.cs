@@ -850,15 +850,19 @@ internal sealed partial class SolutionCompilationState
         }
 
         public async ValueTask<TextDocumentStates<SourceGeneratedDocumentState>> GetSourceGeneratedDocumentStatesAsync(
-            SolutionCompilationState compilationState, bool withFrozenSourceGeneratedDocuments, CancellationToken cancellationToken)
+            SolutionCompilationState compilationState, bool withFrozenSourceGeneratedDocuments, bool requiredDocumentsOnly, CancellationToken cancellationToken)
         {
             // Note: withFrozenSourceGeneratedDocuments has no impact on is.  We're always returning real generated
             // docs, not frozen docs.  Frozen docs are only involved with a
             // WithFrozenSourceGeneratedDocumentsCompilationTracker
 
             // If we don't have any generators, then we know we have no generated files, so we can skip the computation entirely.
-            if (!await compilationState.HasSourceGeneratorsAsync(this.ProjectState.Id, cancellationToken).ConfigureAwait(false))
+         if (!await compilationState.HasSourceGeneratorsAsync(this.ProjectState.Id, cancellationToken).ConfigureAwait(false))
                 return TextDocumentStates<SourceGeneratedDocumentState>.Empty;
+
+            // if the caller has requested only the required documents, we update the creation policy to only generate them
+            //var state = ReadState();
+            //state.
 
             var finalState = await GetOrBuildFinalStateAsync(
                 compilationState, cancellationToken: cancellationToken).ConfigureAwait(false);

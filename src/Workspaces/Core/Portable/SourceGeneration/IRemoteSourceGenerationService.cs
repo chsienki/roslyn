@@ -32,7 +32,7 @@ internal interface IRemoteSourceGenerationService
     /// included in the result, or if only the most underlying generated documents (produced by the real compiler <see
     /// cref="GeneratorDriver"/> should be included.</param>
     ValueTask<ImmutableArray<SourceGeneratedDocumentInfo>> GetSourceGeneratedDocumentInfoAsync(
-        Checksum solutionChecksum, ProjectId projectId, bool withFrozenSourceGeneratedDocuments, CancellationToken cancellationToken);
+        Checksum solutionChecksum, ProjectId projectId, bool withFrozenSourceGeneratedDocuments, bool requiredDocumentsOnly, CancellationToken cancellationToken);
 
     /// <summary>
     /// Given a particular set of generated document ids, returns the fully generated content for those documents.
@@ -43,7 +43,7 @@ internal interface IRemoteSourceGenerationService
     /// included in the result, or if only the most underlying generated documents (produced by the real compiler <see
     /// cref="GeneratorDriver"/> should be included.</param>
     ValueTask<ImmutableArray<string>> GetContentsAsync(
-        Checksum solutionChecksum, ProjectId projectId, ImmutableArray<DocumentId> documentIds, bool withFrozenSourceGeneratedDocuments, CancellationToken cancellationToken);
+        Checksum solutionChecksum, ProjectId projectId, ImmutableArray<DocumentId> documentIds, bool withFrozenSourceGeneratedDocuments, bool requiredDocumentsOnly, CancellationToken cancellationToken);
 
     /// <summary>
     /// Whether or not the specified analyzer references have source generators or not.

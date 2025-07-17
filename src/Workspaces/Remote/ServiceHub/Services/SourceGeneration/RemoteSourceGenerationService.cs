@@ -30,13 +30,13 @@ internal sealed partial class RemoteSourceGenerationService(in BrokeredServiceBa
     }
 
     public ValueTask<ImmutableArray<SourceGeneratedDocumentInfo>> GetSourceGeneratedDocumentInfoAsync(
-        Checksum solutionChecksum, ProjectId projectId, bool withFrozenSourceGeneratedDocuments, CancellationToken cancellationToken)
+        Checksum solutionChecksum, ProjectId projectId, bool withFrozenSourceGeneratedDocuments, bool requiredDocumentsOnly, CancellationToken cancellationToken)
     {
         return RunServiceAsync(solutionChecksum, async solution =>
         {
             var project = solution.GetRequiredProject(projectId);
             var documentStates = await solution.CompilationState.GetSourceGeneratedDocumentStatesAsync(
-                project.State, withFrozenSourceGeneratedDocuments, cancellationToken).ConfigureAwait(false);
+                project.State, withFrozenSourceGeneratedDocuments, requiredDocumentsOnly, cancellationToken).ConfigureAwait(false);
 
             var result = new FixedSizeArrayBuilder<SourceGeneratedDocumentInfo>(documentStates.States.Count);
             foreach (var (id, state) in documentStates.States)
@@ -50,13 +50,13 @@ internal sealed partial class RemoteSourceGenerationService(in BrokeredServiceBa
     }
 
     public ValueTask<ImmutableArray<string>> GetContentsAsync(
-        Checksum solutionChecksum, ProjectId projectId, ImmutableArray<DocumentId> documentIds, bool withFrozenSourceGeneratedDocuments, CancellationToken cancellationToken)
+        Checksum solutionChecksum, ProjectId projectId, ImmutableArray<DocumentId> documentIds, bool withFrozenSourceGeneratedDocuments, bool requiredDocumentsOnly, CancellationToken cancellationToken)
     {
         return RunServiceAsync(solutionChecksum, async solution =>
         {
             var project = solution.GetRequiredProject(projectId);
             var documentStates = await solution.CompilationState.GetSourceGeneratedDocumentStatesAsync(
-                project.State, withFrozenSourceGeneratedDocuments, cancellationToken).ConfigureAwait(false);
+                project.State, withFrozenSourceGeneratedDocuments, requiredDocumentsOnly, cancellationToken).ConfigureAwait(false);
 
             var result = new FixedSizeArrayBuilder<string>(documentIds.Length);
             foreach (var id in documentIds)
