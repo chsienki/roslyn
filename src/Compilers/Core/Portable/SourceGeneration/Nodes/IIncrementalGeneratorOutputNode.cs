@@ -55,5 +55,7 @@ namespace Microsoft.CodeAnalysis
         /// or <see cref="IncrementalGeneratorInitializationContext.RegisterHostOutput{TSource}(IncrementalValuesProvider{TSource}, Action{HostOutputProductionContext, TSource})"/>
         /// </summary>
         Host = 0b1000,
+
+        PreCompilation = 0b10000
     }
 }

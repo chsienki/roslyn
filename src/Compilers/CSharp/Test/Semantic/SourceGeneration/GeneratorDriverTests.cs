@@ -4770,5 +4770,55 @@ class C { }
         }
 
 #pragma warning restore RSEXPERIMENTAL004 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-    }
+
+        [Fact]
+        public void IncrementalGenerator_Can_Add_PreCompilationSource()
+        {
+            var source = @"
+class C { }
+";
+            var parseOptions = TestOptions.RegularPreview;
+            Compilation compilation = CreateCompilation(source, options: TestOptions.DebugDllThrowing, parseOptions: parseOptions);
+            compilation.VerifyDiagnostics();
+
+            Assert.Single(compilation.SyntaxTrees);
+
+            var generator = new IncrementalGeneratorWrapper(new PipelineCallbackGenerator((ic) => ic.RegisterPreCompilationOutput(ic.ParseOptionsProvider, (c, t) => c.AddSource("a", "class D {}"))));
+
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new ISourceGenerator[] { generator }, parseOptions: parseOptions);
+            driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+            Assert.Equal(2, outputCompilation.SyntaxTrees.Count());
+            Assert.Empty(diagnostics);
+        }
+
+        [Fact]
+        public void IncrementalGenerator_Can_Add_PreCompilationSource_And_SeeItInCompilation()
+        {
+            var source = @"
+class C { }
+";
+            var parseOptions = TestOptions.RegularPreview;
+            Compilation compilation = CreateCompilation(source, options: TestOptions.DebugDllThrowing, parseOptions: parseOptions);
+            compilation.VerifyDiagnostics();
+
+            Assert.Single(compilation.SyntaxTrees);
+
+            var generator = new IncrementalGeneratorWrapper(new PipelineCallbackGenerator((ic) =>
+            {
+                ic.RegisterPreCompilationOutput(ic.ParseOptionsProvider, (c, t) => c.AddSource("a", "class D {}"));
+
+                ic.RegisterSourceOutput(ic.CompilationProvider, (ctx, c) =>
+                {
+                    Assert.Equal(2, c.SyntaxTrees.Count());
+                });
+            }));
+
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new ISourceGenerator[] { generator }, parseOptions: parseOptions);
+            driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+            Assert.Equal(2, outputCompilation.SyntaxTrees.Count());
+            Assert.Empty(diagnostics);
+        }
+}
 }

@@ -163,11 +163,17 @@ namespace Microsoft.CodeAnalysis
         [Experimental(RoslynExperiments.GeneratorHostOutputs, UrlFormat = RoslynExperiments.GeneratorHostOutputs_Url)]
         public void RegisterHostOutput<TSource>(IncrementalValuesProvider<TSource> source, Action<HostOutputProductionContext, TSource> action) => source.Node.RegisterOutput(new HostOutputNode<TSource>(source.Node, action.WrapUserAction(CatchAnalyzerExceptions)));
 
+        public void RegisterPreCompilationOutput<TSource>(IncrementalValueProvider<TSource> source, Action<SourceProductionContext, TSource> action) => RegisterSourceOutput(source.Node, action, IncrementalGeneratorOutputKind.PreCompilation, _sourceExtension);
+
+        public void RegisterPreCompilationOutput<TSource>(IncrementalValuesProvider<TSource> source, Action<SourceProductionContext, TSource> action) => RegisterSourceOutput(source.Node, action, IncrementalGeneratorOutputKind.PreCompilation, _sourceExtension);
+
+
         private void RegisterOutput(IIncrementalGeneratorOutputNode outputNode)
         {
             if (!_outputNodes.Contains(outputNode))
             {
                 _outputNodes.Add(outputNode);
+
             }
         }
 

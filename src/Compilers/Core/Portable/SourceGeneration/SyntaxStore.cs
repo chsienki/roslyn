@@ -31,7 +31,7 @@ namespace Microsoft.CodeAnalysis
             private readonly ImmutableDictionary<SyntaxInputNode, Exception>.Builder _syntaxExceptions = ImmutableDictionary.CreateBuilder<SyntaxInputNode, Exception>();
             private readonly ImmutableDictionary<SyntaxInputNode, TimeSpan>.Builder _syntaxTimes = ImmutableDictionary.CreateBuilder<SyntaxInputNode, TimeSpan>();
             private readonly StateTableStore.Builder _tableBuilder = new StateTableStore.Builder();
-            private readonly Compilation _compilation;
+            private Compilation _compilation;
             private readonly ImmutableArray<SyntaxInputNode> _syntaxInputNodes;
             private readonly bool _enableTracking;
             private readonly SyntaxStore _previous;
@@ -45,6 +45,8 @@ namespace Microsoft.CodeAnalysis
                 _previous = previousStore;
                 _cancellationToken = cancellationToken;
             }
+
+            public void UpdateCompilation(Compilation c) => _compilation = c;
 
             public IStateTable GetSyntaxInputTable(SyntaxInputNode syntaxInputNode, NodeStateTable<SyntaxTree> syntaxTreeTable)
             {

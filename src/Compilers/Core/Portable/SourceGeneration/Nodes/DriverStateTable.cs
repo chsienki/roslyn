@@ -32,7 +32,7 @@ namespace Microsoft.CodeAnalysis
 
             internal GeneratorDriverState DriverState { get; }
 
-            public Compilation Compilation { get; }
+            public Compilation Compilation { get; set; }
 
             internal SyntaxStore.Builder SyntaxStore { get; }
 

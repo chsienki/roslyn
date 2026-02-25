@@ -74,6 +74,7 @@ namespace Microsoft.CodeAnalysis
             foreach (var generatorState in state.GeneratorStates)
             {
                 trees.AddRange(generatorState.PostInitTrees.Select(t => t.Tree));
+                trees.AddRange(generatorState.PreCompilationTrees.Select(t => t.Tree));
                 trees.AddRange(generatorState.GeneratedTrees.Select(t => t.Tree));
             }
             outputCompilation = compilation.AddSyntaxTrees(trees);
@@ -200,6 +201,10 @@ namespace Microsoft.CodeAnalysis
                 {
                     sources.Add(new GeneratedSourceResult(tree.Tree, tree.Text, tree.HintName));
                 }
+                foreach (var tree in generatorState.PreCompilationTrees)
+                {
+                    sources.Add(new GeneratedSourceResult(tree.Tree, tree.Text, tree.HintName));
+                }
                 return sources.ToImmutableAndFree();
             }
         }
@@ -307,8 +312,35 @@ namespace Microsoft.CodeAnalysis
             constantSourcesBuilder.Free();
 
             var syntaxStoreBuilder = _state.SyntaxStore.ToBuilder(compilation, syntaxInputNodes.ToImmutableAndFree(), _state.TrackIncrementalSteps, cancellationToken);
-
             var driverStateBuilder = new DriverStateTable.Builder(compilation, _state, syntaxStoreBuilder, cancellationToken);
+
+
+            var preCompilationSourcesBuilder = ArrayBuilder<SyntaxTree>.GetInstance();
+
+            for (int i = 0; i < state.IncrementalGenerators.Length; i++)
+            {
+                var generatorState = stateBuilder[i];
+                if (shouldSkipGenerator(state.Generators[i]) || generatorState.OutputNodes.Length == 0)
+                {
+                    continue;
+                }
+
+                //TODO: timing etc.
+                var context = UpdateOutputs(generatorState.OutputNodes, IncrementalGeneratorOutputKind.PreCompilation, new GeneratorRunStateTable.Builder(state.TrackIncrementalSteps), cancellationToken, driverStateBuilder);
+                var sources = context.ToImmutableAndFree().sources; //TODO: execution steps
+
+                // TODO: do we support diagnostics?
+                var parsedSources = ParseAdditionalSources(state.Generators[i], sources, cancellationToken);
+                preCompilationSourcesBuilder.AddRange(parsedSources.Select(t => t.Tree));
+                stateBuilder[i] = generatorState.WithPreCompilations(parsedSources);
+            }
+
+            // add the pre-compilation sources to the compilation
+            compilation = compilation.AddSyntaxTrees(preCompilationSourcesBuilder);
+            preCompilationSourcesBuilder.Free();
+            driverStateBuilder.Compilation = compilation;
+            driverStateBuilder.SyntaxStore.UpdateCompilation(compilation);
+
             for (int i = 0; i < state.IncrementalGenerators.Length; i++)
             {
                 var generatorState = stateBuilder[i];

@@ -30,7 +30,7 @@ namespace Microsoft.CodeAnalysis
             _source = source;
             _action = action;
 
-            Debug.Assert(outputKind == IncrementalGeneratorOutputKind.Source || outputKind == IncrementalGeneratorOutputKind.Implementation);
+            Debug.Assert(outputKind == IncrementalGeneratorOutputKind.Source || outputKind == IncrementalGeneratorOutputKind.Implementation || outputKind == IncrementalGeneratorOutputKind.PreCompilation);
             _outputKind = outputKind;
             _sourceExtension = sourceExtension;
         }
