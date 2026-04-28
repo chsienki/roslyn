@@ -47,7 +47,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(3, result.GeneratedSources.Length);
+        // _Imports.razor (no decl), Component1.razor (decl + impl), Component2.razor (decl + impl) = 5
+        Assert.Equal(5, result.GeneratedSources.Length);
         result.VerifyOutputsMatchBaseline();
     }
 
@@ -72,7 +73,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         result.Diagnostics.Verify(
             // _Imports.razor(2,1): error RZ10003: Markup, code and block directives are not valid in component imports.
             Diagnostic("RZ10003").WithLocation(2, 1));
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         result.VerifyOutputsMatchBaseline();
     }
 
@@ -94,7 +95,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         result.VerifyOutputsMatchBaseline();
     }
 
@@ -141,7 +142,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Equal(3, result.GeneratedSources.Length);
+        // Index.cshtml (no decl), Component1.razor (decl + impl), Component2.razor (decl + impl) = 5
+        Assert.Equal(5, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -188,7 +190,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Equal(3, result.GeneratedSources.Length);
+        // Index.cshtml (no decl), Component1.razor (decl + impl), Component2.razor (decl + impl) = 5
+        Assert.Equal(5, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -210,7 +213,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         result.VerifyOutputsMatchBaseline();
     }
 
@@ -246,7 +249,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Equal(4, result.GeneratedSources.Length);
+        // Index.cshtml (no decl) + 3 components (decl + impl each) = 7
+        Assert.Equal(7, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -290,7 +294,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Equal(4, result.GeneratedSources.Length);
+        // Index.cshtml (no decl) + 3 components (decl + impl each) = 7
+        Assert.Equal(7, result.GeneratedSources.Length);
         result.VerifyOutputsMatchBaseline();
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
@@ -322,7 +327,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert.
         Assert.Empty(result.Diagnostics);
-        var source = Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
+        var source = result.ImplGeneratedSources().Single();
         if (langVersion == "7.0")
         {
             // In Razor v7, AddComponentParameter shouldn't be used even if available.
@@ -399,7 +405,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         // Assert. Behaves as if `AddComponentParameter` wasn't available because
         // the source generator only searches for it in references, not the current compilation.
         Assert.Empty(result.Diagnostics);
-        var source = Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
+        var source = result.ImplGeneratedSources().Single();
         Assert.Contains("AddAttribute", source.SourceText.ToString());
         Assert.DoesNotContain("AddComponentParameter", source.SourceText.ToString());
     }
@@ -438,7 +445,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
             // Shared/Component1.razor(3,1): error RZ10001: The type of component 'Component1' cannot be inferred based on the values provided. Consider specifying the type arguments directly using the following attributes: 'T'.
             // <Component1 />
             Diagnostic("RZ10001").WithLocation(3, 1));
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact, WorkItem("https://github.com/dotnet/razor/issues/8545")]
@@ -496,7 +503,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -553,7 +560,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -602,7 +609,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -651,7 +658,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -700,7 +707,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -980,7 +987,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
             Diagnostic("RZ10022").WithLocation(6, 16), // Attribute '@formname' can only be applied to 'form' elements.
             Diagnostic("RZ10012").WithLocation(7, 1),
             Diagnostic("RZ10023").WithLocation(7, 18)); // Attribute '@rendermode' is only valid when used on a component.
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Theory, CombinatorialData, WorkItem("https://github.com/dotnet/aspnetcore/issues/48778")]
@@ -1211,7 +1218,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1257,7 +1264,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1315,7 +1322,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert — should compile without CS0103 for 'context'
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1371,7 +1378,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert — should compile without CS7036
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1479,7 +1486,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1541,7 +1548,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1607,7 +1614,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1646,7 +1653,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1720,7 +1727,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1790,7 +1797,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 
     [Fact]
@@ -1851,6 +1858,6 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
     }
 }
