@@ -49,7 +49,7 @@ public sealed class RazorSourceGeneratorTagHelperTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver, out compilation);
 
         // Assert
-        Assert.Contains("EmailTagHelper", result.GeneratedSources.Single().SourceText.ToString());
+        Assert.Contains("EmailTagHelper", result.ImplGeneratedSources().Single().SourceText.ToString());
         result.VerifyOutputsMatchBaseline();
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
@@ -1028,7 +1028,7 @@ public sealed class RazorSourceGeneratorTagHelperTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver, out compilation);
 
         // Assert
-        Assert.Contains("HtmlTargetElementAttribute(\"vc:test\")", result.GeneratedSources.Single().SourceText.ToString());
+        Assert.Contains("HtmlTargetElementAttribute(\"vc:test\")", result.ImplGeneratedSources().Single().SourceText.ToString());
         result.VerifyOutputsMatchBaseline();
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }

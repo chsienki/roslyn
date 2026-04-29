@@ -454,16 +454,40 @@ internal static class Extensions
             // Only check the impl half of each generated component file -- the decl half is
             // covered by VerifyOutputsMatchBaseline and we don't want every hardcoded
             // expected string in this assembly to need a second copy for the decl.
+            //
+            // Match each expected against an actual by checksum line -- the source generator is
+            // not required to preserve insertion order across multiple .razor files (and with the
+            // decl/impl split, the order can shift).
             var implSources = result.ImplGeneratedSources().ToImmutableArray();
             Assert.Equal(expectedOutput.Length, implSources.Length);
-            for (int i = 0; i < implSources.Length; i++)
+
+            var unmatched = implSources.ToList();
+            foreach (var expected in expectedOutput)
             {
-                var text = TrimChecksum(implSources[i].SourceText.ToString());
-                AssertEx.AssertEqualToleratingWhitespaceDifferences(TrimChecksum(expectedOutput[i]), text);
+                var checksum = ExtractChecksumPath(expected);
+                var match = checksum is null
+                    ? unmatched[0]
+                    : unmatched.FirstOrDefault(s => s.SourceText.ToString().Contains(checksum, StringComparison.OrdinalIgnoreCase));
+                Assert.True(match.SourceText is not null, $"No generated source found matching checksum path '{checksum}'.");
+                unmatched.Remove(match);
+
+                var text = TrimChecksum(match.SourceText.ToString());
+                AssertEx.AssertEqualToleratingWhitespaceDifferences(TrimChecksum(expected), text);
             }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Pulls the file path from a `#pragma checksum "..."` line in the expected text. Returns
+    /// null if no checksum line is present (in which case <see cref="VerifyPageOutput"/> falls
+    /// back to insertion order).
+    /// </summary>
+    private static string? ExtractChecksumPath(string text)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(text, "#pragma\\s+checksum\\s+\"([^\"]+)\"");
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     /// <summary>

@@ -829,7 +829,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var original = project.AdditionalDocuments.Single();
         var originalText = await original.GetTextAsync();
         Assert.Equal(source, originalText.ToString());
-        var generated = result.GeneratedSources.Single();
+        var generated = result.ImplGeneratedSources().Single();
         var generatedText = generated.SourceText;
         var generatedTextString = generatedText.ToString();
         var snippet = "RaiseHere()";
@@ -895,7 +895,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var original = project.AdditionalDocuments.Single();
         var originalText = await original.GetTextAsync();
         Assert.Equal(source, originalText.ToString());
-        var generated = result.GeneratedSources.Single();
+        var generated = result.ImplGeneratedSources().Single();
         var generatedText = generated.SourceText;
         var generatedTextString = generatedText.ToString();
 

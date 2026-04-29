@@ -1197,7 +1197,7 @@ public class SurveyPrompt : ComponentBase
             result.Diagnostics.Verify();
 
             // CSS isolation is enabled.
-            Assert.Contains("<h1 test-css-scope>Hello world</h1>", result.GeneratedSources.Single().SourceText.ToString());
+            Assert.Contains("<h1 test-css-scope>Hello world</h1>", result.ImplGeneratedSources().Single().SourceText.ToString());
 
             // Unset CssScope.
             options = options.Clone();
@@ -1208,7 +1208,7 @@ public class SurveyPrompt : ComponentBase
             result.Diagnostics.Verify();
 
             // CSS isolation is disabled.
-            Assert.Contains("<h1>Hello world</h1>", result.GeneratedSources.Single().SourceText.ToString());
+            Assert.Contains("<h1>Hello world</h1>", result.ImplGeneratedSources().Single().SourceText.ToString());
         }
 
         [Fact]
@@ -2667,12 +2667,6 @@ namespace MyApp
                             __builder.AddMarkupContent(0, "<h1>Hello world</h1>");
                         }
                         #pragma warning restore 1998
-                #nullable restore
-                #line (4,2)-(6,1) "Component.Razor"
-                    public class X {}
-                #line default
-                #line hidden
-                #nullable disable
                     }
                 }
                 #pragma warning restore 1591
@@ -3128,7 +3122,7 @@ namespace MyApp
             var rclDriver = await GetDriverAsync(rclProject);
             var rclRun = RunGenerator(rclCompilation!, ref rclDriver, out var rclOutputCompilation);
             Assert.Empty(rclRun.Diagnostics);
-            Assert.Single(rclRun.GeneratedSources); // LibComponent
+            Assert.Equal(2, rclRun.GeneratedSources.Length); // LibComponent
 
             // Explicitly use a CompilationReference
             var rclReference = rclOutputCompilation.ToMetadataReference();
@@ -3156,7 +3150,7 @@ namespace MyApp
             rclDriver = await GetDriverAsync(rclProject);
             rclRun = RunGenerator(rclCompilation!, ref rclDriver, out rclOutputCompilation);
             Assert.Empty(rclRun.Diagnostics);
-            Assert.Single(rclRun.GeneratedSources); // RenamedComponent
+            Assert.Equal(2, rclRun.GeneratedSources.Length); // RenamedComponent
 
             var rclReference2 = rclOutputCompilation.ToMetadataReference();
 
