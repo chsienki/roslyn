@@ -1876,4 +1876,97 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         result.Diagnostics.Verify();
         Assert.Equal(2, result.GeneratedSources.Length);
     }
+
+    /// <summary>
+    /// Targeted assertion that the source generator splits a component into a
+    /// "decl" file (class declaration + members like `[Parameter]`) and an "impl"
+    /// file (the partial class wrapper containing only `BuildRenderTree`). Both
+    /// halves must declare the class as `partial` so the C# compiler can rejoin
+    /// them. Sonic part 3.
+    /// </summary>
+    [Fact]
+    public async Task DeclImplSplit_ProducesTwoFilesPerComponent()
+    {
+        // Arrange
+        var project = CreateTestProject(new()
+        {
+            ["Shared/Greeter.razor"] = """
+                <h1>Hello, @Name!</h1>
+
+                @code {
+                    [Parameter]
+                    public string Name { get; set; } = "world";
+                }
+                """,
+        });
+        var compilation = await project.GetCompilationAsync();
+        var driver = await GetDriverAsync(project);
+
+        // Act
+        var result = RunGenerator(compilation!, ref driver);
+
+        // Assert
+        result.Diagnostics.Verify();
+
+        Assert.Equal(2, result.GeneratedSources.Length);
+
+        var impl = result.ImplGeneratedSources().Single();
+        var decl = result.DeclGeneratedSources().Single();
+
+        // The impl hint name has no extra suffix; the decl hint name appends ".decl.g.cs".
+        Assert.False(impl.HintName.EndsWith(".decl.g.cs"), $"Impl hint name should not end with .decl.g.cs: {impl.HintName}");
+        Assert.EndsWith(".decl.g.cs", decl.HintName);
+        Assert.Equal(impl.HintName + ".decl.g.cs", decl.HintName);
+
+        var implText = impl.SourceText.ToString();
+        var declText = decl.SourceText.ToString();
+
+        // Both halves declare the same partial class so they merge at compile time.
+        Assert.Contains("public partial class Greeter", implText);
+        Assert.Contains("public partial class Greeter", declText);
+
+        // The render method body lives in the impl half only. The literal markup
+        // "Hello, " from the .razor file appears verbatim in the AddMarkupContent call.
+        Assert.Contains("BuildRenderTree", implText);
+        Assert.DoesNotContain("BuildRenderTree", declText);
+        Assert.Contains("Hello, ", implText);
+
+        // The component's [Parameter] property (declared in @code) lives in the decl
+        // half only. The user's `[Parameter]` attribute syntax flows through
+        // unchanged because @code content is emitted verbatim.
+        Assert.Contains("[Parameter]", declText);
+        Assert.DoesNotContain("[Parameter]", implText);
+        Assert.Contains("public string Name", declText);
+        Assert.DoesNotContain("public string Name", implText);
+    }
+
+    /// <summary>
+    /// Non-component documents (e.g. `.cshtml` Razor pages) still produce a single
+    /// generated file -- the decl/impl split is a component-only optimization.
+    /// Sonic part 3.
+    /// </summary>
+    [Fact]
+    public async Task DeclImplSplit_DoesNotApplyToCshtml()
+    {
+        // Arrange
+        var project = CreateTestProject(new()
+        {
+            ["Pages/Index.cshtml"] = """
+                @page
+                <h1>Hello world</h1>
+                """,
+        });
+        var compilation = await project.GetCompilationAsync();
+        var driver = await GetDriverAsync(project);
+
+        // Act
+        var result = RunGenerator(compilation!, ref driver);
+
+        // Assert
+        result.Diagnostics.Verify();
+
+        var only = Assert.Single(result.GeneratedSources);
+        Assert.False(only.HintName.EndsWith(".decl.g.cs"), $"Cshtml output should not be a decl file: {only.HintName}");
+        Assert.Empty(result.DeclGeneratedSources());
+    }
 }
