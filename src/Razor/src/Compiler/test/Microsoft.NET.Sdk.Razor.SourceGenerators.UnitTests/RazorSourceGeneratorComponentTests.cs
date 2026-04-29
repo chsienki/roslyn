@@ -73,7 +73,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         result.Diagnostics.Verify(
             // _Imports.razor(2,1): error RZ10003: Markup, code and block directives are not valid in component imports.
             Diagnostic("RZ10003").WithLocation(2, 1));
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         result.VerifyOutputsMatchBaseline();
     }
 
@@ -95,7 +95,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         result.VerifyOutputsMatchBaseline();
     }
 
@@ -475,7 +475,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -503,7 +503,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -533,7 +533,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -560,7 +560,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -586,7 +586,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -609,7 +609,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -635,7 +635,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -658,7 +658,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -684,7 +684,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -707,7 +707,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -742,7 +742,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -946,7 +946,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index");
     }
 
@@ -1653,7 +1653,7 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver);
 
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
     }
 
     [Fact]

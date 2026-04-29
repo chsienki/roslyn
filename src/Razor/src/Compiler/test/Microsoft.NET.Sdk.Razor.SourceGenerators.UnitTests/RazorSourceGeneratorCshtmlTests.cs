@@ -73,7 +73,7 @@ public sealed class RazorSourceGeneratorCshtmlTests : RazorSourceGeneratorTestsB
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(1, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
     }
 
@@ -116,7 +116,7 @@ public sealed class RazorSourceGeneratorCshtmlTests : RazorSourceGeneratorTestsB
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(2, result.GeneratedSources.Length);
         var html = await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
 
         // The style attribute should not be rendered at all.
@@ -141,7 +141,7 @@ public sealed class RazorSourceGeneratorCshtmlTests : RazorSourceGeneratorTestsB
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(1, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
     }
 
@@ -165,7 +165,7 @@ public sealed class RazorSourceGeneratorCshtmlTests : RazorSourceGeneratorTestsB
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Single(result.GeneratedSources);
+        Assert.Equal(1, result.GeneratedSources.Length);
         var html = await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
 
         // The img tag helper should rewrite `~/` to `/`.

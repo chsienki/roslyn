@@ -451,10 +451,14 @@ internal static class Extensions
         }
         else
         {
-            Assert.Equal(expectedOutput.Length, result.GeneratedSources.Length);
-            for (int i = 0; i < result.GeneratedSources.Length; i++)
+            // Only check the impl half of each generated component file -- the decl half is
+            // covered by VerifyOutputsMatchBaseline and we don't want every hardcoded
+            // expected string in this assembly to need a second copy for the decl.
+            var implSources = result.ImplGeneratedSources().ToImmutableArray();
+            Assert.Equal(expectedOutput.Length, implSources.Length);
+            for (int i = 0; i < implSources.Length; i++)
             {
-                var text = TrimChecksum(result.GeneratedSources[i].SourceText.ToString());
+                var text = TrimChecksum(implSources[i].SourceText.ToString());
                 AssertEx.AssertEqualToleratingWhitespaceDifferences(TrimChecksum(expectedOutput[i]), text);
             }
         }
@@ -550,14 +554,15 @@ internal static class Extensions
 
     private static string GenerateExpectedPageOutput(GeneratorRunResult result)
     {
+        var implSources = result.ImplGeneratedSources().ToImmutableArray();
         StringBuilder sb = new StringBuilder("Generated Page Output:").AppendLine().AppendLine();
-        for (int i = 0; i < result.GeneratedSources.Length; i++)
+        for (int i = 0; i < implSources.Length; i++)
         {
             if (i > 0)
             {
                 sb.AppendLine(",");
             }
-            sb.Append("@\"").Append(result.GeneratedSources[i].SourceText.ToString().Replace("\"", "\"\"")).Append('"');
+            sb.Append("@\"").Append(implSources[i].SourceText.ToString().Replace("\"", "\"\"")).Append('"');
         }
         return sb.ToString();
     }

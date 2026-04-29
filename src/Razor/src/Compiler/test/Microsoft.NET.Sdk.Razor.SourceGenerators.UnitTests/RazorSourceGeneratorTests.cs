@@ -65,7 +65,7 @@ namespace MyApp.Pages
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(2, result.GeneratedSources.Length);
         }
 
         [Fact, WorkItem("https://github.com/dotnet/razor/issues/8610")]
@@ -100,7 +100,7 @@ namespace MyApp.Pages
 
             // Assert
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
         }
 
         [Fact, WorkItem("https://github.com/dotnet/razor/issues/8610")]
@@ -136,7 +136,7 @@ namespace MyApp.Pages
 
             // Assert
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
         }
 
         [Fact]
@@ -209,7 +209,7 @@ namespace MyApp.Pages
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify all the incremental steps ran as expected for the initial generation
             result.VerifyIncrementalSteps("RazorSourceGeneratorOptions", IncrementalStepRunReason.New);
@@ -292,13 +292,13 @@ namespace MyApp.Pages
 #pragma warning restore 1591");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             result = RunGenerator(compilation!, ref driver)
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify that when nothing changes, all steps are cached/unchanged
             result.VerifyIncrementalSteps("RazorSourceGeneratorOptions", IncrementalStepRunReason.Cached);
@@ -382,13 +382,13 @@ namespace MyApp.Pages
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             result = RunGenerator(compilation!, ref driver)
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify that when nothing changes, all steps are cached
             result.VerifyIncrementalStepsMultiple("ParsedDocuments", IncrementalStepRunReason.Cached, IncrementalStepRunReason.Cached);
@@ -429,7 +429,7 @@ namespace MyApp.Pages
 "));
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify that when Counter markup changes, only Counter steps re-run
             result.VerifyIncrementalStepsMultiple("ParsedDocuments",
@@ -519,13 +519,13 @@ namespace MyApp.Pages
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             result = RunGenerator(compilation!, ref driver)
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             project = project.AddDocument("Person.cs", SourceText.From("""
                 public class Person
@@ -544,7 +544,7 @@ namespace MyApp.Pages
             result.VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify that when a new C# type is added, only TagHelpersFromCompilation re-runs
             result.VerifyIncrementalSteps("TagHelpersFromCompilation", IncrementalStepRunReason.Unchanged); // Re-ran but no new tag helpers
@@ -635,13 +635,13 @@ namespace MyApp.Pages
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             result = RunGenerator(compilation!, ref driver, expectedDiagnostics)
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             project = project.Documents.First().WithText(SourceText.From(@"
 public class Person
@@ -655,7 +655,7 @@ public class Person
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // When a C# type changes, TagHelpersFromCompilation re-runs but the output is unchanged
             // because Person is not a component and doesn't affect tag helpers
@@ -732,14 +732,14 @@ namespace MyApp.Pages
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             result = RunGenerator(compilation!, ref driver)
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             var updatedText = new TestAdditionalText("Pages/Counter.razor", SourceText.From(@"
@@ -807,7 +807,7 @@ __builder.AddContent(3, count
 "));
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify that when Counter adds code block, only Counter steps re-run
             result.VerifyIncrementalStepsMultiple("ParsedDocuments",
@@ -901,14 +901,14 @@ namespace MyApp.Pages
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             result = RunGenerator(compilation!, ref driver)
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             var updatedText = new TestAdditionalText("Pages/Counter.razor", SourceText.From(@"
@@ -979,7 +979,7 @@ __builder.AddContent(3, count
 "));
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify that when Counter adds Parameter, the necessary steps re-run
             result.VerifyIncrementalStepsMultiple("ParsedDocuments",
@@ -1386,7 +1386,7 @@ namespace AspNetCoreGeneratedDocument
 
             // Assert
             Assert.Empty(result.Diagnostics);
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(1, result.GeneratedSources.Length);
         }
 
         [Fact, WorkItem("https://github.com/dotnet/razor/issues/7049")]
@@ -1436,7 +1436,7 @@ namespace AspNetCoreGeneratedDocument
 
             // Assert
             Assert.Empty(result.Diagnostics);
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(1, result.GeneratedSources.Length);
         }
 
         [Fact, WorkItem("https://github.com/dotnet/razor/issues/7049")]
@@ -1475,7 +1475,7 @@ namespace AspNetCoreGeneratedDocument
 
             // Assert
             Assert.Empty(result.Diagnostics);
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(1, result.GeneratedSources.Length);
         }
 
         [Fact]
@@ -2546,7 +2546,7 @@ namespace AspNetCoreGeneratedDocument
 
                 """);
             Assert.Empty(result.Diagnostics);
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(1, result.GeneratedSources.Length);
         }
 
         [Fact, WorkItem("https://github.com/dotnet/razor/issues/7914")]
@@ -2590,7 +2590,7 @@ namespace MyApp
 ");
 
             Assert.Empty(result.Diagnostics);
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(2, result.GeneratedSources.Length);
         }
 
         [Theory, WorkItem("https://github.com/dotnet/razor/issues/7236")]
@@ -2680,7 +2680,7 @@ namespace MyApp
                 """);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(2, result.GeneratedSources.Length);
         }
 
         [Fact, WorkItem("https://github.com/dotnet/razor/issues/8850")]
@@ -2702,7 +2702,7 @@ namespace MyApp
             var result = RunGenerator(compilation!, ref driver);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(3, result.GeneratedSources.Length);
         }
 
         [Theory, CombinatorialData]
@@ -2723,7 +2723,7 @@ namespace MyApp
             result.Diagnostics.Verify(
                 // error RZ3600: Invalid value '{0}' for RazorLangVersion. Valid values include 'Latest', 'Preview', or a valid version in range 1.0 to {1}.
                 Diagnostic("RZ3600").WithArguments(langVersion, RazorLanguageVersion.Preview.ToString()).WithLocation(1, 1));
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(2, result.GeneratedSources.Length);
         }
 
         [Theory, CombinatorialData]
@@ -2745,7 +2745,7 @@ namespace MyApp
             result.Diagnostics.Verify(
                 // error RZ3601: Invalid value '{0}' for RazorWarningLevel. Must be empty or a non-negative integer.
                 Diagnostic("RZ3601").WithArguments(warningLevel).WithLocation(1, 1));
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(2, result.GeneratedSources.Length);
         }
 
         [Theory, CombinatorialData]
@@ -2765,7 +2765,7 @@ namespace MyApp
             var result = RunGenerator(compilation!, ref driver);
 
             result.Diagnostics.Verify();
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(2, result.GeneratedSources.Length);
         }
 
         [Fact]
@@ -2784,7 +2784,7 @@ namespace MyApp
             var result = RunGenerator(compilation!, ref driver);
 
             result.Diagnostics.Verify();
-            Assert.Single(result.GeneratedSources);
+            Assert.Equal(2, result.GeneratedSources.Length);
         }
 
 #pragma warning disable RS1041 // This compiler extension should not be implemented in an assembly with target framework '.NET 8.0'. References to other target frameworks will cause the compiler to behave unpredictably.
@@ -2813,14 +2813,14 @@ namespace MyApp
 
             var result = RunGenerator(compilation!, ref driver);
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             result = RunGenerator(compilation!, ref driver)
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             project = project.RemoveAdditionalDocument(project.AdditionalDocumentIds[1])
                              .AddAdditionalDocument("Counter.razor", SourceText.From("<h1>Counter</h1>", Encoding.UTF8))
@@ -2832,7 +2832,7 @@ namespace MyApp
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
         }
 
@@ -2851,14 +2851,14 @@ namespace MyApp
             var result = RunGenerator(compilation!, ref driver);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             result = RunGenerator(compilation!, ref driver)
                 .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             var reference = (PortableExecutableReference)project.MetadataReferences[^1];
 
@@ -2871,7 +2871,7 @@ namespace MyApp
                 .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // reference causes the compilation to change so we re-run tag helper discovery there
             // but we didn't re-check the actual reference itself
@@ -3045,7 +3045,7 @@ namespace MyApp
 
             var result = RunGenerator(compilation!, ref driver);
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             // Verify no changes when re-running
@@ -3053,7 +3053,7 @@ namespace MyApp
                         .VerifyOutputsMatch(result);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Rename Counter.razor to NewCounter.razor by removing and re-adding with same content
             var counterText = additionalTexts.First(f => f.Path.EndsWith("Counter.razor", StringComparison.OrdinalIgnoreCase));
@@ -3071,7 +3071,7 @@ namespace MyApp
             result = RunGenerator(compilation!, ref driver);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify the new file was processed
             result.VerifyIncrementalStepsMultiple("ParsedDocuments",
