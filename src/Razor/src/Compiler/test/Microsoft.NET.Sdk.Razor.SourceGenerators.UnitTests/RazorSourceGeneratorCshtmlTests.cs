@@ -116,7 +116,7 @@ public sealed class RazorSourceGeneratorCshtmlTests : RazorSourceGeneratorTestsB
 
         // Assert
         Assert.Empty(result.Diagnostics);
-        Assert.Equal(2, result.GeneratedSources.Length);
+        Assert.Equal(1, result.GeneratedSources.Length);
         var html = await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
 
         // The style attribute should not be rendered at all.

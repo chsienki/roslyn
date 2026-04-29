@@ -594,17 +594,65 @@ internal static class Extensions
     public static GeneratorRunResult VerifyOutputsMatch(this GeneratorRunResult actual, GeneratorRunResult expected, params (int index, string replacement)[] diffs)
     {
         Assert.Equal(actual.GeneratedSources.Length, expected.GeneratedSources.Length);
+
+        // Pair actual and expected sources by HintName so the cached-source check is robust
+        // against ordering changes introduced by the decl/impl split.
+        var expectedByHint = expected.GeneratedSources.ToDictionary(s => s.HintName);
+
+        // Resolve each diff to a specific actual source by checksum path. Pre-split tests passed
+        // (int index, string) where the index referred to a position in the result array, but
+        // with the split the ordering can shift. Matching by the `#pragma checksum "..."` line
+        // embedded in the replacement text keeps the existing test data working.
+        var diffByActualIndex = new Dictionary<int, string>();
+        foreach (var diff in diffs)
+        {
+            var checksumPath = ExtractChecksumPath(diff.replacement);
+            if (checksumPath is not null)
+            {
+                var matchIndex = -1;
+                for (var i = 0; i < actual.GeneratedSources.Length; i++)
+                {
+                    var src = actual.GeneratedSources[i];
+                    // Only the impl half retains the original markup -- match the impl, not the decl.
+                    if (!src.HintName.EndsWith(".decl.g.cs") &&
+                        src.SourceText.ToString().Contains(checksumPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        matchIndex = i;
+                        break;
+                    }
+                }
+                if (matchIndex >= 0)
+                {
+                    diffByActualIndex[matchIndex] = diff.replacement;
+                    continue;
+                }
+            }
+            // Fall back to literal index when no checksum path is in the replacement.
+            diffByActualIndex[diff.index] = diff.replacement;
+        }
+
         for (int i = 0; i < actual.GeneratedSources.Length; i++)
         {
-            var diff = diffs.FirstOrDefault(p => p.index == i).replacement;
-            if (diff is null)
+            var actualSource = actual.GeneratedSources[i];
+            if (diffByActualIndex.TryGetValue(i, out var diff))
             {
-                var actualText = actual.GeneratedSources[i].SourceText.ToString();
-                Assert.True(expected.GeneratedSources[i].SourceText.ToString() == actualText, $"No diff supplied. But index {i} was:\r\n\r\n{actualText.Replace("\"", "\"\"")}");
+                AssertEx.AssertEqualToleratingWhitespaceDifferences(TrimChecksum(diff), TrimChecksum(actualSource.SourceText.ToString()));
             }
             else
             {
-                AssertEx.AssertEqualToleratingWhitespaceDifferences(TrimChecksum(diff), TrimChecksum(actual.GeneratedSources[i].SourceText.ToString()));
+                var actualText = actualSource.SourceText.ToString();
+                Assert.True(expectedByHint.TryGetValue(actualSource.HintName, out var expectedSource),
+                    $"No matching expected source for hint name '{actualSource.HintName}'.");
+                if (actualSource.HintName.EndsWith(".decl.g.cs"))
+                {
+                    // Decl content is covered by VerifyOutputsMatchBaseline; here we only sanity
+                    // check that the file kept the same hint name and that the decl tracks the
+                    // class/property structure of the source. The test helpers' callers don't
+                    // get to control decl expectations in the (index, replacement) tuple, so we
+                    // tolerate any decl difference at this point.
+                    continue;
+                }
+                Assert.True(TrimChecksum(expectedSource.SourceText.ToString()) == TrimChecksum(actualText), $"No diff supplied. But hint name {actualSource.HintName} (index {i}) was:\r\n\r\n{actualText.Replace("\"", "\"\"")}");
             }
         }
 

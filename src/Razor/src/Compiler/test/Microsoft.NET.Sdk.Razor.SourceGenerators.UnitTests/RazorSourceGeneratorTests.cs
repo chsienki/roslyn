@@ -794,13 +794,6 @@ __builder.AddContent(3, count
             __builder.AddMarkupContent(5, ""<button @onclick=\""Click\"">Click me</button>"");
         }
         #pragma warning restore 1998
-#nullable restore
-#line (7,2)-(11,1) ""Pages/Counter.razor""
-    private int count;
-    public void Click() => count++;
-#line default
-#line hidden
-#nullable disable
     }
 }
 #pragma warning restore 1591
@@ -965,14 +958,6 @@ __builder.AddContent(3, count
             __builder.AddMarkupContent(5, ""<button @onclick=\""Click\"">Click me</button>"");
         }
         #pragma warning restore 1998
-#nullable restore
-#line (7,2)-(13,1) ""Pages/Counter.razor""
-    private int count;
-    public void Click() => count++;
-    [Parameter] public int IncrementAmount { get; set; }
-#line default
-#line hidden
-#nullable disable
     }
 }
 #pragma warning restore 1591
@@ -3138,7 +3123,7 @@ namespace MyApp
             var (mainDriver, mainAdditionalTexts, _) = await GetDriverWithAdditionalTextAndProviderAsync(mainProject, trackSteps: true);
             var mainRun = RunGenerator(mainCompilation!, ref mainDriver);
             Assert.Empty(mainRun.Diagnostics);
-            Assert.Single(mainRun.GeneratedSources);
+            Assert.Equal(2, mainRun.GeneratedSources.Length);
 
             // Rename the component in the RCL: LibComponent -> RenamedComponent
             rclProject = CreateTestProject(new()
@@ -3173,13 +3158,13 @@ namespace MyApp
             // Re-run generator: should compile cleanly again.
             mainRun = RunGenerator(mainCompilation!, ref mainDriver);
             Assert.Empty(mainRun.Diagnostics);
-            Assert.Single(mainRun.GeneratedSources);
+            Assert.Equal(2, mainRun.GeneratedSources.Length);
 
             // Update the compilation, which will cause us to re-run
             mainCompilation = mainCompilation!.WithOptions(mainCompilation.Options.WithModuleName("newMain"));
             mainRun = RunGenerator(mainCompilation!, ref mainDriver);
             Assert.Empty(mainRun.Diagnostics);
-            Assert.Single(mainRun.GeneratedSources);
+            Assert.Equal(2, mainRun.GeneratedSources.Length);
 
             // Confirm that the tag helpers from metadata refs _didn't_ re-run
             // TagHelpersFromCompilation re-runs when compilation changes but output is unchanged

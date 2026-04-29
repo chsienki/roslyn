@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
@@ -791,7 +793,8 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         // Assert
         result.Diagnostics.Verify();
-        Assert.Equal(2, result.GeneratedSources.Length);
+        // Index.cshtml (no decl) + Component1.razor (decl + impl) = 3
+        Assert.Equal(3, result.GeneratedSources.Length);
         var suffix = razorLangVersion == "7.0" ? "7" : "8";
         result.VerifyOutputsMatchBaseline(suffix: suffix);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Views_Home_Index", suffix: suffix);
@@ -829,33 +832,46 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var original = project.AdditionalDocuments.Single();
         var originalText = await original.GetTextAsync();
         Assert.Equal(source, originalText.ToString());
-        var generated = result.ImplGeneratedSources().Single();
-        var generatedText = generated.SourceText;
-        var generatedTextString = generatedText.ToString();
-        var snippet = "RaiseHere()";
 
-        // Find the snippet three times (at line 0, 3, and 4).
+        // The decl half contains @code body (magicNumber and the method definition); the impl
+        // half contains BuildRenderTree (the @(RaiseHere()) markup expression). Collect every
+        // RaiseHere() occurrence across both generated files and verify the line-mapping for
+        // each. Expected mapped lines are 0, 3, 4 in source-order regardless of which generated
+        // file each occurrence lives in.
+        var generatedSources = result.GeneratedSources;
+        Assert.Equal(2, generatedSources.Length);
+        var snippet = "RaiseHere()";
         var expectedLines = new[] { 0, 3, 4 };
+
+        var actualMappings = new List<(int sourceIndex, int generatedIndex, FileLinePositionSpan mapped)>();
+        for (var i = 0; i < generatedSources.Length; i++)
+        {
+            var text = generatedSources[i].SourceText.ToString();
+            var idx = -1;
+            while ((idx = text.IndexOf(snippet, idx + 1, StringComparison.Ordinal)) >= 0)
+            {
+                var mapped = generatedSources[i].SyntaxTree.GetMappedLineSpan(new TextSpan(idx, snippet.Length));
+                Assert.True(mapped.IsValid);
+                Assert.True(mapped.HasMappedPath);
+                Assert.Equal("Shared/Component1.razor", mapped.Path);
+                actualMappings.Add((i, idx, mapped));
+            }
+        }
+
+        // Sort by mapped line in the original Razor file, then verify against expected lines.
+        var ordered = actualMappings.OrderBy(m => m.mapped.StartLinePosition.Line).ToImmutableArray();
+        Assert.Equal(expectedLines.Length, ordered.Length);
+
         var originalIndex = -1;
-        var generatedIndex = -1;
-        for (var count = 0; ; count++)
+        for (var count = 0; count < expectedLines.Length; count++)
         {
             originalIndex = source.IndexOf(snippet, originalIndex + 1, StringComparison.Ordinal);
-            generatedIndex = generatedTextString.IndexOf(snippet, generatedIndex + 1, StringComparison.Ordinal);
+            Assert.True(originalIndex >= 0);
 
-            if (count == 3)
-            {
-                Assert.True(originalIndex < 0);
-                Assert.True(generatedIndex < 0);
-                break;
-            }
-
+            var (sourceIndex, generatedIndex, mapped) = ordered[count];
+            var generatedText = generatedSources[sourceIndex].SourceText;
             var generatedSpan = new TextSpan(generatedIndex, snippet.Length);
             Assert.Equal(snippet, generatedText.ToString(generatedSpan));
-            var mapped = generated.SyntaxTree.GetMappedLineSpan(generatedSpan);
-            Assert.True(mapped.IsValid);
-            Assert.True(mapped.HasMappedPath);
-            Assert.Equal("Shared/Component1.razor", mapped.Path);
             var expectedLine = expectedLines[count];
             Assert.Equal(expectedLine, mapped.StartLinePosition.Line);
             Assert.Equal(expectedLine, mapped.EndLinePosition.Line);
