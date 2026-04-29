@@ -1008,6 +1008,9 @@ __builder.AddContent(3, count
             var result = RunGenerator(compilation!, ref driver,
                 // Pages/Index.razor(2,8): error CS0246: The type or namespace name 'SurveyPromptRootNamspace' could not be found (are you missing a using directive or an assembly reference?)
                 // using SurveyPromptRootNamspace;
+                // The decl/impl split emits the using directive into both halves, so the C#
+                // compiler reports the missing namespace once per generated file.
+                Diagnostic(ErrorCode.ERR_SingleTypeNameNotFound, "SurveyPromptRootNamspace").WithArguments("SurveyPromptRootNamspace").WithLocation(2, 8),
                 Diagnostic(ErrorCode.ERR_SingleTypeNameNotFound, "SurveyPromptRootNamspace").WithArguments("SurveyPromptRootNamspace").WithLocation(2, 8)
             );
 
@@ -1076,7 +1079,7 @@ namespace MyApp.Pages
 
             var diagnostic = Assert.Single(result.Diagnostics);
             Assert.Equal("RZ10012", diagnostic.Id);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
 
             var surveyPromptAssembly = GetSurveyPromptMetadataReference(compilation!);
@@ -1121,7 +1124,7 @@ using SurveyPromptRootNamspace;
 ));
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             // Verify that adding a metadata reference triggers tag helper discovery
             result.VerifyIncrementalSteps("RazorSourceGeneratorOptions", IncrementalStepRunReason.Unchanged); // Re-ran but unchanged
@@ -1141,7 +1144,7 @@ using SurveyPromptRootNamspace;
             result = RunGenerator(compilation, ref driver);
 
             Assert.Empty(result.Diagnostics);
-            Assert.Equal(2, result.GeneratedSources.Length);
+            Assert.Equal(4, result.GeneratedSources.Length);
 
             static MetadataReference GetSurveyPromptMetadataReference(Compilation currentCompilation)
             {
