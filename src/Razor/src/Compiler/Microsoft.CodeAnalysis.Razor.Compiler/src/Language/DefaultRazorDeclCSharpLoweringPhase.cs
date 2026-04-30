@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using Microsoft.AspNetCore.Razor.Language.CodeGeneration;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
@@ -52,7 +51,21 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
             throw new InvalidOperationException(message);
         }
 
-        if (!TryGetSplitStructure(documentNode, codeDocument, out var primaryClass, out var renderMethod, out var primaryNamespace))
+        // The decl/impl split today only applies to component documents whose primary method
+        // body isn't suppressed (i.e. the regular runtime codegen path).
+        if (codeDocument.FileKind != RazorFileKind.Component ||
+            codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody)
+        {
+            return codeDocument;
+        }
+
+        // Bail out if the document is missing the primary structure we'd need to mutate. This
+        // shouldn't normally happen but the find helpers can return null and we'd rather
+        // fall back to the single-file path than crash.
+        var primaryClass = documentNode.FindPrimaryClass();
+        var renderMethod = documentNode.FindPrimaryMethod();
+        var primaryNamespace = documentNode.FindPrimaryNamespace();
+        if (primaryClass is null || renderMethod is null || primaryNamespace is null)
         {
             return codeDocument;
         }
@@ -83,43 +96,5 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         documentNode.Children.Add(primaryNamespace);
 
         return codeDocument.WithDeclCSharpDocument(declDocument);
-    }
-
-    /// <summary>
-    /// Returns true (with the primary class, render method, and primary namespace) when the
-    /// document should be split into a decl and impl pair. Returns false (with all out
-    /// parameters set to null) for non-components, when the primary method body is being
-    /// suppressed, or when the expected primary structure is missing.
-    /// </summary>
-    private static bool TryGetSplitStructure(
-        DocumentIntermediateNode documentNode,
-        RazorCodeDocument codeDocument,
-        [NotNullWhen(true)] out ClassDeclarationIntermediateNode? primaryClass,
-        [NotNullWhen(true)] out MethodDeclarationIntermediateNode? renderMethod,
-        [NotNullWhen(true)] out NamespaceDeclarationIntermediateNode? primaryNamespace)
-    {
-        primaryClass = null;
-        renderMethod = null;
-        primaryNamespace = null;
-
-        if (codeDocument.FileKind != RazorFileKind.Component ||
-            codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody)
-        {
-            return false;
-        }
-
-        primaryClass = documentNode.FindPrimaryClass();
-        renderMethod = documentNode.FindPrimaryMethod();
-        primaryNamespace = documentNode.FindPrimaryNamespace();
-
-        if (primaryClass is null || renderMethod is null || primaryNamespace is null)
-        {
-            primaryClass = null;
-            renderMethod = null;
-            primaryNamespace = null;
-            return false;
-        }
-
-        return true;
     }
 }
