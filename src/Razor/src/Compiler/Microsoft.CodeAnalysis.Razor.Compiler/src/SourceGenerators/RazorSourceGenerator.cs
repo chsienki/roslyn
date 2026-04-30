@@ -402,10 +402,20 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 using var filePathToDocument = new PooledDictionaryBuilder<string, (string, RazorCodeDocument)>();
                 using var hintNameToFilePath = new PooledDictionaryBuilder<string, string>();
 
-                foreach (var (hintName, codeDocument, _, _) in documents)
+                foreach (var (hintName, codeDocument, _, declCSharpDocument) in documents)
                 {
                     filePathToDocument.Add(codeDocument.Source.FilePath!, (hintName, codeDocument));
                     hintNameToFilePath.Add(hintName, codeDocument.Source.FilePath!);
+
+                    // The decl half is also added to the hint -> file map so the IDE / cohosting
+                    // mapping layer can resolve a position in the decl generated document back
+                    // to the same source .razor file. Without this, features like go-to-def and
+                    // find-all-references on @code members (which now live in the decl half)
+                    // would silently fail to round-trip.
+                    if (declCSharpDocument is not null)
+                    {
+                        hintNameToFilePath.Add(hintName + ".decl.g.cs", codeDocument.Source.FilePath!);
+                    }
                 }
 
                 context.AddOutput(nameof(RazorGeneratorResult), new RazorGeneratorResult(tagHelpers, filePathToDocument.ToImmutable(), hintNameToFilePath.ToImmutable()));
