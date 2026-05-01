@@ -299,10 +299,17 @@ public class RazorIntegrationTestBase
                 codeDocument = projectEngine.Process(item);
                 Assert.Empty(codeDocument.GetRequiredCSharpDocument().Diagnostics);
 
-                // Replace the 'declaration' syntax tree
-                var syntaxTree = Parse(codeDocument.GetRequiredCSharpDocument().Text, csharpParseOptions, path: item.FilePath);
+                // Replace the 'declaration' syntax tree(s). Sonic 3 emits a separate decl
+                // file when the document is splittable; the partial halves must both make
+                // it into the compilation so observers see the full type.
                 AdditionalSyntaxTrees.RemoveAll(st => st.FilePath == item.FilePath);
-                AdditionalSyntaxTrees.Add(syntaxTree);
+                var implTree = Parse(codeDocument.GetRequiredCSharpDocument().Text, csharpParseOptions, path: item.FilePath);
+                AdditionalSyntaxTrees.Add(implTree);
+                if (codeDocument.GetDeclCSharpDocument() is { } declDocument)
+                {
+                    var declTree = Parse(declDocument.Text, csharpParseOptions, path: item.FilePath + ".decl");
+                    AdditionalSyntaxTrees.Add(declTree);
+                }
             }
 
             // Result of real code generation for the document under test
@@ -312,6 +319,7 @@ public class RazorIntegrationTestBase
                 BaseCompilation = baseCompilation.AddSyntaxTrees(AdditionalSyntaxTrees),
                 CodeDocument = codeDocument,
                 Code = codeDocument.GetRequiredCSharpDocument().Text.ToString(),
+                DeclCode = codeDocument.GetDeclCSharpDocument()?.Text.ToString(),
                 RazorDiagnostics = codeDocument.GetRequiredCSharpDocument().Diagnostics,
                 ParseOptions = csharpParseOptions,
             };
@@ -339,6 +347,7 @@ public class RazorIntegrationTestBase
                 BaseCompilation = baseCompilation.AddSyntaxTrees(AdditionalSyntaxTrees),
                 CodeDocument = codeDocument,
                 Code = codeDocument.GetRequiredCSharpDocument().Text.ToString(),
+                DeclCode = codeDocument.GetDeclCSharpDocument()?.Text.ToString(),
                 RazorDiagnostics = codeDocument.GetRequiredCSharpDocument().Diagnostics,
                 ParseOptions = csharpParseOptions,
             };
@@ -358,10 +367,18 @@ public class RazorIntegrationTestBase
 
     protected static CompileToAssemblyResult CompileToAssembly(CompileToCSharpResult cSharpResult, Action<IEnumerable<Diagnostic>> verifyDiagnostics)
     {
-        var syntaxTrees = new[]
+        var primaryPath = cSharpResult.CodeDocument.Source.FilePath ?? string.Empty;
+        var syntaxTrees = new List<SyntaxTree>
         {
-            Parse(cSharpResult.Code, cSharpResult.ParseOptions),
+            Parse(cSharpResult.Code, cSharpResult.ParseOptions, path: primaryPath),
         };
+
+        if (cSharpResult.DeclCode is { } declCode)
+        {
+            // The two halves must have distinct paths so C# can keep file-local types
+            // (e.g. __PrivateComponentRenderModeAttribute) unambiguous.
+            syntaxTrees.Add(Parse(declCode, cSharpResult.ParseOptions, path: primaryPath + ".decl.g.cs"));
+        }
 
         var compilation = cSharpResult.BaseCompilation.AddSyntaxTrees(syntaxTrees);
 
@@ -454,6 +471,11 @@ public class RazorIntegrationTestBase
         public required Compilation BaseCompilation { get; set; }
         public required RazorCodeDocument CodeDocument { get; set; }
         public required string Code { get; set; }
+        // The decl half of a Sonic 3 decl/impl split. Null when the document wasn't split
+        // (non-component, design time, ProcessDeclarationOnly, etc.). When non-null, both
+        // Code (the impl half) and DeclCode must end up in the C# compilation as separate
+        // syntax trees so the partial class halves rejoin and observers see the full type.
+        public string? DeclCode { get; set; }
         public required IEnumerable<RazorDiagnostic> RazorDiagnostics { get; set; }
         public CSharpParseOptions? ParseOptions { get; set; }
     }
