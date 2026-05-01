@@ -12,6 +12,17 @@ internal class DefaultRazorCSharpLoweringPhase : RazorEnginePhaseBase, IRazorCSh
 {
     protected override RazorCodeDocument ExecuteCore(RazorCodeDocument codeDocument, CancellationToken cancellationToken)
     {
+        // The decl phase (DefaultRazorDeclCSharpLoweringPhase) produces both halves directly
+        // when the document is splittable, stashing them via WithCSharpDocument +
+        // WithDeclCSharpDocument. In that case there's nothing more to lower. We gate on
+        // the decl document specifically (rather than any pre-existing csharpDocument) so
+        // a future test/caller that pre-populates only the impl half doesn't accidentally
+        // suppress this phase.
+        if (codeDocument.GetDeclCSharpDocument() is not null)
+        {
+            return codeDocument;
+        }
+
         var documentNode = codeDocument.GetDocumentNode();
         ThrowForMissingDocumentDependency(documentNode);
 

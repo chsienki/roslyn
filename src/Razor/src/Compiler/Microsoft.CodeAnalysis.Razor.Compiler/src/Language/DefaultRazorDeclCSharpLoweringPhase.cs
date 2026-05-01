@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -9,11 +9,9 @@ using Microsoft.AspNetCore.Razor.Language.Intermediate;
 namespace Microsoft.AspNetCore.Razor.Language;
 
 /// <summary>
-/// For documents whose generated C# is split into a separate "decl" and "impl" file (today: Razor
-/// components whose primary method body is not being suppressed), this phase writes the decl
-/// document and then mutates the in-flight tree into its impl shape so the subsequent
-/// <see cref="DefaultRazorCSharpLoweringPhase"/> can lower it as if it were the only output.
-/// Both phases delegate the actual write to <see cref="RazorCSharpDocumentWriter.Write"/>.
+/// For Razor components whose primary method body is not being suppressed, this phase produces
+/// both the "decl" and "impl" C# documents and stashes them on <see cref="RazorCodeDocument"/>.
+/// Both halves are emitted as <c>partial</c> so they rejoin at compile time.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,15 +21,20 @@ namespace Microsoft.AspNetCore.Razor.Language;
 /// source-checksum attributes, etc.).
 /// </para>
 /// <para>
-/// The impl document (produced downstream by <see cref="DefaultRazorCSharpLoweringPhase"/>) is the
-/// minimal partial class containing only the render method plus the namespace and using directives
-/// it needs to compile. The two halves rejoin at compile time because the generated class is
-/// emitted as <c>partial</c>.
+/// The impl document is the minimal partial class containing only the render method plus the
+/// namespace and using directives it needs to compile.
 /// </para>
 /// <para>
-/// For documents that are not splittable (non-components, suppressed primary method body, or any
-/// document whose primary structure is missing) this phase is a no-op and the impl phase falls
-/// through to the prior single-file behavior.
+/// Both halves are written from synthetic spine clones, never by mutating the in-flight tree.
+/// The original <see cref="DocumentIntermediateNode"/> is observed by IDE/cohosting code paths
+/// (e.g. <c>RazorCodeDocumentExtensions.ComponentNamespaceMatches</c>,
+/// <c>ExtractToCodeBehindCodeActionResolver</c>) and by integration test baselines, so leaving
+/// it identical to its pre-split state is a contract.
+/// </para>
+/// <para>
+/// For documents that aren't splittable (non-components, suppressed primary method body, design
+/// time, or any document missing the primary structure) this phase is a no-op and the downstream
+/// <see cref="DefaultRazorCSharpLoweringPhase"/> falls through to the prior single-file behavior.
 /// </para>
 /// </remarks>
 internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase, IRazorCSharpLoweringPhase
@@ -51,17 +54,25 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
             throw new InvalidOperationException(message);
         }
 
-        // The decl/impl split today only applies to component documents whose primary method
-        // body isn't suppressed (i.e. the regular runtime codegen path).
+        // Skip the split for any document that shouldn't be split:
+        // - Non-components: the split is component-only.
+        // - SuppressPrimaryMethodBody (e.g. ProcessDeclarationOnly): caller wants the
+        //   decl-shaped output as the single C# document.
+        // - DesignTime: the IDE expects a single coherent design-time C# document with
+        //   the design-time helpers (DesignTimeDirective, lookup variables) intact, and
+        //   inspects the post-pipeline documentNode for additional tooling. The split is
+        //   a runtime optimization for incremental compilation; it provides no benefit
+        //   at design time and would break the IDE's assumptions.
         if (codeDocument.FileKind != RazorFileKind.Component ||
-            codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody)
+            codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody ||
+            codeDocument.CodeGenerationOptions.DesignTime)
         {
             return codeDocument;
         }
 
-        // Bail out if the document is missing the primary structure we'd need to mutate. This
-        // shouldn't normally happen but the find helpers can return null and we'd rather
-        // fall back to the single-file path than crash.
+        // Bail out if the document is missing the primary structure we'd need to split.
+        // The find helpers can return null and we'd rather fall back to the single-file
+        // path than crash.
         var primaryClass = documentNode.FindPrimaryClass();
         var renderMethod = documentNode.FindPrimaryMethod();
         var primaryNamespace = documentNode.FindPrimaryNamespace();
@@ -70,56 +81,104 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
             return codeDocument;
         }
 
-        // Capture usings from the namespace before we mutate it. Anything reachable from
-        // the namespace is fair game; the impl half only needs the using directives.
-        var usings = primaryNamespace.FindDescendantNodes<UsingDirectiveIntermediateNode>();
+        // The full diagnostic set, deduped by checksum. We'll seed both synthetic roots
+        // with this so any diagnostics attached to documentNode/primaryNamespace/
+        // primaryClass themselves -- which aren't reachable from the synthetic clones --
+        // still surface in the resulting RazorCSharpDocuments.
+        var allDiagnostics = documentNode.GetAllDiagnostics();
 
-        // Capture every diagnostic reachable from the pre-mutation tree. The mutation
-        // below drops entire subtrees (sibling members of the render method, secondary
-        // namespaces, document-level attribute nodes, etc.); any diagnostics attached
-        // to those orphaned subtrees would be lost from the impl write's tree walk and
-        // therefore never reported. We re-attach them to documentNode (which survives)
-        // after the mutation so the impl phase's CodeRenderingContext picks them up via
-        // documentNode.GetAllDiagnostics().
-        var preMutationDiagnostics = documentNode.GetAllDiagnostics();
+        // Build the decl synthetic tree: shallow-clone the documentNode → primaryNamespace
+        // → primaryClass spine, share every other child (including renderMethod's
+        // siblings such as @code blocks, secondary classes, document-level attribute
+        // nodes) by reference, and skip renderMethod itself.
+        var declDocNode = CloneContainer(documentNode);
+        var declNamespace = CloneContainer(primaryNamespace);
+        var declClass = CloneContainer(primaryClass);
 
-        // Phase 1: lower the decl half. Removing the render method is enough -- everything
-        // else in the document (siblings of primaryClass, attributes inserted at the
-        // namespace level, secondary namespaces such as the generic type inference helpers,
-        // checksum attributes, etc.) belongs in the decl output.
-        //
-        // We pass reportDiagnostics: false because the decl document's diagnostics would
-        // otherwise overlap heavily with the impl document's (any diagnostic attached to
-        // a node that survives both writes -- documentNode itself, primaryNamespace,
-        // primaryClass, usings -- is collected by GetAllDiagnostics() in both writes).
-        // The impl write collects the canonical, deduped set.
-        primaryClass.Children.Remove(renderMethod);
-        var declDocument = RazorCSharpDocumentWriter.Write(documentNode, codeDocument, cancellationToken, reportDiagnostics: false);
-
-        // Phase 2: rewrite the in-flight tree to the impl shape so the next phase
-        // (DefaultRazorCSharpLoweringPhase) can write the impl half without needing any
-        // knowledge of the split. The impl half is namespace + usings + partial class
-        // containing only the render method.
-        primaryClass.Children.Clear();
-        primaryClass.Children.Add(renderMethod);
-
-        primaryNamespace.Children.Clear();
-        primaryNamespace.Children.AddRange(usings);
-        primaryNamespace.Children.Add(primaryClass);
-
-        documentNode.Children.Clear();
-        documentNode.Children.Add(primaryNamespace);
-
-        // Lift the pre-mutation diagnostics onto documentNode. Diagnostics that are still
-        // reachable from the impl tree (e.g. ones already on documentNode, or attached to
-        // primaryNamespace/primaryClass/usings/renderMethod) end up appearing twice in
-        // documentNode.Diagnostics, but GetAllDiagnostics() dedupes them by checksum
-        // during the impl walk so the final reported set has each diagnostic exactly once.
-        foreach (var diagnostic in preMutationDiagnostics)
+        foreach (var classChild in primaryClass.Children)
         {
-            documentNode.AddDiagnostic(diagnostic);
+            if (classChild != renderMethod)
+            {
+                declClass.Children.Add(classChild);
+            }
         }
 
-        return codeDocument.WithDeclCSharpDocument(declDocument);
+        foreach (var nsChild in primaryNamespace.Children)
+        {
+            declNamespace.Children.Add(nsChild == primaryClass ? declClass : nsChild);
+        }
+
+        foreach (var docChild in documentNode.Children)
+        {
+            declDocNode.Children.Add(docChild == primaryNamespace ? declNamespace : docChild);
+        }
+
+        foreach (var diagnostic in allDiagnostics)
+        {
+            declDocNode.AddDiagnostic(diagnostic);
+        }
+
+        var declDocument = RazorCSharpDocumentWriter.Write(declDocNode, codeDocument, cancellationToken, reportDiagnostics: false);
+
+        // Build the impl synthetic tree: brand-new spine containing just the namespace,
+        // its using directives, and a partial class wrapping only renderMethod.
+        var usings = primaryNamespace.FindDescendantNodes<UsingDirectiveIntermediateNode>();
+        var implDocNode = CloneContainer(documentNode);
+        var implNamespace = CloneContainer(primaryNamespace);
+        var implClass = CloneContainer(primaryClass);
+
+        implClass.Children.Add(renderMethod);
+
+        foreach (var usingDirective in usings)
+        {
+            implNamespace.Children.Add(usingDirective);
+        }
+        implNamespace.Children.Add(implClass);
+        implDocNode.Children.Add(implNamespace);
+
+        foreach (var diagnostic in allDiagnostics)
+        {
+            implDocNode.AddDiagnostic(diagnostic);
+        }
+
+        var implDocument = RazorCSharpDocumentWriter.Write(implDocNode, codeDocument, cancellationToken);
+
+        return codeDocument
+            .WithCSharpDocument(implDocument)
+            .WithDeclCSharpDocument(declDocument);
     }
+
+    private static DocumentIntermediateNode CloneContainer(DocumentIntermediateNode node)
+        => new()
+        {
+            DocumentKind = node.DocumentKind,
+            Options = node.Options,
+            Target = node.Target,
+            Source = node.Source,
+            IsImported = node.IsImported,
+        };
+
+    private static NamespaceDeclarationIntermediateNode CloneContainer(NamespaceDeclarationIntermediateNode node)
+        => new()
+        {
+            Name = node.Name,
+            IsPrimaryNamespace = node.IsPrimaryNamespace,
+            IsGenericTyped = node.IsGenericTyped,
+            Source = node.Source,
+            IsImported = node.IsImported,
+        };
+
+    private static ClassDeclarationIntermediateNode CloneContainer(ClassDeclarationIntermediateNode node)
+        => new()
+        {
+            Name = node.Name,
+            BaseType = node.BaseType,
+            Modifiers = node.Modifiers,
+            Interfaces = node.Interfaces,
+            TypeParameters = node.TypeParameters,
+            IsPrimaryClass = node.IsPrimaryClass,
+            NullableContext = node.NullableContext,
+            Source = node.Source,
+            IsImported = node.IsImported,
+        };
 }
