@@ -5980,6 +5980,9 @@ namespace AnotherTest
         CompileToAssembly(generated, [
                 // (1,31): warning CS8669: The annotation for nullable reference types should only be used in code within a '#nullable' annotations context. Auto-generated code requires an explicit '#nullable' directive in source.
                 //     public partial class TestComponent : BaseComponent<string?>
+                Diagnostic(ErrorCode.WRN_MissingNonNullTypesContextForAnnotationInGeneratedCode, "?").WithLocation(1, 31),
+                // The Sonic 3 decl/impl split declares the partial class with the base
+                // type in both halves, so the warning fires once per syntactic occurrence.
                 Diagnostic(ErrorCode.WRN_MissingNonNullTypesContextForAnnotationInGeneratedCode, "?").WithLocation(1, 31)
             ]);
     }

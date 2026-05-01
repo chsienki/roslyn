@@ -248,12 +248,17 @@ public class ComponentRenderModeDirectiveIntegrationTests : RazorIntegrationTest
         Assert.Empty(compilationResult.RazorDiagnostics);
 
         CompileToAssembly(compilationResult,
-            // x:\dir\subdir\Test\TestComponent.cshtml(34,101): error CS0103: The name 'Foo' does not exist in the current context
-            //             Foo
-            Diagnostic(ErrorCode.ERR_NameNotInContext, "Foo").WithArguments("Foo").WithLocation(34, 101),
-            // x:\dir\subdir\Test\TestComponent.cshtml(5,12): warning CS0414: The field 'TestComponent.rendermode' is assigned but its value is never used
+            // x:\dir\subdir\Test\TestComponent.cshtml.decl.g.cs(28,100): error CS0103: The name 'Foo' does not exist in the current context
+            // private static IComponentRenderMode ModeImpl => Foo;
+            //
+            // The Foo reference appears inside __PrivateComponentRenderModeAttribute,
+            // which the Sonic 3 decl/impl split places in the decl half. There is no
+            // #line directive on this synthesized expression, so the diagnostic
+            // location reports the decl-half file position rather than the .cshtml.
+            Diagnostic(ErrorCode.ERR_NameNotInContext, "Foo").WithArguments("Foo").WithLocation(28, 100),
+            // x:\dir\subdir\Test\TestComponent.cshtml(4,11): warning CS0414: The field 'TestComponent.rendermode' is assigned but its value is never used
             //     string rendermode = "Something";
-            Diagnostic(ErrorCode.WRN_UnreferencedFieldAssg, "rendermode").WithArguments("Test.TestComponent.rendermode").WithLocation(5, 12)
+            Diagnostic(ErrorCode.WRN_UnreferencedFieldAssg, "rendermode").WithArguments("Test.TestComponent.rendermode").WithLocation(4, 11)
             );
     }
 
