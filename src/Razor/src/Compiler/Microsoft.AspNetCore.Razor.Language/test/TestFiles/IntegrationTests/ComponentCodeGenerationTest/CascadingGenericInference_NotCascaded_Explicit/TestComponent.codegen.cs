@@ -51,16 +51,4 @@ Array.Empty<DateTime>()
         #pragma warning restore 1998
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateColumn_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq)
-        {
-        __builder.OpenComponent<global::Test.Column<object>>(seq);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591

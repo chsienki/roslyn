@@ -52,38 +52,6 @@ Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
             );
         }
         #pragma warning restore 1998
-#nullable restore
-#line (6,2)-(8,1) "x:\dir\subdir\Test\TestComponent.cshtml"
-
-    [Parameter] public TRenderMode RenderModeParam { get; set;}
-
-#line default
-#line hidden
-#nullable disable
-
-    }
-}
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateTestComponent_0<TRenderMode>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, Microsoft.AspNetCore.Components.IComponentRenderMode __arg0, int __seq1, TRenderMode __arg1)
-            where TRenderMode : global::Microsoft.AspNetCore.Components.IComponentRenderMode
-        {
-        __builder.OpenComponent<global::Test.TestComponent<TRenderMode>>(seq);
-        __builder.AddComponentParameter(__seq1, nameof(global::Test.TestComponent<TRenderMode>.
-#nullable restore
-#line (3,46)-(3,61) "x:\dir\subdir\Test\TestComponent.cshtml"
-RenderModeParam
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg1);
-        __builder.AddComponentRenderMode(__arg0);
-        __builder.CloseComponent();
-        }
     }
 }
 #pragma warning restore 1591

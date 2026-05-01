@@ -18,13 +18,3 @@ Source Location: (57:2,39 [30] x:\dir\subdir\Test\TestComponent.cshtml)
 Generated Location: (1136:36,0 [30] )
 |Array.Empty<WeatherForecast>()|
 
-Source Location: (124:4,9 [6] x:\dir\subdir\Test\TestComponent.cshtml)
-|Column|
-Generated Location: (2224:59,45 [6] )
-|Column|
-
-Source Location: (144:4,29 [9] x:\dir\subdir\Test\TestComponent.cshtml)
-|FieldName|
-Generated Location: (2479:64,0 [9] )
-|FieldName|
-

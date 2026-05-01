@@ -36,38 +36,6 @@ Value
             , 3, global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers.CreateInferredEventCallback(this, __value => Value = __value, Value));
         }
         #pragma warning restore 1998
-#nullable restore
-#line (2,8)-(4,1) "x:\dir\subdir\Test\TestComponent.cshtml"
-
-    string Value;
-
-#line default
-#line hidden
-#nullable disable
-
-    }
-}
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateMyComponent_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TItem __arg0, int __seq1, global::System.Object __arg1, int __seq2, global::System.Object __arg2)
-        {
-        __builder.OpenComponent<global::Test.MyComponent<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.MyComponent<TItem>.
-#nullable restore
-#line (1,31)-(1,36) "x:\dir\subdir\Test\TestComponent.cshtml"
-Value
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, "Item", __arg1);
-        __builder.AddComponentParameter(__seq2, "ItemChanged", __arg2);
-        __builder.CloseComponent();
-        }
     }
 }
 #pragma warning restore 1591

@@ -452,6 +452,23 @@ public class RazorIntegrationTestBase
         return Parse(SourceText.From(text, Encoding.UTF8), parseOptions, path);
     }
 
+    /// <summary>
+    /// Adds the generated C# half (and the decl half, when the document was split by the
+    /// Sonic 3 decl phase) of <paramref name="result"/> to <see cref="AdditionalSyntaxTrees"/>
+    /// so the partial class halves are both visible to subsequent compilations. Both syntax
+    /// trees get distinct paths so file-local types (e.g. <c>__PrivateComponentRenderModeAttribute</c>)
+    /// remain unambiguous.
+    /// </summary>
+    protected void AddGeneratedSyntaxTrees(CompileToCSharpResult result, string? primaryPath = null)
+    {
+        var implPath = primaryPath ?? result.CodeDocument.Source.FilePath ?? string.Empty;
+        AdditionalSyntaxTrees.Add(Parse(result.Code, result.ParseOptions, path: implPath));
+        if (result.DeclCode is { } declCode)
+        {
+            AdditionalSyntaxTrees.Add(Parse(declCode, result.ParseOptions, path: implPath + ".decl.g.cs"));
+        }
+    }
+
     protected static void AssertSourceEquals(string expected, CompileToCSharpResult generated)
     {
         // Normalize the paths inside the expected result to match the OS paths
@@ -476,6 +493,10 @@ public class RazorIntegrationTestBase
         // Code (the impl half) and DeclCode must end up in the C# compilation as separate
         // syntax trees so the partial class halves rejoin and observers see the full type.
         public string? DeclCode { get; set; }
+        // Convenience for assertions that need to look across both halves of a split
+        // generated component (e.g. ``Assert.Contains("AddComponentParameter", AllCode)``).
+        // For non-split documents this is identical to <see cref="Code"/>.
+        public string AllCode => DeclCode is null ? Code : Code + DeclCode;
         public required IEnumerable<RazorDiagnostic> RazorDiagnostics { get; set; }
         public CSharpParseOptions? ParseOptions { get; set; }
     }

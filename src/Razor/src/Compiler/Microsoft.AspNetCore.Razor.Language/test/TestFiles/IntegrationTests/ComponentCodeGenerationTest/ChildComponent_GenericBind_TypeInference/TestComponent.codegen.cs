@@ -38,52 +38,6 @@ Value
             , 6, __value => Value = __value);
         }
         #pragma warning restore 1998
-#nullable restore
-#line (3,8)-(5,1) "x:\dir\subdir\Test\TestComponent.cshtml"
-
-    string Value;
-
-#line default
-#line hidden
-#nullable disable
-
-    }
-}
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateMyComponent_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TItem __arg0, int __seq1, global::System.Action<TItem> __arg1)
-        {
-        __builder.OpenComponent<global::Test.MyComponent<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.MyComponent<TItem>.
-#nullable restore
-#line (1,20)-(1,24) "x:\dir\subdir\Test\TestComponent.cshtml"
-Item
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, nameof(global::Test.MyComponent<TItem>.ItemChanged), __arg1);
-        __builder.CloseComponent();
-        }
-        public static void CreateMyComponent_1<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TItem __arg0, int __seq1, global::System.Action<TItem> __arg1)
-        {
-        __builder.OpenComponent<global::Test.MyComponent<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.MyComponent<TItem>.
-#nullable restore
-#line (2,20)-(2,24) "x:\dir\subdir\Test\TestComponent.cshtml"
-Item
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, nameof(global::Test.MyComponent<TItem>.ItemChanged), __arg1);
-        __builder.CloseComponent();
-        }
     }
 }
 #pragma warning restore 1591

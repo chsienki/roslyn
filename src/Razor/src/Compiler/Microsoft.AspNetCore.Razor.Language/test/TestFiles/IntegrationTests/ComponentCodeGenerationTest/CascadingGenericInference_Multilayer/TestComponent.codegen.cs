@@ -42,36 +42,4 @@ Array.Empty<DateTime>()
         #pragma warning restore 1998
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateAncestor_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::System.Collections.Generic.IEnumerable<TItem> __arg0, int __seq1, global::Microsoft.AspNetCore.Components.RenderFragment __arg1)
-        {
-        __builder.OpenComponent<global::Test.Ancestor<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.Ancestor<TItem>.
-#nullable restore
-#line (1,11)-(1,16) "x:\dir\subdir\Test\TestComponent.cshtml"
-Items
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, "ChildContent", __arg1);
-        __builder.CloseComponent();
-        }
-
-        public static void CreateAncestor_0_CaptureParameters<TItem>(global::System.Collections.Generic.IEnumerable<TItem> __arg0, out global::System.Collections.Generic.IEnumerable<TItem> __arg0_out)
-        {
-            __arg0_out = __arg0;
-        }
-        public static void CreateChild_1<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, global::System.Collections.Generic.IEnumerable<TItem> __syntheticArg0)
-        {
-        __builder.OpenComponent<global::Test.Child<TItem>>(seq);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591

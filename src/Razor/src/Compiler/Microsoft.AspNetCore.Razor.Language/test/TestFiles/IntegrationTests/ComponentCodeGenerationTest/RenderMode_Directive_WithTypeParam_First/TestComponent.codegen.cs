@@ -10,7 +10,6 @@ namespace Test
     using global::Microsoft.AspNetCore.Components;
     #line default
     #line hidden
-    [__PrivateComponentRenderModeAttribute]
     #nullable restore
     public partial class TestComponent<
 #nullable restore
@@ -28,20 +27,6 @@ T
         {
         }
         #pragma warning restore 1998
-    }
-    file sealed class __PrivateComponentRenderModeAttribute : global::Microsoft.AspNetCore.Components.RenderModeAttribute
-    {
-        private static global::Microsoft.AspNetCore.Components.IComponentRenderMode ModeImpl => 
-#nullable restore
-#line (1,13)-(1,77) "x:\dir\subdir\Test\TestComponent.cshtml"
-Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
-
-#line default
-#line hidden
-#nullable disable
-
-        ;
-        public override global::Microsoft.AspNetCore.Components.IComponentRenderMode Mode => ModeImpl;
     }
 }
 #pragma warning restore 1591

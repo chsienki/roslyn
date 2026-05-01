@@ -44,38 +44,6 @@ UpdateValue
             , ParentValue)));
         }
         #pragma warning restore 1998
-#nullable restore
-#line (3,8)-(6,1) "x:\dir\subdir\Test\TestComponent.cshtml"
-
-    public TParam ParentValue { get; set; } = default;
-    public EventCallback<TParam> UpdateValue { get; set; }
-
-#line default
-#line hidden
-#nullable disable
-
-    }
-}
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateMyComponent_0<TValue>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TValue __arg0, int __seq1, global::Microsoft.AspNetCore.Components.EventCallback<TValue> __arg1)
-        {
-        __builder.OpenComponent<global::Test.MyComponent<TValue>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.MyComponent<TValue>.
-#nullable restore
-#line (2,20)-(2,25) "x:\dir\subdir\Test\TestComponent.cshtml"
-Value
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, nameof(global::Test.MyComponent<TValue>.ValueChanged), __arg1);
-        __builder.CloseComponent();
-        }
     }
 }
 #pragma warning restore 1591

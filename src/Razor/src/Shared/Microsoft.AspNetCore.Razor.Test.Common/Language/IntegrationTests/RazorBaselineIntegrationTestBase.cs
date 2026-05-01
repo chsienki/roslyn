@@ -70,16 +70,39 @@ public abstract class RazorBaselineIntegrationTestBase : RazorIntegrationTestBas
 
     protected void AssertCSharpDocumentMatchesBaseline(RazorCodeDocument codeDocument, bool verifyLinePragmas = true, [CallerMemberName] string testName = "")
     {
-        var document = codeDocument.GetRequiredCSharpDocument();
+        var implDocument = codeDocument.GetRequiredCSharpDocument();
+        AssertCSharpHalfMatchesBaseline(codeDocument, implDocument, ".codegen.cs", ".diagnostics.txt", ".mappings.txt", testName);
 
+        // Sonic 3: when the decl phase has split the document, also assert the decl half
+        // against its own set of baselines. The decl half is constructed with
+        // reportDiagnostics: false in the engine, so its diagnostics list is empty by
+        // construction; the .decl.diagnostics.txt baseline is therefore deleted in the
+        // generation path when the list is empty.
+        if (codeDocument.GetDeclCSharpDocument() is { } declDocument)
+        {
+            AssertCSharpHalfMatchesBaseline(codeDocument, declDocument, ".decl.codegen.cs", ".decl.diagnostics.txt", ".decl.mappings.txt", testName);
+        }
+
+        if (verifyLinePragmas)
+        {
+            AssertLinePragmas(codeDocument);
+        }
+    }
+
+    private void AssertCSharpHalfMatchesBaseline(
+        RazorCodeDocument codeDocument,
+        RazorCSharpDocument document,
+        string codegenExtension,
+        string diagnosticsExtension,
+        string mappingsExtension,
+        string testName)
+    {
         // Normalize newlines to match those in the baseline.
         var actualCode = document.Text.ToString().Replace("\r", "").Replace("\n", "\r\n");
 
-        var baselineFilePath = GetBaselineFilePath(codeDocument, ".codegen.cs", testName);
-        var baselineDiagnosticsFilePath = GetBaselineFilePath(codeDocument, ".diagnostics.txt", testName);
-        var baselineMappingsFilePath = GetBaselineFilePath(codeDocument, ".mappings.txt", testName);
-
-        var serializedMappings = SourceMappingsSerializer.Serialize(document, codeDocument.Source);
+        var baselineFilePath = GetBaselineFilePath(codeDocument, codegenExtension, testName);
+        var baselineDiagnosticsFilePath = GetBaselineFilePath(codeDocument, diagnosticsExtension, testName);
+        var baselineMappingsFilePath = GetBaselineFilePath(codeDocument, mappingsExtension, testName);
 
         if (GenerateBaselines.ShouldGenerate)
         {
@@ -141,11 +164,6 @@ public abstract class RazorBaselineIntegrationTestBase : RazorIntegrationTestBas
         var actualMappings = SourceMappingsSerializer.Serialize(document, codeDocument.Source);
         actualMappings = actualMappings.Replace("\r", "").Replace("\n", "\r\n");
         Assert.Equal(baselineMappings, actualMappings);
-
-        if (verifyLinePragmas)
-        {
-            AssertLinePragmas(codeDocument);
-        }
     }
 
     protected void AssertLinePragmas(RazorCodeDocument codeDocument)

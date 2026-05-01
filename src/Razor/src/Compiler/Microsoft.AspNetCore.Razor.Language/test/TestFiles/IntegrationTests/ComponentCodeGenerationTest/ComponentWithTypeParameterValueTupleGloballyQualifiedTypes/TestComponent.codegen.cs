@@ -61,41 +61,6 @@ __builder2.AddContent(5, context.I2.MyStructId
             );
         }
         #pragma warning restore 1998
-#nullable restore
-#line (4,8)-(10,1) "x:\dir\subdir\Test\TestComponent.cshtml"
-
-    [Parameter]
-    public TParam InferParam { get; set; }
-
-    [Parameter]
-    public RenderFragment<(MyClass I1, MyStruct I2, TParam P)> Template { get; set; }
-
-#line default
-#line hidden
-#nullable disable
-
-    }
-}
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateTestComponent_0<TParam>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TParam __arg0, int __seq1, global::Microsoft.AspNetCore.Components.RenderFragment<(global::N.MyClass I1, global::N.MyStruct I2, TParam P)> __arg1)
-        {
-        __builder.OpenComponent<global::Test.TestComponent<TParam>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.TestComponent<TParam>.
-#nullable restore
-#line (12,16)-(12,26) "x:\dir\subdir\Test\TestComponent.cshtml"
-InferParam
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, "Template", __arg1);
-        __builder.CloseComponent();
-        }
     }
 }
 #pragma warning restore 1591

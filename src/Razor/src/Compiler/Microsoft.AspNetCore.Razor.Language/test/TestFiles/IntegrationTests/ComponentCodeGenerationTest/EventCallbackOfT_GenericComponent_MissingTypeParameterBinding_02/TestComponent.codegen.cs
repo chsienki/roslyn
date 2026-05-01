@@ -19,28 +19,6 @@ namespace Test
         {
         }
         #pragma warning restore 1998
-#nullable restore
-#line (3,8)-(5,1) "x:\dir\subdir\Test\TestComponent.cshtml"
-
-    private int counter;
-
-#line default
-#line hidden
-#nullable disable
-
-    }
-}
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateMyComponent_0<T, T2>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::System.Object __arg0)
-        {
-        __builder.OpenComponent<global::Test.MyComponent<object, object>>(seq);
-        __builder.AddComponentParameter(__seq0, "OnClick", __arg0);
-        __builder.CloseComponent();
-        }
     }
 }
 #pragma warning restore 1591

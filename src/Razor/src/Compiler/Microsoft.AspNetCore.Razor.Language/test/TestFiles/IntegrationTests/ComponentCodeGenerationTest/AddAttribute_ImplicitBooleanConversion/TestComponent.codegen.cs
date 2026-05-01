@@ -36,45 +36,6 @@ c
             );
         }
         #pragma warning restore 1998
-#nullable restore
-#line (3,8)-(5,1) "x:\dir\subdir\Test\TestComponent.cshtml"
-
-    private MyClass<string> c = new();
-
-#line default
-#line hidden
-#nullable disable
-
-    }
-}
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateMyComponent_0<T>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::Test.MyClass<T> __arg0, int __seq1, global::System.Boolean __arg1)
-        {
-        __builder.OpenComponent<global::Test.MyComponent<T>>(seq);
-        __builder.AddAttribute(__seq0, nameof(global::Test.MyComponent<T>.
-#nullable restore
-#line (1,14)-(1,25) "x:\dir\subdir\Test\TestComponent.cshtml"
-MyParameter
-
-#line default
-#line hidden
-#nullable disable
-        ), (object)__arg0);
-        __builder.AddAttribute(__seq1, nameof(global::Test.MyComponent<T>.
-#nullable restore
-#line (1,30)-(1,43) "x:\dir\subdir\Test\TestComponent.cshtml"
-BoolParameter
-
-#line default
-#line hidden
-#nullable disable
-        ), (object)__arg1);
-        __builder.CloseComponent();
-        }
     }
 }
 #pragma warning restore 1591

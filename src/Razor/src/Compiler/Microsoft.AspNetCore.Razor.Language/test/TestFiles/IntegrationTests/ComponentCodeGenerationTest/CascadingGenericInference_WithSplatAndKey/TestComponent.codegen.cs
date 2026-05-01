@@ -71,40 +71,4 @@ parentKey
         #pragma warning restore 1998
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateGrid_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::System.Collections.Generic.IEnumerable<TItem> __arg0, int __seq1, global::Microsoft.AspNetCore.Components.RenderFragment __arg1, int __seq2, object __arg2)
-        {
-        __builder.OpenComponent<global::Test.Grid<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.Grid<TItem>.
-#nullable restore
-#line (2,25)-(2,30) "x:\dir\subdir\Test\TestComponent.cshtml"
-Items
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, "ChildContent", __arg1);
-        __builder.SetKey(__arg2);
-        __builder.CloseComponent();
-        }
-
-        public static void CreateGrid_0_CaptureParameters<TItem>(global::System.Collections.Generic.IEnumerable<TItem> __arg0, out global::System.Collections.Generic.IEnumerable<TItem> __arg0_out)
-        {
-            __arg0_out = __arg0;
-        }
-        public static void CreateColumn_1<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, global::System.Collections.Generic.IEnumerable<TItem> __syntheticArg0, int __seq0, global::System.Object __arg0, int __seq1, global::System.Object __arg1, int __seq2, object __arg2)
-        {
-        __builder.OpenComponent<global::Test.Column<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, "Title", __arg0);
-        __builder.AddComponentParameter(__seq1, "Another", __arg1);
-        __builder.SetKey(__arg2);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591
