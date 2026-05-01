@@ -72,9 +72,13 @@ public class ComponentRenderModeDirectiveIntegrationTests : RazorIntegrationTest
             // (13,19): error CS0305: Using the generic type 'TestComponent<T>' requires 1 type arguments
             //     [global::Test.TestComponent.__PrivateComponentRenderModeAttribute]
             Diagnostic(ErrorCode.ERR_BadArity, "TestComponent").WithArguments("Test.TestComponent<T>", "type", "1").WithLocation(13, 19),
-            // (31,70): error CS8936: Feature 'generic attributes' is not available in C# 10.0. Please use language version 11.0 or greater.
+            // (26,70): error CS8936: Feature 'generic attributes' is not available in C# 10.0. Please use language version 11.0 or greater.
             //         private sealed class __PrivateComponentRenderModeAttribute : global::Microsoft.AspNetCore.Components.RenderModeAttribute
-            Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion10, "global::Microsoft.AspNetCore.Components.RenderModeAttribute").WithArguments("generic attributes", "11.0").WithLocation(31, 70));
+            //
+            // The Sonic 3 decl/impl split places __PrivateComponentRenderModeAttribute
+            // in the decl half (sibling of primaryClass), shifting its line position
+            // relative to the pre-split single-file layout.
+            Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion10, "global::Microsoft.AspNetCore.Components.RenderModeAttribute").WithArguments("generic attributes", "11.0").WithLocation(26, 70));
     }
 
     [Fact]
@@ -248,17 +252,17 @@ public class ComponentRenderModeDirectiveIntegrationTests : RazorIntegrationTest
         Assert.Empty(compilationResult.RazorDiagnostics);
 
         CompileToAssembly(compilationResult,
-            // x:\dir\subdir\Test\TestComponent.cshtml.decl.g.cs(28,100): error CS0103: The name 'Foo' does not exist in the current context
-            // private static IComponentRenderMode ModeImpl => Foo;
+            // x:\dir\subdir\Test\TestComponent.cshtml.decl.g.cs(29,101): error CS0103: The name 'Foo' does not exist in the current context
+            //             private static IComponentRenderMode ModeImpl => Foo
             //
             // The Foo reference appears inside __PrivateComponentRenderModeAttribute,
             // which the Sonic 3 decl/impl split places in the decl half. There is no
             // #line directive on this synthesized expression, so the diagnostic
             // location reports the decl-half file position rather than the .cshtml.
-            Diagnostic(ErrorCode.ERR_NameNotInContext, "Foo").WithArguments("Foo").WithLocation(28, 100),
-            // x:\dir\subdir\Test\TestComponent.cshtml(4,11): warning CS0414: The field 'TestComponent.rendermode' is assigned but its value is never used
+            Diagnostic(ErrorCode.ERR_NameNotInContext, "Foo").WithArguments("Foo").WithLocation(29, 101),
+            // x:\dir\subdir\Test\TestComponent.cshtml(5,12): warning CS0414: The field 'TestComponent.rendermode' is assigned but its value is never used
             //     string rendermode = "Something";
-            Diagnostic(ErrorCode.WRN_UnreferencedFieldAssg, "rendermode").WithArguments("Test.TestComponent.rendermode").WithLocation(4, 11)
+            Diagnostic(ErrorCode.WRN_UnreferencedFieldAssg, "rendermode").WithArguments("Test.TestComponent.rendermode").WithLocation(5, 12)
             );
     }
 
