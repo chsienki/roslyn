@@ -368,20 +368,18 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 var (hintName, _, csharpDocument, declCSharpDocument) = pair;
 
                 RazorSourceGeneratorEventSource.Log.AddSyntaxTrees(hintName);
+
+                // The impl document's diagnostics are the canonical, deduped set. The decl
+                // document is constructed with reportDiagnostics: false in the decl phase
+                // (DefaultRazorDeclCSharpLoweringPhase), which lifts any orphaned diagnostics
+                // onto documentNode before mutation so the impl write picks them up.
                 foreach (var razorDiagnostic in csharpDocument.Diagnostics)
                 {
-                    var csharpDiagnostic = razorDiagnostic.AsDiagnostic();
-                    context.ReportDiagnostic(csharpDiagnostic);
+                    context.ReportDiagnostic(razorDiagnostic.AsDiagnostic());
                 }
 
                 if (declCSharpDocument is not null)
                 {
-                    foreach (var razorDiagnostic in declCSharpDocument.Diagnostics)
-                    {
-                        var csharpDiagnostic = razorDiagnostic.AsDiagnostic();
-                        context.ReportDiagnostic(csharpDiagnostic);
-                    }
-
                     context.AddSource(hintName + ".decl.g.cs", declCSharpDocument.Text);
                 }
 

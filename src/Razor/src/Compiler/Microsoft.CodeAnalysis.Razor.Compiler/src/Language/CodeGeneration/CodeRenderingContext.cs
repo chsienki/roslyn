@@ -35,7 +35,8 @@ public sealed class CodeRenderingContext : IDisposable
         IntermediateNodeWriter nodeWriter,
         RazorSourceDocument sourceDocument,
         DocumentIntermediateNode documentNode,
-        RazorCodeGenerationOptions options)
+        RazorCodeGenerationOptions options,
+        bool reportDiagnostics = true)
     {
         ArgHelper.ThrowIfNull(nodeWriter);
         ArgHelper.ThrowIfNull(sourceDocument);
@@ -52,9 +53,16 @@ public sealed class CodeRenderingContext : IDisposable
 
         _diagnostics = ArrayBuilderPool<RazorDiagnostic>.Default.Get();
 
-        foreach (var diagnostic in _documentNode.GetAllDiagnostics())
+        // The decl/impl split sets reportDiagnostics: false for the decl write so the
+        // resulting RazorCSharpDocument has no diagnostics; the decl phase lifts any
+        // diagnostics that would otherwise be lost onto documentNode so the impl write
+        // (which sets reportDiagnostics back to true) collects the full deduped set.
+        if (reportDiagnostics)
         {
-            _diagnostics.Add(diagnostic);
+            foreach (var diagnostic in _documentNode.GetAllDiagnostics())
+            {
+                _diagnostics.Add(diagnostic);
+            }
         }
 
         _linePragmas = ArrayBuilderPool<LinePragma>.Default.Get();

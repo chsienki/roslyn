@@ -74,12 +74,27 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         // the namespace is fair game; the impl half only needs the using directives.
         var usings = primaryNamespace.FindDescendantNodes<UsingDirectiveIntermediateNode>();
 
+        // Capture every diagnostic reachable from the pre-mutation tree. The mutation
+        // below drops entire subtrees (sibling members of the render method, secondary
+        // namespaces, document-level attribute nodes, etc.); any diagnostics attached
+        // to those orphaned subtrees would be lost from the impl write's tree walk and
+        // therefore never reported. We re-attach them to documentNode (which survives)
+        // after the mutation so the impl phase's CodeRenderingContext picks them up via
+        // documentNode.GetAllDiagnostics().
+        var preMutationDiagnostics = documentNode.GetAllDiagnostics();
+
         // Phase 1: lower the decl half. Removing the render method is enough -- everything
         // else in the document (siblings of primaryClass, attributes inserted at the
         // namespace level, secondary namespaces such as the generic type inference helpers,
         // checksum attributes, etc.) belongs in the decl output.
+        //
+        // We pass reportDiagnostics: false because the decl document's diagnostics would
+        // otherwise overlap heavily with the impl document's (any diagnostic attached to
+        // a node that survives both writes -- documentNode itself, primaryNamespace,
+        // primaryClass, usings -- is collected by GetAllDiagnostics() in both writes).
+        // The impl write collects the canonical, deduped set.
         primaryClass.Children.Remove(renderMethod);
-        var declDocument = RazorCSharpDocumentWriter.Write(documentNode, codeDocument, cancellationToken);
+        var declDocument = RazorCSharpDocumentWriter.Write(documentNode, codeDocument, cancellationToken, reportDiagnostics: false);
 
         // Phase 2: rewrite the in-flight tree to the impl shape so the next phase
         // (DefaultRazorCSharpLoweringPhase) can write the impl half without needing any
@@ -94,6 +109,16 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
 
         documentNode.Children.Clear();
         documentNode.Children.Add(primaryNamespace);
+
+        // Lift the pre-mutation diagnostics onto documentNode. Diagnostics that are still
+        // reachable from the impl tree (e.g. ones already on documentNode, or attached to
+        // primaryNamespace/primaryClass/usings/renderMethod) end up appearing twice in
+        // documentNode.Diagnostics, but GetAllDiagnostics() dedupes them by checksum
+        // during the impl walk so the final reported set has each diagnostic exactly once.
+        foreach (var diagnostic in preMutationDiagnostics)
+        {
+            documentNode.AddDiagnostic(diagnostic);
+        }
 
         return codeDocument.WithDeclCSharpDocument(declDocument);
     }

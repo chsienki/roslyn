@@ -1969,4 +1969,35 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         Assert.False(only.HintName.EndsWith(".decl.g.cs"), $"Cshtml output should not be a decl file: {only.HintName}");
         Assert.Empty(result.DeclGeneratedSources());
     }
+
+    /// <summary>
+    /// Regression test for the decl/impl split: diagnostics attached to the document
+    /// node (such as <c>RZ10011</c> from <c>ComponentDocumentClassifierPass</c>) survive
+    /// the in-flight tree mutation between the two writes, so without dedupe the same
+    /// diagnostic would be collected by <c>GetAllDiagnostics()</c> in both
+    /// <c>CodeRenderingContext</c>s and reported twice. Sonic part 3.
+    /// </summary>
+    [Fact]
+    public async Task DeclImplSplit_DocumentLevelDiagnosticReportedOnce()
+    {
+        // Arrange -- a lowercase component name causes ComponentDocumentClassifierPass
+        // to attach RZ10011 directly to the documentNode, which is a node that exists in
+        // both the decl write and the impl write.
+        var project = CreateTestProject(new()
+        {
+            ["lowercase.razor"] = """
+                <p>I am a lowercase component.</p>
+                """,
+        });
+        var compilation = await project.GetCompilationAsync();
+        var driver = await GetDriverAsync(project);
+
+        // Act
+        var result = RunGenerator(compilation!, ref driver);
+
+        // Assert -- the diagnostic should appear exactly once even though the document
+        // is split into a decl and impl file.
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("RZ10011", diagnostic.Id);
+    }
 }
