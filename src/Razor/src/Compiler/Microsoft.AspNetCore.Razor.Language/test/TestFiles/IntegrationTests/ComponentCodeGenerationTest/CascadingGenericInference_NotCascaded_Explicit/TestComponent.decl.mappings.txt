@@ -1,0 +1,5 @@
+﻿Source Location: (59:0,59 [6] x:\dir\subdir\Test\TestComponent.cshtml)
+|Column|
+Generated Location: (789:25,45 [6] )
+|Column|
+

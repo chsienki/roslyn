@@ -1,0 +1,39 @@
+﻿Source Location: (1:0,1 [41] x:\dir\subdir\Test\TestComponent.cshtml)
+|using Microsoft.AspNetCore.Components.Web|
+Generated Location: (372:12,0 [41] )
+|using Microsoft.AspNetCore.Components.Web|
+
+Source Location: (55:1,11 [1] x:\dir\subdir\Test\TestComponent.cshtml)
+|T|
+Generated Location: (626:22,0 [1] )
+|T|
+
+Source Location: (270:4,7 [52] x:\dir\subdir\Test\TestComponent.cshtml)
+|
+    [Parameter] public T Parameter { get; set; }
+|
+Generated Location: (852:32,0 [52] )
+|
+    [Parameter] public T Parameter { get; set; }
+|
+
+Source Location: (59:2,1 [13] x:\dir\subdir\Test\TestComponent.cshtml)
+|TestComponent|
+Generated Location: (1419:48,45 [13] )
+|TestComponent|
+
+Source Location: (140:2,82 [9] x:\dir\subdir\Test\TestComponent.cshtml)
+|Parameter|
+Generated Location: (1822:55,0 [9] )
+|Parameter|
+
+Source Location: (159:3,1 [13] x:\dir\subdir\Test\TestComponent.cshtml)
+|TestComponent|
+Generated Location: (2297:65,45 [13] )
+|TestComponent|
+
+Source Location: (245:3,87 [9] x:\dir\subdir\Test\TestComponent.cshtml)
+|Parameter|
+Generated Location: (2700:72,0 [9] )
+|Parameter|
+

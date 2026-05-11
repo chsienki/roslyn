@@ -1,0 +1,25 @@
+﻿Source Location: (1:0,1 [6] x:\dir\subdir\Test\TestComponent.cshtml)
+|Parent|
+Generated Location: (986:25,45 [6] )
+|Parent|
+
+Source Location: (8:0,8 [4] x:\dir\subdir\Test\TestComponent.cshtml)
+|Data|
+Generated Location: (1203:29,0 [4] )
+|Data|
+
+Source Location: (75:0,75 [5] x:\dir\subdir\Test\TestComponent.cshtml)
+|Other|
+Generated Location: (1461:38,0 [5] )
+|Other|
+
+Source Location: (109:1,5 [5] x:\dir\subdir\Test\TestComponent.cshtml)
+|Child|
+Generated Location: (2495:55,45 [5] )
+|Child|
+
+Source Location: (115:1,11 [14] x:\dir\subdir\Test\TestComponent.cshtml)
+|ChildOnlyItems|
+Generated Location: (2735:59,0 [14] )
+|ChildOnlyItems|
+

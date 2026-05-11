@@ -1,0 +1,15 @@
+﻿Source Location: (1:0,1 [13] x:\dir\subdir\Test\TestComponent.cshtml)
+|using Models;|
+Generated Location: (372:12,0 [13] )
+|using Models;|
+
+Source Location: (124:4,9 [6] x:\dir\subdir\Test\TestComponent.cshtml)
+|Column|
+Generated Location: (1162:31,45 [6] )
+|Column|
+
+Source Location: (144:4,29 [9] x:\dir\subdir\Test\TestComponent.cshtml)
+|FieldName|
+Generated Location: (1417:36,0 [9] )
+|FieldName|
+

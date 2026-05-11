@@ -1,0 +1,24 @@
+﻿Source Location: (60:2,7 [42] x:\dir\subdir\Test\TestComponent.cshtml)
+|
+    private MyClass<string> c = new();
+|
+Generated Location: (557:18,0 [42] )
+|
+    private MyClass<string> c = new();
+|
+
+Source Location: (1:0,1 [11] x:\dir\subdir\Test\TestComponent.cshtml)
+|MyComponent|
+Generated Location: (1051:34,45 [11] )
+|MyComponent|
+
+Source Location: (13:0,13 [11] x:\dir\subdir\Test\TestComponent.cshtml)
+|MyParameter|
+Generated Location: (1232:38,0 [11] )
+|MyParameter|
+
+Source Location: (29:0,29 [13] x:\dir\subdir\Test\TestComponent.cshtml)
+|BoolParameter|
+Generated Location: (1482:47,0 [13] )
+|BoolParameter|
+

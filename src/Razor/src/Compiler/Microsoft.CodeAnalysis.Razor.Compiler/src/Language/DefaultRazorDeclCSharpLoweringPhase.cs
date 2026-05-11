@@ -58,14 +58,8 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         // - Non-components: the split is component-only.
         // - SuppressPrimaryMethodBody (e.g. ProcessDeclarationOnly): caller wants the
         //   decl-shaped output as the single C# document.
-        // - DesignTime: the IDE expects a single coherent design-time C# document with
-        //   the design-time helpers (DesignTimeDirective, lookup variables) intact, and
-        //   inspects the post-pipeline documentNode for additional tooling. The split is
-        //   a runtime optimization for incremental compilation; it provides no benefit
-        //   at design time and would break the IDE's assumptions.
         if (codeDocument.FileKind != RazorFileKind.Component ||
-            codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody ||
-            codeDocument.CodeGenerationOptions.DesignTime)
+            codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody)
         {
             return codeDocument;
         }

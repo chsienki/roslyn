@@ -1,0 +1,29 @@
+﻿Source Location: (1:0,1 [17] x:\dir\subdir\Test\TestComponent.cshtml)
+|using Test.Shared|
+Generated Location: (372:12,0 [17] )
+|using Test.Shared|
+
+Source Location: (68:3,7 [38] x:\dir\subdir\Test\TestComponent.cshtml)
+|
+    MyClass Hello = new MyClass();
+|
+Generated Location: (685:24,0 [38] )
+|
+    MyClass Hello = new MyClass();
+|
+
+Source Location: (21:1,1 [11] x:\dir\subdir\Test\TestComponent.cshtml)
+|MyComponent|
+Generated Location: (1166:40,45 [11] )
+|MyComponent|
+
+Source Location: (33:1,13 [4] x:\dir\subdir\Test\TestComponent.cshtml)
+|Item|
+Generated Location: (1364:44,0 [4] )
+|Item|
+
+Source Location: (42:1,22 [3] x:\dir\subdir\Test\TestComponent.cshtml)
+|Foo|
+Generated Location: (1612:53,0 [3] )
+|Foo|
+

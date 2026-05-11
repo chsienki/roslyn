@@ -1,0 +1,15 @@
+﻿Source Location: (1:0,1 [4] x:\dir\subdir\Test\TestComponent.cshtml)
+|Grid|
+Generated Location: (959:25,45 [4] )
+|Grid|
+
+Source Location: (6:0,6 [5] x:\dir\subdir\Test\TestComponent.cshtml)
+|Items|
+Generated Location: (1166:29,0 [5] )
+|Items|
+
+Source Location: (48:0,48 [6] x:\dir\subdir\Test\TestComponent.cshtml)
+|Column|
+Generated Location: (1850:45,45 [6] )
+|Column|
+
