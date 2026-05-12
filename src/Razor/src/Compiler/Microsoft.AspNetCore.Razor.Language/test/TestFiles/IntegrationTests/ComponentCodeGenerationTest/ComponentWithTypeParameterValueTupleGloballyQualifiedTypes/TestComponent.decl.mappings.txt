@@ -25,13 +25,3 @@ Generated Location: (823:32,0 [169] )
     public RenderFragment<(MyClass I1, MyStruct I2, TParam P)> Template { get; set; }
 |
 
-Source Location: (213:11,1 [13] x:\dir\subdir\Test\TestComponent.cshtml)
-|TestComponent|
-Generated Location: (1523:52,45 [13] )
-|TestComponent|
-
-Source Location: (227:11,15 [10] x:\dir\subdir\Test\TestComponent.cshtml)
-|InferParam|
-Generated Location: (1729:56,0 [10] )
-|InferParam|
-

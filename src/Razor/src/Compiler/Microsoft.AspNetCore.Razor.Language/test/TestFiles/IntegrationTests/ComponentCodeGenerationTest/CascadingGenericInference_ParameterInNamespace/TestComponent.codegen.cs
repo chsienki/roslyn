@@ -44,4 +44,36 @@ new MyClass<string>()
         #pragma warning restore 1998
     }
 }
+namespace __Blazor.MyApp.Components.TestComponent
+{
+    #line hidden
+    internal static class TypeInference
+    {
+        public static void CreateParentComponent_0<T>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::MyApp.MyClass<T> __arg0, int __seq1, Microsoft.AspNetCore.Components.RenderFragment __arg1)
+        {
+        __builder.OpenComponent<global::MyApp.Components.ParentComponent<T>>(seq);
+        __builder.AddComponentParameter(__seq0, nameof(global::MyApp.Components.ParentComponent<T>.
+#nullable restore
+#line (3,18)-(3,27) "x:\dir\subdir\Test\TestComponent.cshtml"
+Parameter
+
+#line default
+#line hidden
+#nullable disable
+        ), __arg0);
+        __builder.AddComponentParameter(__seq1, "ChildContent", __arg1);
+        __builder.CloseComponent();
+        }
+
+        public static void CreateParentComponent_0_CaptureParameters<T>(global::MyApp.MyClass<T> __arg0, out global::MyApp.MyClass<T> __arg0_out)
+        {
+            __arg0_out = __arg0;
+        }
+        public static void CreateChildComponent_1<T>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, global::MyApp.MyClass<T> __syntheticArg0)
+        {
+        __builder.OpenComponent<global::MyApp.Components.ChildComponent<T>>(seq);
+        __builder.CloseComponent();
+        }
+    }
+}
 #pragma warning restore 1591

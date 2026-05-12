@@ -34,25 +34,4 @@ TItem
 
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateTestComponent_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TItem __arg0)
-        {
-        __builder.OpenComponent<global::Test.TestComponent<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.TestComponent<TItem>.
-#nullable restore
-#line (7,16)-(7,22) "x:\dir\subdir\Test\TestComponent.cshtml"
-MyItem
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591

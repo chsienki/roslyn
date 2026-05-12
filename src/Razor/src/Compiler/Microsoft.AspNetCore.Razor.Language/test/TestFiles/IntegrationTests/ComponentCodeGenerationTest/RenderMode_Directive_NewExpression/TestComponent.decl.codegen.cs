@@ -25,20 +25,6 @@ namespace Test
 #line hidden
 #nullable disable
 
-        private sealed class __PrivateComponentRenderModeAttribute : global::Microsoft.AspNetCore.Components.RenderModeAttribute
-        {
-            private static global::Microsoft.AspNetCore.Components.IComponentRenderMode ModeImpl => 
-#nullable restore
-#line (1,15)-(1,66) "x:\dir\subdir\Test\TestComponent.cshtml"
-new TestComponent.MyRenderMode("This is some text")
-
-#line default
-#line hidden
-#nullable disable
-
-            ;
-            public override global::Microsoft.AspNetCore.Components.IComponentRenderMode Mode => ModeImpl;
-        }
     }
 }
 #pragma warning restore 1591

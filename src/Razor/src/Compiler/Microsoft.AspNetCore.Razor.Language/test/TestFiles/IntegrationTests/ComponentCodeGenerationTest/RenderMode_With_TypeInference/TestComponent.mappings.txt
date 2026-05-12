@@ -18,3 +18,13 @@ Source Location: (161:2,62 [64] x:\dir\subdir\Test\TestComponent.cshtml)
 Generated Location: (1369:46,0 [64] )
 |Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer|
 
+Source Location: (100:2,1 [13] x:\dir\subdir\Test\TestComponent.cshtml)
+|TestComponent|
+Generated Location: (2074:64,45 [13] )
+|TestComponent|
+
+Source Location: (144:2,45 [15] x:\dir\subdir\Test\TestComponent.cshtml)
+|RenderModeParam|
+Generated Location: (2288:68,0 [15] )
+|RenderModeParam|
+

@@ -44,4 +44,34 @@ x => {}
         #pragma warning restore 1998
     }
 }
+namespace __Blazor.Test.TestComponent
+{
+    #line hidden
+    internal static class TypeInference
+    {
+        public static void CreateMyComponent_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TItem __arg0, int __seq1, global::Microsoft.AspNetCore.Components.EventCallback<global::Test.MyEventArgs> __arg1)
+        {
+        __builder.OpenComponent<global::Test.MyComponent<TItem>>(seq);
+        __builder.AddComponentParameter(__seq0, nameof(global::Test.MyComponent<TItem>.
+#nullable restore
+#line (2,14)-(2,18) "x:\dir\subdir\Test\TestComponent.cshtml"
+Item
+
+#line default
+#line hidden
+#nullable disable
+        ), __arg0);
+        __builder.AddComponentParameter(__seq1, nameof(global::Test.MyComponent<TItem>.
+#nullable restore
+#line (2,23)-(2,30) "x:\dir\subdir\Test\TestComponent.cshtml"
+MyEvent
+
+#line default
+#line hidden
+#nullable disable
+        ), __arg1);
+        __builder.CloseComponent();
+        }
+    }
+}
 #pragma warning restore 1591

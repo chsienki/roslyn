@@ -15,14 +15,17 @@ namespace Microsoft.AspNetCore.Razor.Language;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The decl document is "everything except the primary render method" -- it carries the partial
-/// class declaration, properties, fields, parameters, and any sibling methods, plus all the
-/// document-level metadata (route/layout/render-mode attributes, generic type inference helpers,
-/// source-checksum attributes, etc.).
+/// The decl document carries the user's component API surface: the partial class declaration with
+/// base type / interfaces / type parameters / class-level attributes (route, layout, render-mode
+/// decoration), all properties / fields / parameters / inject members / sibling methods, and any
+/// document-level metadata (source-checksum attributes, etc.).
 /// </para>
 /// <para>
-/// The impl document is the minimal partial class containing only the render method plus the
-/// namespace and using directives it needs to compile.
+/// The impl document carries the render method body plus any compiler-synthesized plumbing -- the
+/// nested <c>__PrivateComponentRenderModeAttribute</c> helper class (when not file-scoped) and the
+/// <c>__Blazor.X.Y.TypeInference</c> helper namespace -- all wrapped in a minimal partial class
+/// that shares the user's name and type parameter list. Helpers live in the impl half because
+/// they're plumbing that doesn't belong on the user's API surface.
 /// </para>
 /// <para>
 /// Both halves are written from synthetic spine clones, never by mutating the in-flight tree.
@@ -32,8 +35,8 @@ namespace Microsoft.AspNetCore.Razor.Language;
 /// it identical to its pre-split state is a contract.
 /// </para>
 /// <para>
-/// For documents that aren't splittable (non-components, suppressed primary method body, design
-/// time, or any document missing the primary structure) this phase is a no-op and the downstream
+/// For documents that aren't splittable (non-components, suppressed primary method body, or any
+/// document missing the primary structure) this phase is a no-op and the downstream
 /// <see cref="DefaultRazorCSharpLoweringPhase"/> falls through to the prior single-file behavior.
 /// </para>
 /// </remarks>
@@ -84,17 +87,25 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         // Build the decl synthetic tree: shallow-clone the documentNode → primaryNamespace
         // → primaryClass spine, share every other child (including renderMethod's
         // siblings such as @code blocks, secondary classes, document-level attribute
-        // nodes) by reference, and skip renderMethod itself.
+        // nodes) by reference, and skip:
+        //   - renderMethod itself (it's the impl-half content)
+        //   - synthesized helper classes nested in primaryClass (compiler plumbing
+        //     like __PrivateComponentRenderModeAttribute -- impl-half content)
+        //   - IsGenericTyped namespaces (the __Blazor.X.Y.TypeInference helper,
+        //     emitted by ComponentGenericTypePass -- impl-half content)
         var declDocNode = CloneContainer(documentNode);
         var declNamespace = CloneContainer(primaryNamespace);
         var declClass = CloneContainer(primaryClass);
 
         foreach (var classChild in primaryClass.Children)
         {
-            if (classChild != renderMethod)
+            if (classChild == renderMethod ||
+                (classChild is ClassDeclarationIntermediateNode { IsSynthesizedHelper: true }))
             {
-                declClass.Children.Add(classChild);
+                continue;
             }
+
+            declClass.Children.Add(classChild);
         }
 
         foreach (var nsChild in primaryNamespace.Children)
@@ -104,6 +115,11 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
 
         foreach (var docChild in documentNode.Children)
         {
+            if (docChild is NamespaceDeclarationIntermediateNode { IsGenericTyped: true })
+            {
+                continue;
+            }
+
             declDocNode.Children.Add(docChild == primaryNamespace ? declNamespace : docChild);
         }
 
@@ -115,13 +131,23 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         var declDocument = RazorCSharpDocumentWriter.Write(declDocNode, codeDocument, cancellationToken, reportDiagnostics: false);
 
         // Build the impl synthetic tree: brand-new spine containing just the namespace,
-        // its using directives, and a partial class wrapping only renderMethod.
+        // its using directives, and a partial class wrapping renderMethod plus any
+        // synthesized helper classes nested in primaryClass. The IsGenericTyped helper
+        // namespaces (e.g. __Blazor.X.Y.TypeInference) are also lifted into the impl
+        // document as siblings of the primary namespace.
         var usings = primaryNamespace.FindDescendantNodes<UsingDirectiveIntermediateNode>();
         var implDocNode = CloneContainer(documentNode);
         var implNamespace = CloneContainer(primaryNamespace);
         var implClass = CloneContainer(primaryClass);
 
         implClass.Children.Add(renderMethod);
+        foreach (var classChild in primaryClass.Children)
+        {
+            if (classChild is ClassDeclarationIntermediateNode { IsSynthesizedHelper: true })
+            {
+                implClass.Children.Add(classChild);
+            }
+        }
 
         foreach (var usingDirective in usings)
         {
@@ -129,6 +155,14 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         }
         implNamespace.Children.Add(implClass);
         implDocNode.Children.Add(implNamespace);
+
+        foreach (var docChild in documentNode.Children)
+        {
+            if (docChild is NamespaceDeclarationIntermediateNode { IsGenericTyped: true } genericNs)
+            {
+                implDocNode.Children.Add(genericNs);
+            }
+        }
 
         foreach (var diagnostic in allDiagnostics)
         {

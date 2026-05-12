@@ -52,7 +52,13 @@ internal sealed class ComponentRenderModeDirectivePass : IntermediateNodePassBas
             BaseType = new BaseTypeWithModel($"global::{ComponentsApi.RenderModeAttribute.FullTypeName}"),
             Modifiers = useFileScopedClass
                 ? CommonModifiers.FileSealed
-                : CommonModifiers.PrivateSealed
+                : CommonModifiers.PrivateSealed,
+            // Mark this as a synthesized helper so the Sonic 3 decl/impl split places it
+            // in the impl half (it's compiler plumbing, not user API). Only set for the
+            // nested case -- the file-scoped variant must live in the same file as its
+            // (file-scoped) attribute decoration on the primary class, which is in the
+            // decl half.
+            IsSynthesizedHelper = !useFileScopedClass,
         };
 
         classDecl.Children.Add(new CSharpCodeIntermediateNode()

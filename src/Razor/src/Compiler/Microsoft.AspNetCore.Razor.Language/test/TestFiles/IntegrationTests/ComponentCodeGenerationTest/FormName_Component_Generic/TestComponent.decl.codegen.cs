@@ -39,45 +39,4 @@ T
 
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateTestComponent_0<T>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::System.Object __arg0, int __seq1, global::System.Object __arg1, int __seq2, global::System.Object __arg2, int __seq3, T __arg3)
-        {
-        __builder.OpenComponent<global::Test.TestComponent<T>>(seq);
-        __builder.AddComponentParameter(__seq0, "method", __arg0);
-        __builder.AddComponentParameter(__seq1, "onsubmit", __arg1);
-        __builder.AddComponentParameter(__seq2, "@formname", __arg2);
-        __builder.AddComponentParameter(__seq3, nameof(global::Test.TestComponent<T>.
-#nullable restore
-#line (3,83)-(3,92) "x:\dir\subdir\Test\TestComponent.cshtml"
-Parameter
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg3);
-        __builder.CloseComponent();
-        }
-        public static void CreateTestComponent_1<T>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::System.Object __arg0, int __seq1, global::System.Object __arg1, int __seq2, global::System.Object __arg2, int __seq3, T __arg3)
-        {
-        __builder.OpenComponent<global::Test.TestComponent<T>>(seq);
-        __builder.AddComponentParameter(__seq0, "method", __arg0);
-        __builder.AddComponentParameter(__seq1, "onsubmit", __arg1);
-        __builder.AddComponentParameter(__seq2, "@formname", __arg2);
-        __builder.AddComponentParameter(__seq3, nameof(global::Test.TestComponent<T>.
-#nullable restore
-#line (4,88)-(4,97) "x:\dir\subdir\Test\TestComponent.cshtml"
-Parameter
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg3);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591

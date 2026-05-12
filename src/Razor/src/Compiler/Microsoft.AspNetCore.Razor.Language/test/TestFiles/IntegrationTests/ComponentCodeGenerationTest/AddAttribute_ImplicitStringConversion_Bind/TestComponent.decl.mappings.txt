@@ -7,33 +7,3 @@ Generated Location: (557:18,0 [42] )
     private MyClass<string> c = new();
 |
 
-Source Location: (1:0,1 [11] x:\dir\subdir\Test\TestComponent.cshtml)
-|MyComponent|
-Generated Location: (1278:34,45 [11] )
-|MyComponent|
-
-Source Location: (40:1,4 [13] x:\dir\subdir\Test\TestComponent.cshtml)
-|BoolParameter|
-Generated Location: (1458:38,0 [13] )
-|BoolParameter|
-
-Source Location: (66:2,4 [15] x:\dir\subdir\Test\TestComponent.cshtml)
-|StringParameter|
-Generated Location: (1709:47,0 [15] )
-|StringParameter|
-
-Source Location: (93:3,4 [17] x:\dir\subdir\Test\TestComponent.cshtml)
-|DelegateParameter|
-Generated Location: (1962:56,0 [17] )
-|DelegateParameter|
-
-Source Location: (128:4,4 [15] x:\dir\subdir\Test\TestComponent.cshtml)
-|ObjectParameter|
-Generated Location: (2217:65,0 [15] )
-|ObjectParameter|
-
-Source Location: (19:0,19 [11] x:\dir\subdir\Test\TestComponent.cshtml)
-|MyParameter|
-Generated Location: (2471:74,0 [11] )
-|MyParameter|
-

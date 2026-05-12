@@ -15,6 +15,16 @@ public sealed class ClassDeclarationIntermediateNode : MemberDeclarationIntermed
     public ImmutableArray<TypeParameter> TypeParameters { get; set => field = value.NullToEmpty(); } = [];
 
     public bool IsPrimaryClass { get; init; }
+
+    /// <summary>
+    /// True for classes synthesized by Razor codegen passes purely as compiler plumbing
+    /// (e.g. <c>__PrivateComponentRenderModeAttribute</c> emitted by
+    /// <see cref="Components.ComponentRenderModeDirectivePass"/>). The Sonic 3 decl/impl
+    /// split treats these as impl-half content rather than user API surface, so they're
+    /// excluded from the decl document and included in the impl document.
+    /// </summary>
+    internal bool IsSynthesizedHelper { get; init; }
+
     public bool NullableContext { get; set; }
 
     public override IntermediateNodeCollection Children { get => field ??= []; }

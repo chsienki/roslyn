@@ -16,32 +16,4 @@ namespace Test
     {
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateMyComponent_0<T>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::Test.MyClass<T> __arg0)
-            where T : global::Test.IMyInterface
-        {
-        __builder.OpenComponent<global::Test.MyComponent<T>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.MyComponent<T>.
-#nullable restore
-#line (1,14)-(1,19) "x:\dir\subdir\Test\TestComponent.cshtml"
-Param
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.CloseComponent();
-        }
-
-        public static void CreateMyComponent_0_CaptureParameters<T>(global::Test.MyClass<T> __arg0, out global::Test.MyClass<T> __arg0_out)
-            where T : global::Test.IMyInterface
-        {
-            __arg0_out = __arg0;
-        }
-    }
-}
 #pragma warning restore 1591

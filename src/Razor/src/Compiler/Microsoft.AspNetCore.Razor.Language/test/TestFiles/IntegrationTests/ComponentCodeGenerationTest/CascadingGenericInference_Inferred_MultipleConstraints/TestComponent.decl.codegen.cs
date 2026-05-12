@@ -16,29 +16,4 @@ namespace Test
     {
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateColumn_0<TItem>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, TItem __syntheticArg0, int __seq0, global::System.Object __arg0, int __seq1, global::System.String __arg1, int __seq2, global::System.Object __arg2, int __seq3, global::System.Object __arg3)
-            where TItem : class, new()
-        {
-        __builder.OpenComponent<global::Test.Column<TItem>>(seq);
-        __builder.AddComponentParameter(__seq0, "Title", __arg0);
-        __builder.AddComponentParameter(__seq1, nameof(global::Test.Column<TItem>.
-#nullable restore
-#line (3,30)-(3,39) "x:\dir\subdir\Test\TestComponent.cshtml"
-FieldName
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg1);
-        __builder.AddComponentParameter(__seq2, "Format", __arg2);
-        __builder.AddComponentParameter(__seq3, "Width", __arg3);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591

@@ -18,3 +18,13 @@ Source Location: (32:0,32 [23] x:\dir\subdir\Test\TestComponent.cshtml)
 Generated Location: (1334:39,0 [23] )
 |Array.Empty<DateTime>()|
 
+Source Location: (59:0,59 [6] x:\dir\subdir\Test\TestComponent.cshtml)
+|Column|
+Generated Location: (2249:62,45 [6] )
+|Column|
+
+Source Location: (69:0,69 [6] x:\dir\subdir\Test\TestComponent.cshtml)
+|Column|
+Generated Location: (2536:67,45 [6] )
+|Column|
+

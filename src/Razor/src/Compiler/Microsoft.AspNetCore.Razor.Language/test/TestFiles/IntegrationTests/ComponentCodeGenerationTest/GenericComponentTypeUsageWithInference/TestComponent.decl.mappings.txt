@@ -14,13 +14,3 @@ Generated Location: (704:26,0 [58] )
     public TItem MyItem { get; set; }
 |
 
-Source Location: (89:6,1 [13] x:\dir\subdir\Test\TestComponent.cshtml)
-|TestComponent|
-Generated Location: (1159:43,45 [13] )
-|TestComponent|
-
-Source Location: (103:6,15 [6] x:\dir\subdir\Test\TestComponent.cshtml)
-|MyItem|
-Generated Location: (1361:47,0 [6] )
-|MyItem|
-

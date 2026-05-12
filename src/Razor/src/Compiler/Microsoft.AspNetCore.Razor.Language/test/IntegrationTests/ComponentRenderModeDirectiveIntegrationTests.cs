@@ -69,16 +69,17 @@ public class ComponentRenderModeDirectiveIntegrationTests : RazorIntegrationTest
            """);
 
         CompileToAssembly(compilationResult,
-            // (13,19): error CS0305: Using the generic type 'TestComponent<T>' requires 1 type arguments
+            // x:\dir\subdir\Test\TestComponent.cshtml.decl.g.cs(13,19): error CS0305: Using the generic type 'TestComponent<T>' requires 1 type arguments
             //     [global::Test.TestComponent.__PrivateComponentRenderModeAttribute]
+            //
+            // The attribute decoration sits on the partial class declaration in the decl half.
             Diagnostic(ErrorCode.ERR_BadArity, "TestComponent").WithArguments("Test.TestComponent<T>", "type", "1").WithLocation(13, 19),
-            // (26,70): error CS8936: Feature 'generic attributes' is not available in C# 10.0. Please use language version 11.0 or greater.
+            // x:\dir\subdir\Test\TestComponent.cshtml(30,70): error CS8936: Feature 'generic attributes' is not available in C# 10.0. Please use language version 11.0 or greater.
             //         private sealed class __PrivateComponentRenderModeAttribute : global::Microsoft.AspNetCore.Components.RenderModeAttribute
             //
-            // The Sonic 3 decl/impl split places __PrivateComponentRenderModeAttribute
-            // in the decl half (sibling of primaryClass), shifting its line position
-            // relative to the pre-split single-file layout.
-            Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion10, "global::Microsoft.AspNetCore.Components.RenderModeAttribute").WithArguments("generic attributes", "11.0").WithLocation(26, 70));
+            // The Sonic 3 decl/impl split places the synthesized __PrivateComponentRenderModeAttribute
+            // helper class in the impl half, so its diagnostic surfaces against the .cshtml-pathed file.
+            Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion10, "global::Microsoft.AspNetCore.Components.RenderModeAttribute").WithArguments("generic attributes", "11.0").WithLocation(30, 70));
     }
 
     [Fact]
@@ -252,14 +253,17 @@ public class ComponentRenderModeDirectiveIntegrationTests : RazorIntegrationTest
         Assert.Empty(compilationResult.RazorDiagnostics);
 
         CompileToAssembly(compilationResult,
-            // x:\dir\subdir\Test\TestComponent.cshtml.decl.g.cs(29,101): error CS0103: The name 'Foo' does not exist in the current context
-            //             private static IComponentRenderMode ModeImpl => Foo
+            // x:\dir\subdir\Test\TestComponent.cshtml(24,101): error CS0103: The name 'Foo' does not exist in the current context
+            // private static IComponentRenderMode ModeImpl => Foo;
             //
-            // The Foo reference appears inside __PrivateComponentRenderModeAttribute,
-            // which the Sonic 3 decl/impl split places in the decl half. There is no
-            // #line directive on this synthesized expression, so the diagnostic
-            // location reports the decl-half file position rather than the .cshtml.
-            Diagnostic(ErrorCode.ERR_NameNotInContext, "Foo").WithArguments("Foo").WithLocation(29, 101),
+            // The diagnostic line/column point inside the synthesized
+            // __PrivateComponentRenderModeAttribute helper rather than at the user's
+            // @rendermode token. There is no #line directive on this synthesized
+            // expression so the column is the position in the generated code; this is a
+            // pre-existing limitation of the rendermode lowering, not a Sonic 3 effect.
+            // The PATH at least matches the .razor source because the helper class lives
+            // in the impl half (which uses the source's path verbatim).
+            Diagnostic(ErrorCode.ERR_NameNotInContext, "Foo").WithArguments("Foo").WithLocation(24, 101),
             // x:\dir\subdir\Test\TestComponent.cshtml(5,12): warning CS0414: The field 'TestComponent.rendermode' is assigned but its value is never used
             //     string rendermode = "Something";
             Diagnostic(ErrorCode.WRN_UnreferencedFieldAssg, "rendermode").WithArguments("Test.TestComponent.rendermode").WithLocation(5, 12)

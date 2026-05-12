@@ -34,47 +34,4 @@ using Test
 
     }
 }
-namespace __Blazor.Test.UseTestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateTestComponent_0<TItem1, TItem2, TItem3>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, TItem1 __arg0, int __seq1, global::System.Collections.Generic.List<TItem2> __arg1, int __seq2, TItem3 __arg2, int __seq3, global::Microsoft.AspNetCore.Components.RenderFragment<TItem2> __arg3)
-            where TItem1 : global::Image
-            where TItem2 : global::ITag
-            where TItem3 : global::Image, new()
-        {
-        __builder.OpenComponent<global::Test.TestComponent<TItem1, TItem2, TItem3>>(seq);
-        __builder.AddComponentParameter(__seq0, nameof(global::Test.TestComponent<TItem1, TItem2, TItem3>.
-#nullable restore
-#line (2,16)-(2,21) "x:\dir\subdir\Test\UseTestComponent.cshtml"
-Item1
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg0);
-        __builder.AddComponentParameter(__seq1, nameof(global::Test.TestComponent<TItem1, TItem2, TItem3>.
-#nullable restore
-#line (2,29)-(2,35) "x:\dir\subdir\Test\UseTestComponent.cshtml"
-Items2
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg1);
-        __builder.AddComponentParameter(__seq2, nameof(global::Test.TestComponent<TItem1, TItem2, TItem3>.
-#nullable restore
-#line (2,43)-(2,48) "x:\dir\subdir\Test\UseTestComponent.cshtml"
-Item3
-
-#line default
-#line hidden
-#nullable disable
-        ), __arg2);
-        __builder.AddComponentParameter(__seq3, "ChildContent", __arg3);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591

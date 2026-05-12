@@ -13,3 +13,18 @@ Source Location: (48:1,28 [5] x:\dir\subdir\Test\TestComponent.cshtml)
 Generated Location: (1119:36,0 [5] )
 |Hello|
 
+Source Location: (21:1,1 [11] x:\dir\subdir\Test\TestComponent.cshtml)
+|MyComponent|
+Generated Location: (1632:53,45 [11] )
+|MyComponent|
+
+Source Location: (33:1,13 [4] x:\dir\subdir\Test\TestComponent.cshtml)
+|Item|
+Generated Location: (1830:57,0 [4] )
+|Item|
+
+Source Location: (42:1,22 [3] x:\dir\subdir\Test\TestComponent.cshtml)
+|Foo|
+Generated Location: (2078:66,0 [3] )
+|Foo|
+

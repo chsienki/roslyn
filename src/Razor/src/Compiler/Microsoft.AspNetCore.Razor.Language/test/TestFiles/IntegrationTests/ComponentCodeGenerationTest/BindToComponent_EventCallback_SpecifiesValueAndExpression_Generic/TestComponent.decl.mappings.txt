@@ -7,13 +7,3 @@ Generated Location: (557:18,0 [65] )
     public DateTime ParentValue { get; set; } = DateTime.Now;
 |
 
-Source Location: (1:0,1 [11] x:\dir\subdir\Test\TestComponent.cshtml)
-|MyComponent|
-Generated Location: (1173:34,45 [11] )
-|MyComponent|
-
-Source Location: (19:0,19 [9] x:\dir\subdir\Test\TestComponent.cshtml)
-|SomeParam|
-Generated Location: (1363:38,0 [9] )
-|SomeParam|
-

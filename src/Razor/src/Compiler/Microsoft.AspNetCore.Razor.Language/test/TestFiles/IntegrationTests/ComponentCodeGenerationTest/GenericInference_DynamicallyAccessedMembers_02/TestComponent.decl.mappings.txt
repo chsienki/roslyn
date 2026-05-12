@@ -7,23 +7,3 @@ Generated Location: (557:18,0 [31] )
     private string s = "x";
 |
 
-Source Location: (1:0,1 [11] x:\dir\subdir\Test\TestComponent.cshtml)
-|MyComponent|
-Generated Location: (1377:34,45 [11] )
-|MyComponent|
-
-Source Location: (13:0,13 [2] x:\dir\subdir\Test\TestComponent.cshtml)
-|P1|
-Generated Location: (1585:38,0 [2] )
-|P1|
-
-Source Location: (20:0,20 [2] x:\dir\subdir\Test\TestComponent.cshtml)
-|P2|
-Generated Location: (1836:47,0 [2] )
-|P2|
-
-Source Location: (27:0,27 [2] x:\dir\subdir\Test\TestComponent.cshtml)
-|P3|
-Generated Location: (2087:56,0 [2] )
-|P3|
-

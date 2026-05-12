@@ -7,8 +7,3 @@ Generated Location: (557:18,0 [28] )
     private int counter;
 |
 
-Source Location: (1:0,1 [11] x:\dir\subdir\Test\TestComponent.cshtml)
-|MyComponent|
-Generated Location: (996:34,45 [11] )
-|MyComponent|
-

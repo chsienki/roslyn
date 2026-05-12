@@ -25,17 +25,4 @@ namespace Test
 
     }
 }
-namespace __Blazor.Test.TestComponent
-{
-    #line hidden
-    internal static class TypeInference
-    {
-        public static void CreateMyComponent_0<T, T2>(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, int seq, int __seq0, global::System.Object __arg0)
-        {
-        __builder.OpenComponent<global::Test.MyComponent<object, object>>(seq);
-        __builder.AddComponentParameter(__seq0, "OnClick", __arg0);
-        __builder.CloseComponent();
-        }
-    }
-}
 #pragma warning restore 1591
