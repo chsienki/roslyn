@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -147,6 +148,22 @@ internal sealed class RemoteProjectSnapshot : IProjectSnapshot
         Assumed.False(generatorResult.IsDefault);
 
         return await generatorResult.GetRequiredSourceGeneratedDocumentForRazorFilePathAsync(documentSnapshot.FilePath, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Returns all source-generated documents the Razor SG produced for
+    /// <paramref name="documentSnapshot"/> (impl + decl when split, impl only otherwise). The
+    /// caller is responsible for aggregating results across both halves -- this method exists for
+    /// document-wide endpoints (folding ranges, document symbols, etc.) where the user-visible
+    /// result must include content from both partial halves of a component class.
+    /// </summary>
+    internal async Task<ImmutableArray<SourceGeneratedDocument>> GetAllGeneratedDocumentsAsync(IDocumentSnapshot documentSnapshot, CancellationToken cancellationToken)
+    {
+        var generatorResult = await GeneratorRunResult.CreateAsync(throwIfNotFound: true, _project, cancellationToken).ConfigureAwait(false);
+
+        Assumed.False(generatorResult.IsDefault);
+
+        return await generatorResult.GetAllSourceGeneratedDocumentsForRazorFilePathAsync(documentSnapshot.FilePath, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<RazorCodeDocument?> TryGetCodeDocumentForGeneratedDocumentAsync(RazorGeneratedDocumentIdentity identity, CancellationToken cancellationToken)

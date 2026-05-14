@@ -45,6 +45,34 @@ internal readonly record struct GeneratorRunResult(RazorGeneratorResult Generato
             ?? throw new InvalidOperationException(SR.FormatCouldnt_get_the_source_generated_document_for_hint_name(hintName));
     }
 
+    /// <summary>
+    /// Returns all source-generated documents that the Razor SG produced from
+    /// <paramref name="filePath"/>. For splittable component documents this returns the impl half
+    /// (e.g. <c>Foo_razor.g.cs</c>) followed by the decl half (<c>Foo_razor.decl.g.cs</c>); for
+    /// other documents (cshtml, suppressed primary method body) only the impl half is returned.
+    /// Order is stable: impl first, then decl.
+    /// </summary>
+    public async Task<ImmutableArray<SourceGeneratedDocument>> GetAllSourceGeneratedDocumentsForRazorFilePathAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var hintNames = GeneratorResult.GetAllHintNames(filePath);
+        if (hintNames.IsEmpty)
+        {
+            return ImmutableArray<SourceGeneratedDocument>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<SourceGeneratedDocument>(hintNames.Length);
+        foreach (var hintName in hintNames)
+        {
+            var doc = await Project.TryGetSourceGeneratedDocumentFromHintNameAsync(hintName, cancellationToken).ConfigureAwait(false);
+            if (doc is not null)
+            {
+                builder.Add(doc);
+            }
+        }
+
+        return builder.MoveToImmutable();
+    }
+
     public static async Task<GeneratorRunResult> CreateAsync(bool throwIfNotFound, Project project, CancellationToken cancellationToken)
     {
         var result = await project.GetSourceGeneratorRunResultAsync(cancellationToken).ConfigureAwait(false);

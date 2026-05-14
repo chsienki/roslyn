@@ -33,12 +33,20 @@ internal partial class FoldingRangeService(
         mappedRanges.SetCapacityIfLarger(htmlRanges.Length);
 
         var csharpDocument = codeDocument.GetRequiredCSharpDocument();
+        // For splittable components the source generator emits two C# documents -- the impl half
+        // (render method body) and the decl half (@code, properties, fields, etc.). Folding ranges
+        // from the decl half (e.g. method bodies the user defined in @code) have positions in the
+        // decl document's coordinate system, so impl source mappings won't find them. Try impl first
+        // then fall back to decl.
+        var declCSharpDocument = codeDocument.GetDeclCSharpDocument();
 
         foreach (var foldingRange in csharpRanges)
         {
             var span = GetLinePositionSpan(foldingRange);
 
-            if (_documentMappingService.TryMapToRazorDocumentRange(csharpDocument, span, out var mappedSpan))
+            if (_documentMappingService.TryMapToRazorDocumentRange(csharpDocument, span, out var mappedSpan) ||
+                (declCSharpDocument is not null &&
+                 _documentMappingService.TryMapToRazorDocumentRange(declCSharpDocument, span, out mappedSpan)))
             {
                 foldingRange.StartLine = mappedSpan.Start.Line;
                 foldingRange.StartCharacter = mappedSpan.Start.Character;

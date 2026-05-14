@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
@@ -95,6 +96,15 @@ internal sealed class RemoteDocumentSnapshot : IDocumentSnapshot
         var generatedDocument = await ProjectSnapshot.GetRequiredGeneratedDocumentAsync(this, cancellationToken).ConfigureAwait(false);
         return InterlockedOperations.Initialize(ref _generatedDocument, generatedDocument);
     }
+
+    /// <summary>
+    /// Returns all source-generated C# documents for this Razor document (impl + decl when the
+    /// document is splittable, impl only otherwise). Use this from endpoints that need to operate
+    /// on user content from <c>@code</c> blocks (which now lives in the decl half), not just the
+    /// impl-half render method body.
+    /// </summary>
+    public ValueTask<ImmutableArray<SourceGeneratedDocument>> GetAllGeneratedDocumentsAsync(CancellationToken cancellationToken)
+        => new(ProjectSnapshot.GetAllGeneratedDocumentsAsync(this, cancellationToken));
 
     public ValueTask<SyntaxTree> GetCSharpSyntaxTreeAsync(CancellationToken cancellationToken)
     {

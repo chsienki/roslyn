@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Razor.PooledObjects;
 using Microsoft.CodeAnalysis.ExternalAccess.Razor;
 using Microsoft.CodeAnalysis.Razor.FoldingRanges;
 using Microsoft.CodeAnalysis.Razor.Protocol;
@@ -42,17 +43,28 @@ internal sealed class RemoteFoldingRangeService(in ServiceArgs args) : RazorDocu
         ImmutableArray<RemoteFoldingRange> htmlRanges,
         CancellationToken cancellationToken)
     {
-        var generatedDocument = await context.Snapshot
-            .GetGeneratedDocumentAsync(cancellationToken)
+        // For splittable Razor components the source generator emits two C# documents -- the
+        // impl half (render method body) and the decl half (@code, properties, fields, etc.).
+        // Folding ranges are syntactic and only consider the document's own syntax tree, so we
+        // must enumerate both halves and merge the results to surface ranges for user code in
+        // @code blocks.
+        var generatedDocuments = await context.Snapshot
+            .GetAllGeneratedDocumentsAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var lineFoldingOnly = _clientCapabilitiesService.ClientCapabilities.TextDocument?.FoldingRange?.LineFoldingOnly ?? false;
-        var csharpRanges = await ExternalHandlers.FoldingRanges.GetFoldingRangesAsync(generatedDocument, lineFoldingOnly, cancellationToken).ConfigureAwait(false);
+
+        using var csharpRangesBuilder = new PooledArrayBuilder<FoldingRange>();
+        foreach (var generatedDocument in generatedDocuments)
+        {
+            var ranges = await ExternalHandlers.FoldingRanges.GetFoldingRangesAsync(generatedDocument, lineFoldingOnly, cancellationToken).ConfigureAwait(false);
+            csharpRangesBuilder.AddRange(ranges);
+        }
 
         var convertedHtml = htmlRanges.SelectAsArray(RemoteFoldingRange.ToLspFoldingRange);
 
         var codeDocument = await context.GetCodeDocumentAsync(cancellationToken).ConfigureAwait(false);
-        return _foldingRangeService.GetFoldingRanges(codeDocument, csharpRanges, convertedHtml, cancellationToken)
+        return _foldingRangeService.GetFoldingRanges(codeDocument, csharpRangesBuilder.ToArray(), convertedHtml, cancellationToken)
             .SelectAsArray(RemoteFoldingRange.FromLspFoldingRange);
     }
 }
