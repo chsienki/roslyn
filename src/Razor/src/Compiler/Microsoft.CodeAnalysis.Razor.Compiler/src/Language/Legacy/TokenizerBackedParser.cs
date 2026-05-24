@@ -378,26 +378,90 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
             {
                 comment = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentLiteral);
             }
-            var endStar = GetOptionalToken(SyntaxKind.RazorCommentStar);
-            if (endStar == null)
+            SyntaxToken endStar;
+            SyntaxToken endTransition;
+            if (Context.Options.UseEnhancedRecovery)
             {
-                var diagnostic = RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated(
-                    new SourceSpan(start, contentLength: 2 /* @* */));
-                endStar = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentStar, diagnostic);
-                Context.ErrorSink.OnError(diagnostic);
-            }
-            var endTransition = GetOptionalToken(SyntaxKind.RazorCommentTransition);
-            if (endTransition == null)
-            {
+                // ---- Enhanced recovery path (Stage 1.4 pilot migration). ----
+                //
+                // Replaces the legacy `GetOptionalToken` + manual `MissingToken` +
+                // `ErrorSink.OnError` triplet with the Stage 1.2 `Required` helper,
+                // which attaches the diagnostic to the missing token and lets
+                // tree-building flow it into `ErrorSink` exactly once.
+                //
+                // Recovery follow set is `Empty`: by the time we reach `endStar`, the
+                // `RazorCommentLiteral` above has already consumed every character up
+                // to the next `*@` or EOF. For an unterminated `@*`, the next token is
+                // EOF, so `Synchronize` returns immediately with no skipped content.
+                // We therefore expect `sync.Skipped` to always be `null` here; the
+                // `RazorCommentBlock` grammar has no slot to hold skipped content if
+                // it were non-null.
+                var endStarResult = Required(
+                    SyntaxKind.RazorCommentStar,
+                    RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated_At(CurrentStart),
+                    FollowSet.Empty,
+                    SyntaxKind.RazorComment);
+                Debug.Assert(endStarResult.skipped is null, "ParseRazorComment expects no skipped tokens after RazorCommentLiteral; sync should hit EOF.");
+                endStar = endStarResult.token;
+
                 if (!endStar.IsMissing)
+                {
+                    // `endStar` was present; now the closing `@` (`RazorCommentTransition`)
+                    // is required.
+                    var endTransitionResult = Required(
+                        SyntaxKind.RazorCommentTransition,
+                        RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated_At(CurrentStart),
+                        FollowSet.Empty,
+                        SyntaxKind.RazorComment);
+                    Debug.Assert(endTransitionResult.skipped is null);
+                    endTransition = endTransitionResult.token;
+                }
+                else
+                {
+                    // `endStar` was already missing (the typical `@*` case). The
+                    // diagnostic is attached to `endStar`; a second copy on
+                    // `endTransition` would just dedupe to the same RZ1028 entry
+                    // (same descriptor + same zero-width span at the same EOF cursor),
+                    // so we emit a plain missing token without re-attaching the
+                    // diagnostic. This matches the legacy user-visible behaviour
+                    // (exactly one RZ1028 in the final diagnostic list).
+                    endTransition = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentTransition);
+                }
+            }
+            else
+            {
+                // ---- Legacy path: unchanged. ----
+                //
+                // Existing baselines depend on (a) the diagnostic span covering the
+                // opening `@*` (positions 0..2, not zero-width at the missing-token
+                // site) and (b) the redundant `ErrorSink.OnError` calls -- which
+                // dedupe to a single user-visible diagnostic via
+                // `RazorSyntaxTree.Diagnostics`, but whose source-code shape Stage
+                // 1.4 only cleans up under the enhanced flag.
+                var endStarLegacy = GetOptionalToken(SyntaxKind.RazorCommentStar);
+                if (endStarLegacy == null)
                 {
                     var diagnostic = RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated(
                         new SourceSpan(start, contentLength: 2 /* @* */));
+                    endStarLegacy = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentStar, diagnostic);
                     Context.ErrorSink.OnError(diagnostic);
-                    endTransition = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentTransition, diagnostic);
+                }
+                var endTransitionLegacy = GetOptionalToken(SyntaxKind.RazorCommentTransition);
+                if (endTransitionLegacy == null)
+                {
+                    if (!endStarLegacy.IsMissing)
+                    {
+                        var diagnostic = RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated(
+                            new SourceSpan(start, contentLength: 2 /* @* */));
+                        Context.ErrorSink.OnError(diagnostic);
+                        endTransitionLegacy = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentTransition, diagnostic);
+                    }
+
+                    endTransitionLegacy = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentTransition);
                 }
 
-                endTransition = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentTransition);
+                endStar = endStarLegacy;
+                endTransition = endTransitionLegacy;
             }
 
             commentBlock = SyntaxFactory.RazorCommentBlock(startTransition, startStar, comment, endStar, endTransition);

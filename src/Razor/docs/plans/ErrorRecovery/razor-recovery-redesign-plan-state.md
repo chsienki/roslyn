@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 1.3 complete. Ready for Stage 1.4 (pilot ParseRazorComment).
+Stage 1.4 complete. Ready for Stage 2.1 (ParseExplicitExpressionBody).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -21,7 +21,7 @@ Stage 1.3 complete. Ready for Stage 1.4 (pilot ParseRazorComment).
 - Stage 1.1: not started
 - Stage 1.2: complete
 - Stage 1.3: complete
-- Stage 1.4: not started
+- Stage 1.4: complete
 - Stage 2.1: not started
 - Stage 2.2: not started
 - Stage 2.3: not started
@@ -342,3 +342,96 @@ commit `f445deb5f8c`):
   1311 / 1311 unchanged; language tests 3600 / 3600 unchanged. Both
   TFMs. The pairing alone changes no behaviour -- no test
   regressions expected and none observed.
+- 2026-05-25: Stage 1.4 done. Pilot migration of
+  `TokenizerBackedParser.ParseRazorComment` (lines ~381-462 of
+  `Legacy/TokenizerBackedParser.cs`) under the `UseEnhancedRecovery`
+  flag. The end-of-comment `endStar` / `endTransition` handling is
+  now split into two branches:
+  - **Legacy branch** (`Context.Options.UseEnhancedRecovery == false`):
+    byte-for-byte the prior code, kept so the existing baselines
+    (`UnterminatedRazorComment.{stree,diag,cspans}.txt` and the four
+    other unterminated-comment tests in `CSharpRazorCommentsTest.cs`
+    and elsewhere) continue to pass unchanged.
+  - **Enhanced branch** (`UseEnhancedRecovery == true`): calls the
+    Stage 1.2 `Required(SyntaxKind.RazorCommentStar, ..., FollowSet.Empty, SyntaxKind.RazorComment)`
+    and `Required(SyntaxKind.RazorCommentTransition, ...)` helpers,
+    each producing a zero-width `MissingToken` at `CurrentStart` with
+    the Stage 1.3 `RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated_At`
+    diagnostic attached. The branch passes `FollowSet.Empty` because
+    `RazorCommentLiteral` has already consumed everything up to `*@`
+    or EOF -- empirically `sync.Skipped` is always `null` and a
+    `Debug.Assert` documents the invariant. When `endStar` is missing
+    (the typical case for `@*`), `endTransition` is emitted as a
+    plain `MissingToken` without re-attaching the same RZ1028
+    diagnostic (a second copy would dedupe to one anyway via
+    `RazorSyntaxTree.Diagnostics`' `HashSet<RazorDiagnostic>`).
+
+  **Double-emit verification.** Confirmed by inspection of the
+  pre-migration code at lines 382-401 of `TokenizerBackedParser.cs`:
+  the `endStar` missing path called `SyntaxFactory.MissingToken(..., diagnostic)`
+  AND `Context.ErrorSink.OnError(diagnostic)` on the same diagnostic
+  instance (lines 386-387). The `endTransition` missing path also
+  called `Context.ErrorSink.OnError(diagnostic)` plus assigned a
+  token with the diagnostic (line 397) -- but that assignment was
+  unconditionally overwritten on the next line (a pre-existing
+  legacy bug: the diagnostic-bearing `endTransition` token was
+  replaced by a plain `MissingToken` with no diagnostic). The
+  user-visible diagnostic count in `UnterminatedRazorComment.diag.txt`
+  is `1` because `RazorSyntaxTree.Diagnostics` (`RazorSyntaxTree.cs`
+  lines 48-69) merges `ErrorSink` and tree-attached diagnostics
+  through a `HashSet<RazorDiagnostic>` that dedupes by value
+  equality. So the "double-emit" exists at the source-code level
+  (the migration cleans it up) but was already invisible to
+  end-users (the migration preserves that invariant).
+
+  **Test added:** `ParseRazorComment_Unterminated_EnhancedRecovery`
+  in `legacyTest/Legacy/CSharpRazorCommentsTest.cs` (chosen over
+  `TokenizerBackedParserRecoveryTests.cs` for cohesion with the
+  existing `UnterminatedRazorComment` legacy test). Asserts:
+  - `RazorCommentBlockSyntax.EndCommentStar.IsMissing` with
+    `SpanStart == 2`, `Span.Length == 0`.
+  - `RazorCommentBlockSyntax.EndCommentTransition.IsMissing` at the
+    same `(2, 0)` position.
+  - Exactly one `RZ1028` diagnostic in `enhancedTree.Diagnostics`,
+    at `AbsoluteIndex == 2`, `Length == 0` (the new zero-width
+    placement at the missing-token cursor, vs. the legacy
+    `(0, 2)` span covering the opening `@*`).
+  - Plan exit-criterion sanity: `enhancedTree.Diagnostics.Length <= legacyTree.Diagnostics.Length`
+    for the same input (both are 1, so the assertion is trivially
+    satisfied and the stronger "exactly one" check passes too).
+
+  The test uses `ParseDocument(..., configureParserOptions: b => b.UseEnhancedRecovery = true)`
+  (not `ParseDocumentTest`) -- per the plan's note "in-memory
+  assertions if the snapshot harness isn't a clean fit for an
+  enhanced-mode test". No new `.stree.txt` / `.diag.txt` /
+  `.cspans.txt` baselines were generated; the legacy
+  `UnterminatedRazorComment.*` baselines remain untouched and still
+  back the original legacy-mode test.
+
+  **Plan deviations:**
+  - The plan literal calls for "snapshot of the new shape under
+    `Enhanced.json`". Per the plan's BaselineWriter decision (also
+    in this state file) the project uses file-per-aspect text
+    baselines instead of one combined JSON; the enhanced-mode test
+    uses targeted in-memory assertions rather than a parallel
+    `.enhanced.{stree,diag,cspans}.txt` set. The semantic
+    intent (verify position + count + token-shape under the new
+    flag) is preserved by the explicit `Assert.Equal(2, ...)` /
+    `Assert.Single(rz1028)` / etc. assertions.
+  - The `originatingLanguage` argument passed to `Required` is
+    `SyntaxKind.RazorComment` (the comment block's own kind), not
+    `MarkupBlock` or `CSharpCodeBlock`. Rationale: in practice
+    `sync.Skipped` is always `null` for `ParseRazorComment` so the
+    tag is never consumed, but tagging it as the comment's own
+    kind reads naturally and won't conflict with anything.
+
+  No new RZ IDs allocated (reuses RZ1028 via the `_At` factory
+  from Stage 1.3).
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1312 / 1312 (1311 baseline + 1 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
+
+  **Stage 1 complete.** All Stage 1 exit criteria (Synchronize +
+  Required + diagnostic factories + green pilot under the flag)
+  satisfied. Ready for handoff to fresh agent for Stage 2.
