@@ -6,13 +6,14 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 0.3 -- Add the feature flag
+Stage 0.4 -- Add `SkippedContentSyntax` to `Syntax.xml`
 
 ## Status of each stage
 - Stage 0.0: complete
 - Stage 0.1: complete
 - Stage 0.2: complete
-- Stage 0.3: not started
+- Stage 0.3: complete
+- Stage 0.4: not started
 - Stage 0.4: not started
 - Stage 0.5: not started
 - Stage 1.1: not started
@@ -112,3 +113,22 @@ commit `f445deb5f8c`):
   via `dotnet test ... /p:GenerateBaselines=true --filter ParserRecoveryCorpusSnapshotTests`.
   All 10 corpus tests green on both net10.0 and net472. Full legacyTest
   project: 1288 / 1288 green (1278 baseline + 10 new), no regressions.
+- 2026-05-24: Stage 0.3 done. `UseEnhancedRecovery` flag added at bit
+  `1 << 12` in `RazorParserOptions.Flags`, plus the matching getter on
+  `RazorParserOptions`, setter on `RazorParserOptions.Builder`, and
+  `Optional<bool> useEnhancedRecovery` parameter on `WithFlags`. Default
+  is off (not in `GetDefaultFlags`). The compiler csproj has no
+  PublicAPI.Unshipped.txt -- no API tracking update required (matches
+  the plan's note).
+
+  Downstream audit (per Stage 0.3 step 8): `RazorConfiguration.UseRoslynTokenizer`
+  (`Language/RazorConfiguration.cs:18`) and
+  `RazorSourceGenerationOptions.UseRoslynTokenizer` (`SourceGenerators/RazorSourceGenerationOptions.cs:33`)
+  surface the existing tokenizer flag to SDK consumers. `UseEnhancedRecovery`
+  is internal migration scaffolding that will be removed in Stage 6.2;
+  **not** surfaced to SDK consumers. No sibling fields added.
+
+  Three new `RazorParserOptionsTest` cases (DefaultsToFalse,
+  RoundTripsThroughBuilder, RoundTripsThroughWithFlags) all green.
+  Full Razor.slnf build clean; language tests 3600 / 3600 (was 3597, +3);
+  legacy tests 1288 / 1288 unchanged.
