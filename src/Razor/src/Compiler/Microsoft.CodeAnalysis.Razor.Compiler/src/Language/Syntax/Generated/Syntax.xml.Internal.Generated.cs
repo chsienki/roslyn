@@ -338,6 +338,64 @@ internal sealed partial class UnclassifiedTextLiteralSyntax : RazorSyntaxNode
         => new UnclassifiedTextLiteralSyntax(Kind, _literalTokens, _chunkGenerator, _editHandler, diagnostics);
 }
 
+internal sealed partial class SkippedContentSyntax : RazorSyntaxNode
+{
+    internal readonly GreenNode _skippedTokens;
+    internal readonly SyntaxKind _originatingLanguage;
+
+    internal SkippedContentSyntax(SyntaxKind kind, GreenNode skippedTokens, SyntaxKind originatingLanguage, RazorDiagnostic[] diagnostics)
+        : base(kind, diagnostics)
+    {
+        SlotCount = 1;
+        if (skippedTokens != null)
+        {
+            AdjustFlagsAndWidth(skippedTokens);
+            _skippedTokens = skippedTokens;
+        }
+        _originatingLanguage = originatingLanguage;
+    }
+
+    internal SkippedContentSyntax(SyntaxKind kind, GreenNode skippedTokens, SyntaxKind originatingLanguage)
+        : base(kind)
+    {
+        SlotCount = 1;
+        if (skippedTokens != null)
+        {
+            AdjustFlagsAndWidth(skippedTokens);
+            _skippedTokens = skippedTokens;
+        }
+        _originatingLanguage = originatingLanguage;
+    }
+
+    public SyntaxList<SyntaxToken> SkippedTokens => new SyntaxList<SyntaxToken>(_skippedTokens);
+    public SyntaxKind OriginatingLanguage => _originatingLanguage;
+
+    internal override GreenNode GetSlot(int index)
+        => index == 0 ? this._skippedTokens : null;
+
+    internal override SyntaxNode CreateRed(SyntaxNode parent, int position) => new Syntax.SkippedContentSyntax(this, parent, position);
+
+    public override TResult Accept<TResult>(SyntaxVisitor<TResult> visitor) => visitor.VisitSkippedContent(this);
+    public override void Accept(SyntaxVisitor visitor) => visitor.VisitSkippedContent(this);
+
+    public SkippedContentSyntax Update(InternalSyntax.SyntaxList<SyntaxToken> skippedTokens, SyntaxKind originatingLanguage)
+    {
+        if (skippedTokens != SkippedTokens)
+        {
+            var newNode = SyntaxFactory.SkippedContent(skippedTokens, originatingLanguage);
+            var diags = GetDiagnostics();
+            if (diags != null && diags.Length > 0)
+                newNode = newNode.WithDiagnosticsGreen(diags);
+            return newNode;
+        }
+
+        return this;
+    }
+
+    internal override GreenNode SetDiagnostics(RazorDiagnostic[] diagnostics)
+        => new SkippedContentSyntax(Kind, _skippedTokens, _originatingLanguage, diagnostics);
+}
+
 internal abstract partial class MarkupSyntaxNode : RazorSyntaxNode
 {
     internal MarkupSyntaxNode(SyntaxKind kind, RazorDiagnostic[] diagnostics)
@@ -3169,6 +3227,7 @@ internal partial class SyntaxVisitor<TResult>
     public virtual TResult VisitRazorMetaCode(RazorMetaCodeSyntax node) => DefaultVisit(node);
     public virtual TResult VisitGenericBlock(GenericBlockSyntax node) => DefaultVisit(node);
     public virtual TResult VisitUnclassifiedTextLiteral(UnclassifiedTextLiteralSyntax node) => DefaultVisit(node);
+    public virtual TResult VisitSkippedContent(SkippedContentSyntax node) => DefaultVisit(node);
     public virtual TResult VisitMarkupBlock(MarkupBlockSyntax node) => DefaultVisit(node);
     public virtual TResult VisitMarkupTransition(MarkupTransitionSyntax node) => DefaultVisit(node);
     public virtual TResult VisitMarkupTextLiteral(MarkupTextLiteralSyntax node) => DefaultVisit(node);
@@ -3214,6 +3273,7 @@ internal partial class SyntaxVisitor
     public virtual void VisitRazorMetaCode(RazorMetaCodeSyntax node) => DefaultVisit(node);
     public virtual void VisitGenericBlock(GenericBlockSyntax node) => DefaultVisit(node);
     public virtual void VisitUnclassifiedTextLiteral(UnclassifiedTextLiteralSyntax node) => DefaultVisit(node);
+    public virtual void VisitSkippedContent(SkippedContentSyntax node) => DefaultVisit(node);
     public virtual void VisitMarkupBlock(MarkupBlockSyntax node) => DefaultVisit(node);
     public virtual void VisitMarkupTransition(MarkupTransitionSyntax node) => DefaultVisit(node);
     public virtual void VisitMarkupTextLiteral(MarkupTextLiteralSyntax node) => DefaultVisit(node);
@@ -3268,6 +3328,9 @@ internal partial class SyntaxRewriter : SyntaxVisitor<GreenNode>
 
     public override GreenNode VisitUnclassifiedTextLiteral(UnclassifiedTextLiteralSyntax node)
         => node.Update(VisitList(node.LiteralTokens), node.ChunkGenerator, node.EditHandler);
+
+    public override GreenNode VisitSkippedContent(SkippedContentSyntax node)
+        => node.Update(VisitList(node.SkippedTokens), node.OriginatingLanguage);
 
     public override GreenNode VisitMarkupBlock(MarkupBlockSyntax node)
         => node.Update(VisitList(node.Children));
@@ -3430,6 +3493,13 @@ internal static partial class SyntaxFactory
     public static UnclassifiedTextLiteralSyntax UnclassifiedTextLiteral(Microsoft.AspNetCore.Razor.Language.Syntax.InternalSyntax.SyntaxList<SyntaxToken> literalTokens, ISpanChunkGenerator chunkGenerator, SpanEditHandler editHandler)
     {
         var result = new UnclassifiedTextLiteralSyntax(SyntaxKind.UnclassifiedTextLiteral, literalTokens.Node, chunkGenerator, editHandler);
+
+        return result;
+    }
+
+    public static SkippedContentSyntax SkippedContent(Microsoft.AspNetCore.Razor.Language.Syntax.InternalSyntax.SyntaxList<SyntaxToken> skippedTokens, SyntaxKind originatingLanguage)
+    {
+        var result = new SkippedContentSyntax(SyntaxKind.SkippedContent, skippedTokens.Node, originatingLanguage);
 
         return result;
     }
@@ -3793,6 +3863,7 @@ internal static partial class SyntaxFactory
             typeof(RazorMetaCodeSyntax),
             typeof(GenericBlockSyntax),
             typeof(UnclassifiedTextLiteralSyntax),
+            typeof(SkippedContentSyntax),
             typeof(MarkupBlockSyntax),
             typeof(MarkupTransitionSyntax),
             typeof(MarkupTextLiteralSyntax),

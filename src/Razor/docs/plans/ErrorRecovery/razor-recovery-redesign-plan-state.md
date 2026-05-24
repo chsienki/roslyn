@@ -6,14 +6,16 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 0.4 -- Add `SkippedContentSyntax` to `Syntax.xml`
+Stage 0 complete. Ready for handoff to fresh agent for Stage 1.
 
 ## Status of each stage
 - Stage 0.0: complete
 - Stage 0.1: complete
 - Stage 0.2: complete
 - Stage 0.3: complete
-- Stage 0.4: not started
+- Stage 0.4: complete
+- Stage 0.5: complete
+- Stage 1.1: not started
 - Stage 0.4: not started
 - Stage 0.5: not started
 - Stage 1.1: not started
@@ -132,3 +134,24 @@ commit `f445deb5f8c`):
   RoundTripsThroughBuilder, RoundTripsThroughWithFlags) all green.
   Full Razor.slnf build clean; language tests 3600 / 3600 (was 3597, +3);
   legacy tests 1288 / 1288 unchanged.
+- 2026-05-24: Stage 0.4 done. `SkippedContentSyntax` added to
+  `Syntax.xml` with `SkippedTokens : SyntaxList<SyntaxToken>` and
+  `OriginatingLanguage : SyntaxKind` fields. Hand-edited `SyntaxKind.cs`
+  to add `SkippedContent` in the `#region Nodes` block (the file is not
+  auto-generated, despite living in the Syntax/ directory). Ran
+  `dotnet run --project ...RazorSyntaxGenerator -- Syntax.xml Generated/`;
+  3 generated files updated (+132 lines). Empirical resolution of
+  Round 3's H5 concern: the generator handles `Type="SyntaxKind"`
+  fields cleanly, producing a non-nullable `public SyntaxKind OriginatingLanguage`
+  property without needing `Optional="true"`. Razor.slnf builds clean;
+  test suites unchanged (1288 / 3600).
+- 2026-05-24: Stage 0.5 done. Audit checklist
+  `legacyTest/ParserRecoveryCorpus/parser-recovery-audit-skipped-content.md`
+  enumerates ~22 consumers across 13+ files, categorising each as
+  (a) must ignore, (b) skip-and-warn, or (c) unaffected. Identifies
+  the 4 most-critical consumer sites for unblocking the #10383 wall
+  of red (all owned by Stages 5.0 / 5.1 / 5.3).
+
+  **Stage 0 complete.** Both parser test projects remain green
+  (1288 / 1288 legacy + 3600 / 3600 language, both TFMs); Razor.slnf
+  builds clean. Ready for handoff to fresh agent for Stage 1.

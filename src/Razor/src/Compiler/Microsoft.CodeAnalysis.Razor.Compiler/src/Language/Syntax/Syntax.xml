@@ -49,6 +49,19 @@
     <Field Name="ChunkGenerator" Type="ISpanChunkGenerator" Optional="true" />
     <Field Name="EditHandler" Type="SpanEditHandler" Optional="true" />
   </Node>
+  <!-- Skipped content produced by parser-recovery synchronization.
+       Holds tokens that were skipped while resyncing to a follow set,
+       plus a SyntaxKind tagging the originating language (CSharpCodeBlock,
+       MarkupBlock, or None for document-level). Consumers that don't
+       care (codegen for content, source mappings) ignore it; walkers
+       see it like any other node. See
+       src/Razor/docs/plans/ErrorRecovery/razor-recovery-redesign-plan.md
+       Big Design Decisions #1 and #10. -->
+  <Node Name="SkippedContentSyntax" Base="RazorSyntaxNode">
+    <Kind Name="SkippedContent" />
+    <Field Name="SkippedTokens" Type="SyntaxList&lt;SyntaxToken&gt;" />
+    <Field Name="OriginatingLanguage" Type="SyntaxKind" />
+  </Node>
 
   <!-- Markup -->
   <AbstractNode Name="MarkupSyntaxNode" Base="RazorSyntaxNode" />
