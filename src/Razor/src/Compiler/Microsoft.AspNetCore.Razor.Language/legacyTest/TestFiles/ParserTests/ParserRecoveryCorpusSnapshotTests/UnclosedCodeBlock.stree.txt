@@ -1,0 +1,56 @@
+﻿RazorDocument - [0..69)::69 - [@{ var x = 1;LFLF<p>markup that follows the unclosed code block</p>LF]
+    MarkupBlock - [0..69)::69
+        MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Marker;[];
+        CSharpCodeBlock - [0..69)::69
+            CSharpStatement - [0..69)::69
+                CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    Transition;[@];
+                CSharpStatementBody - [1..69)::68
+                    RazorMetaCode - [1..2)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                        LeftBrace;[{];
+                    CSharpCodeBlock - [2..69)::67
+                        CSharpStatementLiteral - [2..17)::15 - [ var x = 1;LFLF] - Gen<Stmt> - AutoCompleteEditHandler;Accepts:Any,AutoComplete:[}];AtEOL
+                            Whitespace;[ ];
+                            Identifier;[var];
+                            Whitespace;[ ];
+                            Identifier;[x];
+                            Whitespace;[ ];
+                            Assign;[=];
+                            Whitespace;[ ];
+                            IntegerLiteral;[1];
+                            Semicolon;[;];
+                            NewLine;[LF];
+                            NewLine;[LF];
+                        MarkupBlock - [17..69)::52
+                            MarkupElement - [17..67)::50
+                                MarkupStartTag - [17..20)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:None
+                                    OpenAngle;[<];
+                                    Text;[p];
+                                    CloseAngle;[>];
+                                MarkupTextLiteral - [20..63)::43 - [markup that follows the unclosed code block] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                    Text;[markup];
+                                    Whitespace;[ ];
+                                    Text;[that];
+                                    Whitespace;[ ];
+                                    Text;[follows];
+                                    Whitespace;[ ];
+                                    Text;[the];
+                                    Whitespace;[ ];
+                                    Text;[unclosed];
+                                    Whitespace;[ ];
+                                    Text;[code];
+                                    Whitespace;[ ];
+                                    Text;[block];
+                                MarkupEndTag - [63..67)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:None
+                                    OpenAngle;[<];
+                                    ForwardSlash;[/];
+                                    Text;[p];
+                                    CloseAngle;[>];
+                            MarkupTextLiteral - [67..69)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:None
+                                NewLine;[LF];
+                        CSharpStatementLiteral - [69..69)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+                            Marker;[];
+                    RazorMetaCode - [69..69)::0 - Gen<None> - SpanEditHandler;Accepts:Any
+                        RightBrace;[<Missing>];
+    EndOfFile;[];
