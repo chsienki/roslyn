@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 1.1 complete. Ready for Stage 1.2 (`Required` helper).
+Stage 1.2 complete. Ready for Stage 1.3 (diagnostic factory updates).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -19,7 +19,7 @@ Stage 1.1 complete. Ready for Stage 1.2 (`Required` helper).
 - Stage 0.4: not started
 - Stage 0.5: not started
 - Stage 1.1: not started
-- Stage 1.2: not started
+- Stage 1.2: complete
 - Stage 1.3: not started
 - Stage 1.4: not started
 - Stage 2.1: not started
@@ -218,4 +218,65 @@ commit `f445deb5f8c`):
 
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1301 / 1301 (1288 baseline + 13 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
+- 2026-05-25: Stage 1.2 done. Added three helpers to
+  `TokenizerBackedParser` directly after the two `Synchronize`
+  overloads:
+  - `Required(SyntaxKind kind, RazorDiagnostic diagnostic, FollowSet recovery, SyntaxKind originatingLanguage)`
+    returning `(SyntaxToken token, SkippedContentSyntax? skipped)`.
+    Consume path: if `CurrentToken.Kind == kind`, advances and
+    returns `(token, null)`. Missing path: emits
+    `SyntaxFactory.MissingToken(kind, diagnostic)`, runs
+    `Synchronize(recovery, originatingLanguage)`, and returns
+    `(missing, sync.Skipped)`. The diagnostic is attached to the
+    missing token only -- `ErrorSink` is NOT written to (Stage 1.4
+    will fix up `ParseRazorComment`'s pre-existing double-emit).
+  - Multi-kind `Required(ImmutableArray<SyntaxKind> acceptableKinds, ...)`
+    overload. Consumes the current token if its kind matches any
+    entry; on failure, emits `MissingToken(acceptableKinds[0], ...)`.
+    Asserts `!acceptableKinds.IsDefaultOrEmpty`.
+  - `Optional(SyntaxKind kind)` -- thin wrapper over the
+    pre-existing `GetOptionalToken(kind)` for vocabulary symmetry
+    with `Required`. No diagnostic, no missing token; returns the
+    consumed token or `null`.
+
+  All three follow the existing `protected internal` visibility
+  convention (matches `Synchronize` and the rest of
+  `TokenizerBackedParser`'s public-ish helpers) so the `legacyTest`
+  assembly can call them directly via `InternalsVisibleTo`.
+
+  Test class `TokenizerBackedParserRecoveryTests` extended with
+  ten new `[Fact]` methods using the same `TestParserHarness`
+  fixture from Stage 1.1:
+  - `Required_AtExpectedKind_ConsumesAndReturnsTokenWithNoSkipped`
+  - `Required_KindMissing_EmitsMissingTokenAndSynchronizesToRecovery`
+  - `Required_KindMissingAtEndOfFile_EmitsMissingTokenWithNullSkipped`
+  - `Required_KindMissingWithEmptyRecovery_SkipsToEndOfFile`
+  - `Required_MultiKind_MatchesFirstKind`
+  - `Required_MultiKind_MatchesSecondKind`
+  - `Required_MultiKind_NoneMatch_EmitsMissingTokenOfFirstKind`
+  - `Required_MissingPath_AttachesDiagnosticToMissingToken_AndDoesNotEmitToErrorSink`
+    (Stage 1.2 exit criterion: exactly one diagnostic copy --
+    attached to the token, never copied into `ErrorSink`)
+  - `Optional_AtExpectedKind_ConsumesAndReturnsToken`
+  - `Optional_KindMissing_ReturnsNullAndDoesNotAdvance`
+
+  Helper `CreateTestDiagnostic()` constructs a throwaway
+  `RazorDiagnostic` from a local `RazorDiagnosticDescriptor`
+  (id `"test0001"`, lower-case so it cannot clash with any real
+  `RZxxxx` id) -- intentionally NOT a real factory entry since
+  Stage 1.3 owns RZ ID allocation. The diagnostic is only used to
+  verify identity-equality (`Assert.Same(diagnostic, ...)`) on the
+  missing-token attachment; it never reaches a tree.
+
+  **Plan deviations:** none. The plan's literal signature uses
+  `params SyntaxKind[]` phrasing for the multi-kind overload
+  ("multi-acceptable-kind"); the implementation uses
+  `ImmutableArray<SyntaxKind>` for allocation-friendliness and to
+  match Stage 2/3 call-sites which will pre-build these arrays
+  with `ImmutableArray.Create(...)`. A `params SyntaxKind[]`
+  overload can be added trivially if call-sites need it.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1311 / 1311 (1301 baseline + 10 new); language tests 3600 / 3600
   unchanged. Both TFMs.

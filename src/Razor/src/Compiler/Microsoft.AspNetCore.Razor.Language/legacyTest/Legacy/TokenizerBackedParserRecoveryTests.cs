@@ -216,6 +216,227 @@ public class TokenizerBackedParserRecoveryTests
     }
 
     // ----------------------------------------------------------------
+    // Required / Optional tests (Stage 1.2).
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void Required_AtExpectedKind_ConsumesAndReturnsTokenWithNoSkipped()
+    {
+        // Current token kind is OpenAngle and we require OpenAngle: consume it.
+        using var harness = TestParserHarness.Create("<abc>");
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, skipped) = harness.Parser.Required(
+            SyntaxKind.OpenAngle,
+            diagnostic,
+            FollowSet.Empty,
+            SyntaxKind.MarkupBlock);
+
+        Assert.Equal(SyntaxKind.OpenAngle, token.Kind);
+        Assert.Equal("<", token.Content);
+        Assert.False(token.IsMissing);
+        Assert.Empty(token.GetDiagnostics());
+        Assert.Null(skipped);
+
+        // Cursor must have advanced past the consumed token.
+        Assert.Equal(SyntaxKind.Text, harness.Parser.GetCurrentToken().Kind);
+
+        // Required must not push to the literal-token pipeline.
+        Assert.Equal(0, harness.Parser.GetTokenBuilderCount());
+
+        // And it must not have copied the diagnostic into the ErrorSink.
+        Assert.Empty(harness.Context.ErrorSink.GetErrorsAndClear());
+    }
+
+    [Fact]
+    public void Required_KindMissing_EmitsMissingTokenAndSynchronizesToRecovery()
+    {
+        // Tokens: Text("abc"), Whitespace(" "), Text("def"). We require OpenAngle.
+        // Recovery follow = { Whitespace }: missing token + skip "abc", stop at " ".
+        using var harness = TestParserHarness.Create("abc def");
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, skipped) = harness.Parser.Required(
+            SyntaxKind.OpenAngle,
+            diagnostic,
+            new FollowSet(SyntaxKind.Whitespace),
+            SyntaxKind.MarkupBlock);
+
+        Assert.Equal(SyntaxKind.OpenAngle, token.Kind);
+        Assert.True(token.IsMissing);
+        Assert.Same(diagnostic, Assert.Single(token.GetDiagnostics()));
+
+        Assert.NotNull(skipped);
+        Assert.Equal(SyntaxKind.SkippedContent, skipped.Kind);
+        Assert.Equal(SyntaxKind.MarkupBlock, skipped.OriginatingLanguage);
+        Assert.Equal(1, skipped.SkippedTokens.Count);
+        var skippedToken = skipped.SkippedTokens[0];
+        Assert.Equal(SyntaxKind.Text, skippedToken.Kind);
+        Assert.Equal("abc", skippedToken.Content);
+
+        Assert.Equal(SyntaxKind.Whitespace, harness.Parser.GetCurrentToken().Kind);
+    }
+
+    [Fact]
+    public void Required_KindMissingAtEndOfFile_EmitsMissingTokenWithNullSkipped()
+    {
+        // Synchronization at EOF skips nothing -> Skipped is null.
+        using var harness = TestParserHarness.Create("");
+
+        Assert.True(harness.Parser.GetEndOfFile());
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, skipped) = harness.Parser.Required(
+            SyntaxKind.OpenAngle,
+            diagnostic,
+            FollowSet.Empty,
+            SyntaxKind.MarkupBlock);
+
+        Assert.Equal(SyntaxKind.OpenAngle, token.Kind);
+        Assert.True(token.IsMissing);
+        Assert.Same(diagnostic, Assert.Single(token.GetDiagnostics()));
+        Assert.Null(skipped);
+    }
+
+    [Fact]
+    public void Required_KindMissingWithEmptyRecovery_SkipsToEndOfFile()
+    {
+        // Tokens: Text("abc"), Whitespace, Text("def"). FollowSet.Empty matches
+        // nothing, so synchronization runs all the way to EOF.
+        using var harness = TestParserHarness.Create("abc def");
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, skipped) = harness.Parser.Required(
+            SyntaxKind.OpenAngle,
+            diagnostic,
+            FollowSet.Empty,
+            SyntaxKind.MarkupBlock);
+
+        Assert.True(token.IsMissing);
+        Assert.NotNull(skipped);
+        Assert.Equal(3, skipped.SkippedTokens.Count);
+        Assert.True(harness.Parser.GetEndOfFile());
+    }
+
+    [Fact]
+    public void Required_MultiKind_MatchesFirstKind()
+    {
+        // Current token is Whitespace. Acceptable = [Whitespace, NewLine].
+        using var harness = TestParserHarness.Create(" abc");
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, skipped) = harness.Parser.Required(
+            ImmutableArray.Create(SyntaxKind.Whitespace, SyntaxKind.NewLine),
+            diagnostic,
+            FollowSet.Empty,
+            SyntaxKind.MarkupBlock);
+
+        Assert.Equal(SyntaxKind.Whitespace, token.Kind);
+        Assert.False(token.IsMissing);
+        Assert.Empty(token.GetDiagnostics());
+        Assert.Null(skipped);
+        Assert.Equal(SyntaxKind.Text, harness.Parser.GetCurrentToken().Kind);
+    }
+
+    [Fact]
+    public void Required_MultiKind_MatchesSecondKind()
+    {
+        // Current token is NewLine. Acceptable = [Whitespace, NewLine].
+        using var harness = TestParserHarness.Create("\nabc");
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, skipped) = harness.Parser.Required(
+            ImmutableArray.Create(SyntaxKind.Whitespace, SyntaxKind.NewLine),
+            diagnostic,
+            FollowSet.Empty,
+            SyntaxKind.MarkupBlock);
+
+        Assert.Equal(SyntaxKind.NewLine, token.Kind);
+        Assert.False(token.IsMissing);
+        Assert.Null(skipped);
+    }
+
+    [Fact]
+    public void Required_MultiKind_NoneMatch_EmitsMissingTokenOfFirstKind()
+    {
+        // Current token is Text("abc"). Acceptable = [Whitespace, NewLine].
+        // Missing token must have Kind == acceptableKinds[0] (= Whitespace).
+        using var harness = TestParserHarness.Create("abc def");
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, skipped) = harness.Parser.Required(
+            ImmutableArray.Create(SyntaxKind.Whitespace, SyntaxKind.NewLine),
+            diagnostic,
+            new FollowSet(SyntaxKind.Text),
+            SyntaxKind.MarkupBlock);
+
+        Assert.Equal(SyntaxKind.Whitespace, token.Kind);
+        Assert.True(token.IsMissing);
+        Assert.Same(diagnostic, Assert.Single(token.GetDiagnostics()));
+
+        // Recovery contains Text, which is the current token, so Synchronize
+        // immediately stops with no skipped content.
+        Assert.Null(skipped);
+        Assert.Equal(SyntaxKind.Text, harness.Parser.GetCurrentToken().Kind);
+    }
+
+    [Fact]
+    public void Required_MissingPath_AttachesDiagnosticToMissingToken_AndDoesNotEmitToErrorSink()
+    {
+        // Stage 1.2 exit criterion: a missing-token Required emits exactly one
+        // diagnostic copy -- attached to the token. The ErrorSink must NOT
+        // receive an additional copy.
+        using var harness = TestParserHarness.Create("abc");
+
+        var diagnostic = CreateTestDiagnostic();
+        var (token, _) = harness.Parser.Required(
+            SyntaxKind.OpenAngle,
+            diagnostic,
+            FollowSet.Empty,
+            SyntaxKind.MarkupBlock);
+
+        Assert.Same(diagnostic, Assert.Single(token.GetDiagnostics()));
+        Assert.Empty(harness.Context.ErrorSink.GetErrorsAndClear());
+    }
+
+    [Fact]
+    public void Optional_AtExpectedKind_ConsumesAndReturnsToken()
+    {
+        using var harness = TestParserHarness.Create("<abc>");
+
+        var token = harness.Parser.Optional(SyntaxKind.OpenAngle);
+
+        Assert.NotNull(token);
+        Assert.Equal(SyntaxKind.OpenAngle, token.Kind);
+        Assert.Equal(SyntaxKind.Text, harness.Parser.GetCurrentToken().Kind);
+    }
+
+    [Fact]
+    public void Optional_KindMissing_ReturnsNullAndDoesNotAdvance()
+    {
+        using var harness = TestParserHarness.Create("abc");
+
+        var token = harness.Parser.Optional(SyntaxKind.OpenAngle);
+
+        Assert.Null(token);
+        Assert.Equal(SyntaxKind.Text, harness.Parser.GetCurrentToken().Kind);
+        Assert.Empty(harness.Context.ErrorSink.GetErrorsAndClear());
+    }
+
+    private static RazorDiagnostic CreateTestDiagnostic()
+    {
+        // A descriptor whose ID does not clash with any real RZ id (lower-case
+        // prefix). This stays inside the test class and is never written to a
+        // tree; we only need a `RazorDiagnostic` instance to thread through
+        // `Required`.
+        var descriptor = new RazorDiagnosticDescriptor(
+            id: "test0001",
+            messageFormat: "test diagnostic",
+            severity: RazorDiagnosticSeverity.Error);
+        return RazorDiagnostic.Create(descriptor, SourceSpan.Undefined);
+    }
+
+    // ----------------------------------------------------------------
     // Test harness: a minimal HtmlMarkupParser-backed wrapper that
     // exposes the protected members needed to drive Synchronize from
     // tests. HtmlMarkupParser is chosen because it is a concrete

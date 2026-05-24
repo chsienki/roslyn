@@ -819,6 +819,120 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
         SyncOptions options = SyncOptions.None)
         => Synchronize(localFollow, FollowSet.Empty, originatingLanguage, options);
 
+    /// <summary>
+    /// Either consumes the current token (when its kind is <paramref name="kind"/>)
+    /// or emits a zero-width <see cref="SyntaxFactory.MissingToken(SyntaxKind, RazorDiagnostic[])"/>
+    /// of <paramref name="kind"/> with <paramref name="diagnostic"/> attached and
+    /// synchronizes to <paramref name="recovery"/>.
+    /// </summary>
+    /// <param name="kind">The expected token kind.</param>
+    /// <param name="diagnostic">
+    /// Diagnostic to attach to the missing token if <paramref name="kind"/> is not
+    /// current. The diagnostic should be constructed with a zero-length
+    /// <see cref="SourceSpan"/> at the current position (where the token was
+    /// expected). The diagnostic is attached to the missing token and MUST NOT
+    /// also be pushed to <see cref="ErrorSink"/>; the missing-token attachment
+    /// is the diagnostic. (See Stage 1.4 of the recovery plan for the canonical
+    /// migration pattern that removes the legacy double-emit.)
+    /// </param>
+    /// <param name="recovery">
+    /// Follow set to synchronize at if the expected token is missing.
+    /// </param>
+    /// <param name="originatingLanguage">
+    /// Language tag for any <see cref="SkippedContentSyntax"/> produced by the
+    /// recovery sync (e.g. <see cref="SyntaxKind.MarkupBlock"/> or
+    /// <see cref="SyntaxKind.CSharpCodeBlock"/>).
+    /// </param>
+    /// <returns>
+    /// A tuple of (<c>token</c>, <c>skipped</c>):
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     On the consume path: <c>token</c> is the consumed token (the parser
+    ///     advances past it) and <c>skipped</c> is <c>null</c>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     On the missing path: <c>token</c> is the <see cref="SyntaxFactory.MissingToken(SyntaxKind, RazorDiagnostic[])"/>
+    ///     with <paramref name="diagnostic"/> attached, and <c>skipped</c> is the
+    ///     <see cref="SkippedContentSyntax"/> produced by synchronization (which
+    ///     may be <c>null</c> if nothing needed to be skipped).
+    ///   </description></item>
+    /// </list>
+    /// The caller places both values into its output in positional order
+    /// (missing-token first, skipped-content second).
+    /// </returns>
+    protected internal (SyntaxToken token, SkippedContentSyntax? skipped) Required(
+        SyntaxKind kind,
+        RazorDiagnostic diagnostic,
+        FollowSet recovery,
+        SyntaxKind originatingLanguage)
+    {
+        if (EnsureCurrent() && CurrentToken != null && CurrentToken.Kind == kind)
+        {
+            var token = CurrentToken;
+            NextToken();
+            return (token, null);
+        }
+
+        var missing = SyntaxFactory.MissingToken(kind, diagnostic);
+        var sync = Synchronize(recovery, originatingLanguage);
+        return (missing, sync.Skipped);
+    }
+
+    /// <summary>
+    /// Multi-kind overload of <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>:
+    /// consumes the current token if its kind matches any entry in
+    /// <paramref name="acceptableKinds"/>; otherwise emits a missing token of
+    /// <c>acceptableKinds[0]</c> and synchronizes.
+    /// </summary>
+    /// <param name="acceptableKinds">
+    /// One-or-more acceptable kinds, in caller-preference order. Must be
+    /// non-empty: the first entry is used as the kind of the missing token
+    /// produced on the failure path.
+    /// </param>
+    /// <param name="diagnostic">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>.</param>
+    /// <param name="recovery">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>.</param>
+    /// <param name="originatingLanguage">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>.</param>
+    protected internal (SyntaxToken token, SkippedContentSyntax? skipped) Required(
+        ImmutableArray<SyntaxKind> acceptableKinds,
+        RazorDiagnostic diagnostic,
+        FollowSet recovery,
+        SyntaxKind originatingLanguage)
+    {
+        Debug.Assert(!acceptableKinds.IsDefaultOrEmpty, "Required requires at least one acceptable kind.");
+
+        if (EnsureCurrent() && CurrentToken != null)
+        {
+            var currentKind = CurrentToken.Kind;
+            foreach (var acceptable in acceptableKinds)
+            {
+                if (currentKind == acceptable)
+                {
+                    var token = CurrentToken;
+                    NextToken();
+                    return (token, null);
+                }
+            }
+        }
+
+        var missing = SyntaxFactory.MissingToken(acceptableKinds[0], diagnostic);
+        var sync = Synchronize(recovery, originatingLanguage);
+        return (missing, sync.Skipped);
+    }
+
+    /// <summary>
+    /// Consumes the current token if its kind is <paramref name="kind"/>, returning
+    /// it; otherwise returns <c>null</c> without advancing or emitting a diagnostic.
+    /// </summary>
+    /// <remarks>
+    /// This is the new-vocabulary counterpart to <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>:
+    /// use it for tokens where absence is grammatical (and therefore not an
+    /// error). Functionally equivalent to <see cref="GetOptionalToken(SyntaxKind)"/>;
+    /// new recovery-aware parser code should prefer this name for symmetry with
+    /// <c>Required</c>.
+    /// </remarks>
+    protected internal SyntaxToken? Optional(SyntaxKind kind)
+        => GetOptionalToken(kind);
+
     public void Dispose()
     {
         _tokenizer.Dispose();
