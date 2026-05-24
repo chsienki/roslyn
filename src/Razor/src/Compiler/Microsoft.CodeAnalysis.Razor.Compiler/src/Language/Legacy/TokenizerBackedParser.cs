@@ -732,6 +732,93 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
         _tokenizer.Tokenizer.EndingBlock();
     }
 
+    /// <summary>
+    /// Advances the tokenizer past unexpected tokens until the current token
+    /// is in <paramref name="localFollow"/>, in <paramref name="outerFollow"/>,
+    /// at end-of-file, or matches a stop condition in <paramref name="options"/>.
+    /// The synchronization-point token is NOT consumed -- it remains the
+    /// current token on return so the caller can decide what to do with it.
+    /// </summary>
+    /// <remarks>
+    /// The skipped tokens (if any) are packaged as a
+    /// <see cref="SkippedContentSyntax"/> node tagged with
+    /// <paramref name="originatingLanguage"/>. This method does NOT call
+    /// <see cref="Accept(SyntaxToken)"/>; the caller is responsible for
+    /// placing the returned node into its own builder in the correct
+    /// positional order. The stop reason returned matters for cross-language
+    /// recovery: <see cref="SyncStopReason.AtOuterFollowToken"/> tells the
+    /// caller it should bail back to its outer parser rather than try to
+    /// continue inner-grammar work.
+    /// </remarks>
+    protected internal SyncResult Synchronize(
+        FollowSet localFollow,
+        FollowSet outerFollow,
+        SyntaxKind originatingLanguage,
+        SyncOptions options = SyncOptions.None)
+    {
+        using var pooled = Pool.Allocate<SyntaxToken>();
+        var builder = pooled.Builder;
+
+        SyncStopReason stopReason;
+        while (true)
+        {
+            CancellationToken.ThrowIfCancellationRequested();
+
+            if (!EnsureCurrent() || EndOfFile || CurrentToken == null)
+            {
+                stopReason = SyncStopReason.EndOfFile;
+                break;
+            }
+
+            var kind = CurrentToken.Kind;
+
+            if (localFollow.Contains(kind))
+            {
+                stopReason = SyncStopReason.AtFollowToken;
+                break;
+            }
+
+            if (outerFollow.Contains(kind))
+            {
+                stopReason = SyncStopReason.AtOuterFollowToken;
+                break;
+            }
+
+            if ((options & SyncOptions.StopAtNewLine) != 0 && kind == SyntaxKind.NewLine)
+            {
+                stopReason = SyncStopReason.AtNewLine;
+                break;
+            }
+
+            if ((options & SyncOptions.StopAtTransition) != 0 && kind == SyntaxKind.Transition)
+            {
+                stopReason = SyncStopReason.AtTransition;
+                break;
+            }
+
+            builder.Add(CurrentToken);
+            NextToken();
+        }
+
+        if (builder.Count == 0)
+        {
+            return new SyncResult(Skipped: null, stopReason);
+        }
+
+        var skipped = SyntaxFactory.SkippedContent(builder.ToList(), originatingLanguage);
+        return new SyncResult(skipped, stopReason);
+    }
+
+    /// <summary>
+    /// Same-language overload of <see cref="Synchronize(FollowSet, FollowSet, SyntaxKind, SyncOptions)"/>:
+    /// no outer follow set, no cross-language recovery.
+    /// </summary>
+    protected internal SyncResult Synchronize(
+        FollowSet localFollow,
+        SyntaxKind originatingLanguage,
+        SyncOptions options = SyncOptions.None)
+        => Synchronize(localFollow, FollowSet.Empty, originatingLanguage, options);
+
     public void Dispose()
     {
         _tokenizer.Dispose();

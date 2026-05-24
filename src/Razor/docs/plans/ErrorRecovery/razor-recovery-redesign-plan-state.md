@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 0 complete. Ready for handoff to fresh agent for Stage 1.
+Stage 1.1 complete. Ready for Stage 1.2 (`Required` helper).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -15,7 +15,7 @@ Stage 0 complete. Ready for handoff to fresh agent for Stage 1.
 - Stage 0.3: complete
 - Stage 0.4: complete
 - Stage 0.5: complete
-- Stage 1.1: not started
+- Stage 1.1: complete
 - Stage 0.4: not started
 - Stage 0.5: not started
 - Stage 1.1: not started
@@ -155,3 +155,67 @@ commit `f445deb5f8c`):
   **Stage 0 complete.** Both parser test projects remain green
   (1288 / 1288 legacy + 3600 / 3600 language, both TFMs); Razor.slnf
   builds clean. Ready for handoff to fresh agent for Stage 1.
+- 2026-05-25: Stage 1.1 done. Added the `Synchronize` helper plus its
+  supporting types to `TokenizerBackedParser`:
+  - `FollowSet` (`Legacy/FollowSet.cs`): readonly struct backed by two
+    `ulong`s indexed by the low byte of `SyntaxKind`. Supports
+    `Empty`, `Contains`, `Union`, `|` operator, params constructor,
+    value equality, and a debug assertion that fires if any
+    `SyntaxKind` whose underlying value exceeds 127 is added or
+    tested (matches plan BDD #4 -- current `FirstAvailableTokenKind`
+    is well below that bound).
+  - `SyncResult` / `SyncStopReason` / `SyncOptions`
+    (`Legacy/SyncResult.cs`): `record struct` for the return value
+    (so `default` is a valid no-skip, EOF result), enum reasons
+    (`AtFollowToken`, `AtOuterFollowToken`, `AtNewLine`,
+    `AtTransition`, `EndOfFile`), and `[Flags]` options
+    (`None`, `StopAtNewLine`, `StopAtTransition`).
+  - Both `Synchronize` overloads on `TokenizerBackedParser` (the
+    full one with `outerFollow`, and a convenience overload that
+    delegates with `FollowSet.Empty`). Honours
+    `CancellationToken.ThrowIfCancellationRequested()` in the inner
+    loop, leaves the sync-point token current (not consumed), does
+    NOT call `Accept`, returns the `SkippedContentSyntax` for the
+    caller to insert.
+  - `RecoveryFollowSets` (`Legacy/RecoveryFollowSets.cs`): seeded
+    with `Empty` only. Per the plan's Stage 4.1 reference catalogue,
+    named language-scoped sets and the cross-language translation
+    helpers (`ForCSharpCallee` / `ForHtmlCallee`) will be added by
+    the stages that need them; nothing in Stage 1.1 references
+    them yet so populating now would be dead code.
+
+  Test class `TokenizerBackedParserRecoveryTests` added to
+  `legacyTest/Legacy/`. 13 `[Fact]` methods cover: `FollowSet.Empty`,
+  `FollowSet` construction + `Contains`, `Union` / `|`, value
+  equality, and all the `Synchronize` cases the plan enumerates
+  (no-op at current token, single-token skip to local follow,
+  outer-follow stop reason, many-token skip, EOF, `StopAtNewLine`,
+  `StopAtTransition`, cancellation throws, `Synchronize` does not
+  populate the parser's token builder). Uses a tiny in-test
+  `TestHtmlMarkupParser` subclass to expose the protected helpers
+  the harness needs (`EnsureCurrent`, `CurrentToken`, `EndOfFile`,
+  `TokenBuilder.Count`).
+
+  **Plan deviations (small, intentional):**
+  - `Synchronize` is declared `protected internal`, not `protected`
+    as written literally in the plan. This matches the existing
+    convention in `TokenizerBackedParser` (`AcceptUntil`,
+    `AcceptAndMoveNext`, `Accept(SyntaxToken)`, `NextIs`,
+    `NextToken` are all `protected internal`) and lets the
+    `legacyTest` assembly call it directly via `InternalsVisibleTo`
+    without forcing every test to inherit from a parser.
+  - `SyncOptions.StopAtTransition` only matches
+    `SyntaxKind.Transition` (the language `@` token). The plan's
+    prose only enumerates "transition"; `RazorCommentTransition`
+    (the `@*` start of a Razor comment) is intentionally NOT
+    included as a stop kind. If a later stage needs it, a
+    `StopAtRazorCommentTransition` option can be added without
+    changing existing semantics.
+  - `RecoveryFollowSets.cs` contains only `Empty` (and a reference
+    `FollowSet.Empty` proxy) -- the named follow sets the plan
+    catalogues in Stage 4.1 are explicitly out of scope for this
+    PR and will be added when their consumers land.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1301 / 1301 (1288 baseline + 13 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
