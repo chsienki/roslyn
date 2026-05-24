@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 1.2 complete. Ready for Stage 1.3 (diagnostic factory updates).
+Stage 1.3 complete. Ready for Stage 1.4 (pilot ParseRazorComment).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -20,7 +20,7 @@ Stage 1.2 complete. Ready for Stage 1.3 (diagnostic factory updates).
 - Stage 0.5: not started
 - Stage 1.1: not started
 - Stage 1.2: complete
-- Stage 1.3: not started
+- Stage 1.3: complete
 - Stage 1.4: not started
 - Stage 2.1: not started
 - Stage 2.2: not started
@@ -52,7 +52,30 @@ Stage 1.2 complete. Ready for Stage 1.3 (diagnostic factory updates).
 - Stage 7: not started
 
 ## Diagnostic IDs allocated
-(none yet)
+
+Inventory of current maximum RZ ID in each range (recorded by Stage 1.3;
+re-verify with the `Select-String '\$"\{DiagnosticPrefix\}(\d{4,5})"'`
+discovery procedure in the plan). No new RZ IDs were allocated by Stage
+1.3 -- the paired `_At` factories reuse the existing factory's
+`RazorDiagnosticDescriptor` (same `RZxxxx` ID, same message). Genuinely
+new diagnostics are allocated by Stages 2.x / 3.x when their call sites
+appear.
+
+- **RZ0xxx** (general / infrastructure) -- max in use: **RZ0000**
+  (`Directive_BlockDirectiveCannotBeImported`).
+- **RZ1xxx** (parser diagnostics) -- max in use: **RZ1045**. Next free
+  parser-recovery ID: **RZ1046**.
+- **RZ2xxx** (tag-helper / binding diagnostics) -- max in use:
+  **RZ2012**. Next free: **RZ2013**.
+- **RZ3xxx** (descriptor / tag-helper-resolution diagnostics) -- max in
+  use: **RZ3017**. Next free: **RZ3018**.
+- **RZ9xxx** (component-specific diagnostics in
+  `ComponentDiagnosticFactory.cs`) -- max in use: **RZ9999**. Next free:
+  **(none -- range exhausted)**. New component diagnostics must use
+  RZ10xxx.
+- **RZ10xxx** (component-specific diagnostics in
+  `ComponentDiagnosticFactory.cs`) -- max in use: **RZ10024**. Next
+  free: **RZ10025**.
 
 ## Stage 5.0.0 spike report
 (not yet run -- to be populated with: malformed expression, writer
@@ -280,3 +303,42 @@ commit `f445deb5f8c`):
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1311 / 1311 (1301 baseline + 10 new); language tests 3600 / 3600
   unchanged. Both TFMs.
+
+- 2026-05-25: Stage 1.3 done. Added 7 paired `_At` diagnostic
+  factories to `RazorDiagnosticFactory.cs`, each reusing its legacy
+  counterpart's `RazorDiagnosticDescriptor` (same RZ ID, same
+  message) but taking a `SourceLocation` and emitting a zero-width
+  `SourceSpan` at the missing-token cursor position:
+  - `CreateParsing_ExpectedEndOfBlockBeforeEOF_At` (RZ1006)
+  - `CreateParsing_DirectiveMustHaveValue_At` (RZ1018)
+  - `CreateParsing_UnfinishedTag_At` (RZ1024)
+  - `CreateParsing_MissingEndTag_At` (RZ1025)
+  - `CreateParsing_UnexpectedEndTag_At` (RZ1026)
+  - `CreateParsing_ExpectedCloseBracketBeforeEOF_At` (RZ1027)
+  - `CreateParsing_RazorCommentNotTerminated_At` (RZ1028)
+  Total: 7 pairs covering 14 legacy call sites across
+  `CSharpCodeParser.cs` (7 sites), `HtmlMarkupParser.cs` (5
+  sites), and `TokenizerBackedParser.cs` (2 sites). Each pair
+  shares its descriptor field -- the legacy method stays unchanged
+  for the existing call sites; Stages 1.4 / 2.x / 3.x migrate call
+  sites to the `_At` variants under the `UseEnhancedRecovery`
+  flag.
+
+  Inventory file
+  `legacyTest/ParserRecoveryCorpus/parser-recovery-diagnostics-pairing.md`
+  records the legacy / `_At` pairing table, the 5 categories of
+  factories that were audited but intentionally NOT paired
+  (already-narrow spans, value-validation diagnostics, found-but-
+  unexpected-token diagnostics, etc.), and the rationale.
+
+  RZ ID inventory recorded in the `Diagnostic IDs allocated` section
+  above. No new RZ IDs allocated in this stage. Next free parser ID:
+  RZ1046. Component RZ9xxx range is exhausted; new component
+  diagnostics go in RZ10xxx (next free RZ10025).
+
+  **Plan deviations:** none.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1311 / 1311 unchanged; language tests 3600 / 3600 unchanged. Both
+  TFMs. The pairing alone changes no behaviour -- no test
+  regressions expected and none observed.

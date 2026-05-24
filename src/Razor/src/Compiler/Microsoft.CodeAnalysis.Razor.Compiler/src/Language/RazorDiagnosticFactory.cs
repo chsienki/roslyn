@@ -84,6 +84,11 @@ internal static class RazorDiagnosticFactory
     public static RazorDiagnostic CreateParsing_ExpectedEndOfBlockBeforeEOF(SourceSpan location, string blockName, string closeBlock, string openBlock)
         => RazorDiagnostic.Create(Parsing_ExpectedEndOfBlockBeforeEOF, location, blockName, closeBlock, openBlock);
 
+    // Paired with CreateParsing_ExpectedEndOfBlockBeforeEOF. Same descriptor (RZ1006), zero-width span at the missing-token cursor position.
+    // Used by Stage 2.2 (ParseCodeBlock / ParseDirectiveBlock) under UseEnhancedRecovery.
+    public static RazorDiagnostic CreateParsing_ExpectedEndOfBlockBeforeEOF_At(SourceLocation location, string blockName, string closeBlock, string openBlock)
+        => RazorDiagnostic.Create(Parsing_ExpectedEndOfBlockBeforeEOF, new SourceSpan(location, contentLength: 0), blockName, closeBlock, openBlock);
+
     internal static readonly RazorDiagnosticDescriptor Parsing_ReservedWord =
         new($"{DiagnosticPrefix}1007",
             Resources.ParseError_ReservedWord,
@@ -180,6 +185,11 @@ internal static class RazorDiagnosticFactory
     public static RazorDiagnostic CreateParsing_DirectiveMustHaveValue(SourceSpan location, string directiveName)
         => RazorDiagnostic.Create(Parsing_DirectiveMustHaveValue, location, directiveName);
 
+    // Paired with CreateParsing_DirectiveMustHaveValue. Same descriptor (RZ1018), zero-width span at the missing-value cursor position
+    // (the position immediately after the directive keyword where the value should appear).
+    public static RazorDiagnostic CreateParsing_DirectiveMustHaveValue_At(SourceLocation location, string directiveName)
+        => RazorDiagnostic.Create(Parsing_DirectiveMustHaveValue, new SourceSpan(location, contentLength: 0), directiveName);
+
     internal static readonly RazorDiagnosticDescriptor Parsing_IncompleteQuotesAroundDirective =
         new($"{DiagnosticPrefix}1019",
             Resources.ParseError_IncompleteQuotesAroundDirective,
@@ -228,6 +238,11 @@ internal static class RazorDiagnosticFactory
     public static RazorDiagnostic CreateParsing_UnfinishedTag(SourceSpan location, string tagName)
         => RazorDiagnostic.Create(Parsing_UnfinishedTag, location, tagName);
 
+    // Paired with CreateParsing_UnfinishedTag. Same descriptor (RZ1024), zero-width span at the missing-close-angle cursor position.
+    // Used by Stage 3.x (HtmlMarkupParser) under UseEnhancedRecovery.
+    public static RazorDiagnostic CreateParsing_UnfinishedTag_At(SourceLocation location, string tagName)
+        => RazorDiagnostic.Create(Parsing_UnfinishedTag, new SourceSpan(location, contentLength: 0), tagName);
+
     internal static readonly RazorDiagnosticDescriptor Parsing_MissingEndTag =
         new($"{DiagnosticPrefix}1025",
             Resources.ParseError_MissingEndTag,
@@ -235,6 +250,11 @@ internal static class RazorDiagnosticFactory
 
     public static RazorDiagnostic CreateParsing_MissingEndTag(SourceSpan location, string tagName)
         => RazorDiagnostic.Create(Parsing_MissingEndTag, location, tagName);
+
+    // Paired with CreateParsing_MissingEndTag. Same descriptor (RZ1025), zero-width span at the missing-end-tag cursor position.
+    // Used by Stage 3.x (HtmlMarkupParser) under UseEnhancedRecovery.
+    public static RazorDiagnostic CreateParsing_MissingEndTag_At(SourceLocation location, string tagName)
+        => RazorDiagnostic.Create(Parsing_MissingEndTag, new SourceSpan(location, contentLength: 0), tagName);
 
     internal static readonly RazorDiagnosticDescriptor Parsing_UnexpectedEndTag =
         new($"{DiagnosticPrefix}1026",
@@ -244,6 +264,11 @@ internal static class RazorDiagnosticFactory
     public static RazorDiagnostic CreateParsing_UnexpectedEndTag(SourceSpan location, string tagName)
         => RazorDiagnostic.Create(Parsing_UnexpectedEndTag, location, tagName);
 
+    // Paired with CreateParsing_UnexpectedEndTag. Same descriptor (RZ1026), zero-width span at the unexpected-end-tag cursor position.
+    // Used by Stage 3.x (HtmlMarkupParser) under UseEnhancedRecovery.
+    public static RazorDiagnostic CreateParsing_UnexpectedEndTag_At(SourceLocation location, string tagName)
+        => RazorDiagnostic.Create(Parsing_UnexpectedEndTag, new SourceSpan(location, contentLength: 0), tagName);
+
     internal static readonly RazorDiagnosticDescriptor Parsing_ExpectedCloseBracketBeforeEOF =
         new($"{DiagnosticPrefix}1027",
             Resources.ParseError_Expected_CloseBracket_Before_EOF,
@@ -252,6 +277,11 @@ internal static class RazorDiagnosticFactory
     public static RazorDiagnostic CreateParsing_ExpectedCloseBracketBeforeEOF(SourceSpan location, string openBrace, string closeBrace)
         => RazorDiagnostic.Create(Parsing_ExpectedCloseBracketBeforeEOF, location, openBrace, closeBrace);
 
+    // Paired with CreateParsing_ExpectedCloseBracketBeforeEOF. Same descriptor (RZ1027), zero-width span at the missing-close-bracket cursor position.
+    // Used by Stage 2.1 (Balance / ParseExplicitExpressionBody) under UseEnhancedRecovery.
+    public static RazorDiagnostic CreateParsing_ExpectedCloseBracketBeforeEOF_At(SourceLocation location, string openBrace, string closeBrace)
+        => RazorDiagnostic.Create(Parsing_ExpectedCloseBracketBeforeEOF, new SourceSpan(location, contentLength: 0), openBrace, closeBrace);
+
     internal static readonly RazorDiagnosticDescriptor Parsing_RazorCommentNotTerminated =
         new($"{DiagnosticPrefix}1028",
             Resources.ParseError_RazorComment_Not_Terminated,
@@ -259,6 +289,12 @@ internal static class RazorDiagnosticFactory
 
     public static RazorDiagnostic CreateParsing_RazorCommentNotTerminated(SourceSpan location)
         => RazorDiagnostic.Create(Parsing_RazorCommentNotTerminated, location);
+
+    // Paired with CreateParsing_RazorCommentNotTerminated. Same descriptor (RZ1028), zero-width span at the missing-terminator cursor position
+    // (where the `*` or `@` of the closing `*@` should have appeared).
+    // Used by Stage 1.4 (ParseRazorComment) under UseEnhancedRecovery.
+    public static RazorDiagnostic CreateParsing_RazorCommentNotTerminated_At(SourceLocation location)
+        => RazorDiagnostic.Create(Parsing_RazorCommentNotTerminated, new SourceSpan(location, contentLength: 0));
 
     internal static readonly RazorDiagnosticDescriptor Parsing_TagHelperIndexerAttributeNameMustIncludeKey =
         new($"{DiagnosticPrefix}1029",
