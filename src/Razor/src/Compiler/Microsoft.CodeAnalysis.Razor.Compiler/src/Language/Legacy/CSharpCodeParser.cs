@@ -618,8 +618,20 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                 // If we end within "(", whitespace is fine
                 SetAcceptedCharacters(AcceptedCharactersInternal.Any);
 
+                SyntaxKind left;
                 SyntaxKind right;
                 bool success;
+
+                // In enhanced mode the closing-bracket diagnostic is attached
+                // to a `MissingToken` produced by `Required` below (with a
+                // zero-width span at the cursor). Suppress `Balance`'s own
+                // wide RZ1027 (a 1-char span at the opening `(`/`[`) by
+                // setting `NoErrorOnFailure`; otherwise both would fire.
+                var balanceMode = BalancingModes.BacktrackOnFailure | BalancingModes.AllowCommentsAndTemplates;
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    balanceMode |= BalancingModes.NoErrorOnFailure;
+                }
 
                 using (PushSpanContextConfig((SpanEditHandlerBuilder? editHandlerBuilder, ref ISpanChunkGenerator? generator, SpanContextConfigAction? prev) =>
                 {
@@ -627,20 +639,113 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                     SetAcceptedCharacters(AcceptedCharactersInternal.Any);
                 }))
                 {
-                    right = Language.FlipBracket(CurrentToken.Kind);
-                    success = Balance(builder, BalancingModes.BacktrackOnFailure | BalancingModes.AllowCommentsAndTemplates);
+                    left = CurrentToken.Kind;
+                    right = Language.FlipBracket(left);
+                    success = Balance(builder, balanceMode);
                 }
 
                 if (!success)
                 {
-                    AcceptUntil(SyntaxKind.LessThan);
+                    if (Context.Options.UseEnhancedRecovery)
+                    {
+                        // ---- Enhanced recovery path (Stage 2.6 canonical migration). ----
+                        //
+                        // Replaces the legacy `AcceptUntil(LessThan)` panic with
+                        // `Synchronize` so absorbed garbage becomes a
+                        // `SkippedContentSyntax` rather than fat
+                        // `CSharpExpressionLiteral` content (which codegen would
+                        // otherwise dump as C# text, producing cascading CS errors).
+                        //
+                        // After `Balance` failure with `BalancingModes.BacktrackOnFailure`
+                        // the tokenizer cursor has been rewound to immediately after
+                        // the open `(`/`[`. The pending accept buffer therefore
+                        // contains the open bracket (accepted by `Balance`'s
+                        // single-arg wrapper's `AcceptAndMoveNext()`); we flush it
+                        // as a precise `CSharpExpressionLiteral` boundary before
+                        // adding the recovered `SkippedContentSyntax` so positions
+                        // remain monotonic.
+                        //
+                        // The follow set is C#-side per Big Design Decision #4
+                        // (see `RecoveryFollowSets.CSharpImplicitExpressionTrailing`):
+                        //   - `LessThan` -- the canonical handoff to the HTML parser
+                        //     (e.g. `@foo.Bar(baz</p>`);
+                        //   - `NewLine` -- a stray newline ends the line scope;
+                        //   - `Whitespace` -- whitespace marks the end of an
+                        //     implicit expression. Whitespace inside a well-formed
+                        //     `Balance`-ed bracket is consumed by `Balance` itself;
+                        //     the sync only fires after `Balance` fails, at which
+                        //     point a whitespace token is a legitimate boundary.
+                        //
+                        // Stage 2.6 uses the convenience overload of `Synchronize`;
+                        // Stage 4.2 will mechanically upgrade this call to thread
+                        // the caller's outer follow set per BDD #4.
+                        var sync = Synchronize(
+                            RecoveryFollowSets.CSharpImplicitExpressionTrailing,
+                            originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        AcceptMarkerTokenIfNecessary();
+                        var pending = OutputTokensAsExpressionLiteral();
+                        if (pending is not null)
+                        {
+                            builder.Add(pending);
+                        }
+                        if (sync.Skipped is not null)
+                        {
+                            builder.Add(sync.Skipped);
+                        }
+                    }
+                    else
+                    {
+                        // ---- Legacy path: unchanged. ----
+                        AcceptUntil(SyntaxKind.LessThan);
+                    }
                 }
-                if (At(right))
-                {
-                    AcceptAndMoveNext();
 
-                    // At the ending brace, restore the initial accepted characters.
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // Replaces the legacy `if (At(right)) AcceptAndMoveNext()` with
+                    // `Required` so the closing bracket is always represented in the
+                    // tree: either the real token (consume path) or a zero-width
+                    // `MissingToken(right)` carrying the narrow RZ1027 diagnostic
+                    // attached at the precise cursor position.
+                    //
+                    // Recovery follow-set: in the success path `Balance` left the
+                    // cursor at `right` so `Required` takes the consume branch and
+                    // never synchronizes. In the failure path we just synchronized
+                    // to `CSharpImplicitExpressionTrailing` above, so the cursor is
+                    // already at a follow token; passing the same follow set means
+                    // `Required`'s sync (if invoked) stops immediately at the
+                    // current token without consuming anything further. Either way
+                    // `sync.Skipped` is null.
+                    var (closeToken, closeSkipped) = Required(
+                        right,
+                        RazorDiagnosticFactory.CreateParsing_ExpectedCloseBracketBeforeEOF_At(
+                            CurrentStart, Language.GetSample(left), Language.GetSample(right)),
+                        RecoveryFollowSets.CSharpImplicitExpressionTrailing,
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    Debug.Assert(closeSkipped is null,
+                        "ParseMethodCallOrArrayIndex's Required call is invoked at a follow-set token (or `right`); sync should have nothing to skip.");
+                    if (closeToken.IsMissing)
+                    {
+                        // Bypass `Accept(SyntaxToken)` so the diagnostic on the
+                        // missing token isn't copied into `ErrorSink` (Stage 1.4
+                        // contract: diagnostic on the missing token only).
+                        TokenBuilder.Add(closeToken);
+                    }
+                    else
+                    {
+                        Accept(closeToken);
+                    }
                     SetAcceptedCharacters(acceptedCharacters);
+                }
+                else
+                {
+                    if (At(right))
+                    {
+                        AcceptAndMoveNext();
+
+                        // At the ending brace, restore the initial accepted characters.
+                        SetAcceptedCharacters(acceptedCharacters);
+                    }
                 }
                 return ParseMethodCallOrArrayIndex(builder, acceptedCharacters);
             }

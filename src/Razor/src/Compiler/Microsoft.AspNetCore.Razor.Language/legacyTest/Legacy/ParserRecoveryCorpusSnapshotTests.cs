@@ -91,6 +91,10 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     public void MalformedUsing()
         => ParseCorpusFile("MalformedUsing.razor");
 
+    [Fact]
+    public void UnclosedMethodCallInImplicit()
+        => ParseCorpusFile("UnclosedMethodCallInImplicit.razor");
+
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
     //
@@ -808,6 +812,103 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         Assert.DoesNotContain(
             tree.Root.DescendantNodes().OfType<MarkupTextLiteralSyntax>(),
             lit => lit.GetContent().Contains("bad"));
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 2.6: ParseMethodCallOrArrayIndex enhanced-recovery test.
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branches added in Stage 2.6 to:
+    //   - The `Balance` failure path in `ParseMethodCallOrArrayIndex`
+    //     (the canonical implicit-expression unclosed-call producer);
+    //   - The closing-bracket emission, which now uses `Required(right, ...)`
+    //     so the missing close bracket is always represented in the tree
+    //     (either as the real token or as a zero-width `MissingToken`
+    //     carrying a narrow RZ1027 diagnostic).
+    //
+    // Stage 2.6 exit criteria asserted under enhanced mode:
+    //   - `MissingToken(RightParenthesis)` at the precise sync position
+    //     (the follow token or EOF, not the opening `(`).
+    //   - Absorbed garbage is wrapped in `SkippedContentSyntax` (not
+    //     `CSharpExpressionLiteral.LiteralTokens`).
+    //   - Narrow zero-width RZ1027 diagnostic, attached to the missing
+    //     token rather than duplicated into `ErrorSink`.
+    //   - Subsequent markup parses cleanly as a real `MarkupElement`
+    //     (not absorbed as `MarkupMiscAttributeContent`).
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void UnclosedMethodCallInImplicit_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnclosedMethodCallInImplicit.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Position layout for the corpus input `<p>@foo.Bar(baz</p><div>after</div>\r\n`:
+        //   0..2   `<p>`
+        //   3      `@`
+        //   4..6   `foo`
+        //   7      `.`
+        //   8..10  `Bar`
+        //   11     `(`
+        //   12..14 `baz`
+        //   15     `<` (start of `</p>`) -- sync stops here
+        //   15..18 `</p>`
+        //   19..   `<div>after</div>` markup
+
+        // Exactly one RZ1027 diagnostic, zero-width at position 15 (the
+        // `<` of `</p>` where the sync stopped). Legacy mode produces
+        // RZ1027 as a 1-char span at the opening `(` (position 11) via
+        // `Balance`'s `ErrorSink.OnError`; the enhanced branch suppresses
+        // that wide span (via `BalancingModes.NoErrorOnFailure`) and
+        // emits the narrow span on the `MissingToken` instead.
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Equal(15, rz1027[0].Span.AbsoluteIndex);
+        Assert.Equal(0, rz1027[0].Span.Length);
+
+        // Exactly one `SkippedContentSyntax` wraps the absorbed `baz`
+        // tokens (Stage 2.6 exit criterion -- not a fat
+        // `CSharpExpressionLiteral`). Tagged with `CSharpCodeBlock` so
+        // Stage 5.6 can route IDE features at positions inside the
+        // skipped span to the C# language.
+        var implicitExpression = tree.Root
+            .DescendantNodes()
+            .OfType<CSharpImplicitExpressionSyntax>()
+            .Single();
+        var skipped = implicitExpression
+            .DescendantNodes()
+            .OfType<SkippedContentSyntax>()
+            .Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Equal(12, skipped.SpanStart);
+        Assert.Equal("baz", skipped.GetContent());
+
+        // The closing `)` is represented as a `MissingToken` at the sync
+        // position (the `<` at offset 15), zero-width. Find it inside
+        // the implicit expression's expression literals.
+        var missingCloseParen = implicitExpression
+            .DescendantTokens()
+            .Single(t => t.IsMissing && t.Kind == SyntaxKind.RightParenthesis);
+        Assert.Equal(15, missingCloseParen.SpanStart);
+        Assert.Equal(0, missingCloseParen.Span.Length);
+
+        // The trailing `</p><div>after</div>` markup is parsed as real
+        // markup -- the `</p>` is the orphan end-tag of the surrounding
+        // `<p>...</p>` element, and the `<div>after</div>` parses as a
+        // standalone element after the unclosed implicit expression.
+        // Stage 2 exit criterion #4: no `MarkupMiscAttributeContent`
+        // wrappers from leaked C# tokens.
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        var divElement = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupElementSyntax>()
+            .Single(e => e.GetContent().Contains("<div>"));
+        Assert.Equal("<div>after</div>", divElement.GetContent());
     }
 
     private void ParseCorpusFile(string corpusFileName)

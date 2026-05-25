@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 2.5 complete. Ready for Stage 2.6 (Statement / expression-level parsers).
+Stage 2.6 complete. Stage 2 complete. Ready for Stage 3.1 (HtmlMarkupParser tag-parsing migration).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -27,7 +27,7 @@ Stage 2.5 complete. Ready for Stage 2.6 (Statement / expression-level parsers).
 - Stage 2.3: complete
 - Stage 2.4: complete
 - Stage 2.5: complete
-- Stage 2.6: not started
+- Stage 2.6: complete
 - Stage 3.1: not started
 - Stage 3.2: not started
 - Stage 3.3: not started
@@ -103,6 +103,22 @@ completion / hover provider class names)
       are owned by Stages 2.3 / 2.6.
     All 4 to be deleted by Stage 6.2 once their owning stages
     have shipped enhanced branches.
+
+- Stage 2.6 (after migration, Stage 2 final audit):
+  - `AcceptUntil(SyntaxKind.LessThan` in `CSharpCodeParser.cs`:
+    4 occurrences total (lines 501, 699, 1378, 1423).
+    Line numbers shifted slightly due to Stage 2.2-2.6 insertions
+    but the SET is unchanged from Stage 2.1's audit. All four are
+    now confirmed inside `else` branches of `UseEnhancedRecovery`
+    guards (verified by inspection of each site -- the Stage 2.6
+    implicit-expression site at line 699 was the last one to migrate;
+    the Stage 2.3 statement-family sites at lines 1378 and 1423
+    are inside `TryBalanceBlock` and the explicit-expression
+    fallback's legacy branch).
+  - **Stage 2 exit criterion met:** every enhanced branch in
+    `CSharpCodeParser.cs` is `AcceptUntil(LessThan)`-free. The
+    remaining 4 legacy occurrences will be deleted by Stage 6.2
+    cleanup once the `UseEnhancedRecovery` flag is removed.
 
 ## BaselineWriter location decision
 Resolved: reuse the existing `ParserTestBase.AssertSyntaxTreeNodeMatchesBaseline`
@@ -1060,4 +1076,110 @@ commit `f445deb5f8c`):
 
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1328 / 1328 (1325 baseline + 1 new legacy corpus + 2 new enhanced);
+  language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+- 2026-05-29: Stage 2.6 done. Migration of the implicit-expression
+  method-call / array-index Balance failure recovery in
+  `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Legacy/CSharpCodeParser.cs`
+  (`ParseMethodCallOrArrayIndex`) to the `Required` / `Synchronize`
+  machinery under the `UseEnhancedRecovery` flag. This is the final
+  Stage 2 sub-stage; Stage 2 is now complete.
+
+  **What landed:**
+
+  - `RecoveryFollowSets.CSharpImplicitExpressionTrailing` named
+    constant (`{ LessThan, NewLine, Whitespace }`, C#-side kinds per
+    Big Design Decision #4). Models the natural end of an implicit
+    expression: markup follow-up (`<`), end-of-line, or trailing
+    whitespace before non-expression text.
+
+  - `ParseMethodCallOrArrayIndex` (around line 611 of
+    `Legacy/CSharpCodeParser.cs`) split into enhanced / legacy
+    branches on `Context.Options.UseEnhancedRecovery`. The Balance
+    call gains `BalancingModes.NoErrorOnFailure` conditionally in
+    the enhanced branch to suppress Balance's own wide RZ1027
+    (1-char span at the opening bracket); the enhanced path emits
+    its own narrow zero-width RZ1027 via the `_At` factory attached
+    to the MissingToken returned by `Required`. The legacy branch
+    keeps Balance with its default error-emission and the
+    pre-existing `AcceptUntil(LessThan)` fat-literal absorb plus
+    the `At(right) ? AcceptAndMoveNext() : nothing` open-or-drop
+    behaviour.
+
+  - Enhanced branch flow: `Synchronize(CSharpImplicitExpressionTrailing,
+    originatingLanguage: CSharpCodeBlock)` to absorb intra-call
+    garbage as a `SkippedContentSyntax`, then `OutputTokensAsExpressionLiteral`
+    flush, then `Required(right, ExpectedCloseBracketBeforeEOF_At,
+    recovery: CSharpImplicitExpressionTrailing,
+    originatingLanguage: CSharpCodeBlock)` to either consume the
+    real closing bracket or emit a zero-width MissingToken carrying
+    the narrow RZ1027 at the current cursor.
+
+  - Corpus added: `legacyTest/ParserRecoveryCorpus/UnclosedMethodCallInImplicit.razor`
+    -- the canonical `<p>@foo.Bar(baz</p><div>after</div>` shape
+    (37 bytes, CRLF) that exercises the implicit-expression Balance
+    failure followed by markup follow-set tokens.
+
+  - Tests added: `UnclosedMethodCallInImplicit` [Fact] (legacy
+    snapshot binding the pre-migration fat-literal behaviour via
+    new `.stree.txt` / `.diag.txt` / `.cspans.txt` baselines) and
+    `UnclosedMethodCallInImplicit_EnhancedRecovery` [Fact]
+    (in-memory assertions of the enhanced shape: real
+    `SkippedContentSyntax` for `baz`, zero-width MissingToken with
+    narrow RZ1027 for the closing `)`, no leakage of `</p>` into
+    the expression).
+
+  **Sites intentionally NOT migrated in Stage 2.6:**
+
+  - The Stage 2.3 statement-family sites (`TryBalanceBlock` at
+    line 1423 and the explicit-expression fallback at line 1378)
+    remain in their Stage 2.3-shipped state. They are inside
+    `else` branches of `UseEnhancedRecovery` guards; no further
+    work is needed.
+
+  - The Stage 2.1 explicit-expression site at line 501 -- already
+    inside an `else` branch from Stage 2.1's own migration.
+
+  **Plan deviations:**
+
+  - `Required`'s `recovery` parameter uses `CSharpImplicitExpressionTrailing`
+    (the same follow set as the outer `Synchronize`) rather than
+    `FollowSet.Empty`. Using `FollowSet.Empty` would cause
+    `Synchronize` (invoked by `Required` on the missing-token path)
+    to consume tokens all the way to EOF because
+    `FollowSet.Empty.Contains(_)` is always false. Reusing the
+    outer follow set is safe because: (a) on the success path
+    `Required` consumes and never syncs; (b) on the missing path
+    the cursor is already at a follow token (placed there by the
+    outer `Synchronize`), so the secondary sync breaks immediately
+    with `Skipped = null`.
+
+  - MissingToken handling bypasses `Accept(SyntaxToken)` and writes
+    directly to `TokenBuilder.Add(missingToken)`. The `Accept`
+    helper copies the token's `GetDiagnostics()` into `ErrorSink`,
+    which would double-emit the narrow RZ1027 (once on the token,
+    once on the sink). Writing to `TokenBuilder` directly preserves
+    the Stage 1.4 "diagnostic on missing token only" contract.
+
+  - In-memory assertions for the new enhanced test (matching the
+    Stage 1.4 / 2.1 / 2.2 / 2.3 / 2.4 / 2.5 deviation): no parallel
+    `.enhanced.{stree,diag,cspans}.txt` baselines generated; the
+    test asserts the Stage 2.6 exit criteria directly.
+
+  **No new RZ IDs allocated** in Stage 2.6. The enhanced branch
+  reuses `CreateParsing_ExpectedCloseBracketBeforeEOF_At` (RZ1027)
+  -- the `_At` factory that Stage 1.3 already paired for narrow,
+  zero-width emission. The next free `RZ1xxx` parser-recovery ID
+  remains **RZ1047**.
+
+  **`AcceptUntil(LessThan)` audit** (Stage 2 final exit-criteria
+  check): 4 occurrences total in `CSharpCodeParser.cs` (lines 501,
+  699, 1378, 1423). All four are now inside `else` branches of
+  `UseEnhancedRecovery` guards -- verified by inspection of each
+  site. Stage 2 exit criterion is met: every enhanced branch is
+  `AcceptUntil(LessThan)`-free. The remaining 4 legacy occurrences
+  will be deleted by Stage 6.2 cleanup once the
+  `UseEnhancedRecovery` flag is removed.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1330 / 1330 (1328 baseline + 1 new legacy corpus + 1 new enhanced);
   language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).

@@ -51,4 +51,39 @@ internal static class RecoveryFollowSets
     /// </remarks>
     public static readonly FollowSet CSharpDirectiveTrailing =
         new(SyntaxKind.NewLine, SyntaxKind.RightBrace);
+
+    /// <summary>
+    /// Trailing-garbage follow set for the C#-side implicit-expression
+    /// method-call / array-index recovery (<c>ParseMethodCallOrArrayIndex</c>'s
+    /// <c>Balance</c>-failure branch). Added in Stage 2.6 of the recovery plan.
+    ///
+    /// The kinds are C#-side per Big Design Decision #4 -- implicit expressions
+    /// run inside the C# tokenizer's kind set.
+    /// </summary>
+    /// <remarks>
+    /// Implicit expressions like <c>@foo.Bar(...)</c> or <c>@foo[...]</c> have
+    /// no syntactic terminator of their own -- the expression ends at the next
+    /// character that "isn't part of the implicit expression". The follow set
+    /// captures the three practical sync points:
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.LessThan"/> -- the canonical handoff to the
+    ///     HTML parser (e.g. <c>@foo.Bar(baz&lt;/p&gt;</c>).
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.NewLine"/> -- a stray newline inside an
+    ///     unclosed call ends the line scope; subsequent markup resumes on
+    ///     the next line.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Whitespace"/> -- whitespace marks the end of
+    ///     an implicit expression. Note that whitespace inside a well-formed
+    ///     <c>Balance</c>-ed bracket is consumed by <c>Balance</c> itself; the
+    ///     sync only fires after <c>Balance</c> fails, at which point a
+    ///     whitespace token is a legitimate boundary.
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    public static readonly FollowSet CSharpImplicitExpressionTrailing =
+        new(SyntaxKind.LessThan, SyntaxKind.NewLine, SyntaxKind.Whitespace);
 }
