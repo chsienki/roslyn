@@ -190,6 +190,93 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         Assert.Empty(tree.Diagnostics);
     }
 
+    // ----------------------------------------------------------------
+    // Stage 2.2: ParseStatementBody enhanced-recovery test.
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branch of `CSharpCodeParser.ParseStatementBody` added in Stage 2.2.
+    // The legacy `UnclosedCodeBlock` [Fact] above continues to pin the
+    // old behaviour via the existing baselines (diagnostic at position
+    // 1 with span length 1 covering the `{`).
+    //
+    // Stage 2.2 exit criteria asserted here:
+    //   - `MissingToken(RightBrace)` at the EOF position, not the `@{`.
+    //   - The diagnostic span on the missing token is zero-width at the
+    //     missing-token cursor (down from a 1-char span at the opening
+    //     `{`).
+    //   - No fat `CSharpStatementLiteral` absorbs the markup following
+    //     the unclosed block (it's already parsed as real markup in
+    //     legacy mode too; this just asserts the property is preserved).
+    //   - No `MarkupMiscAttributeContent` is produced for the recovered
+    //     region.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void UnclosedCodeBlock_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnclosedCodeBlock.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        var statementBody = tree.Root
+            .DescendantNodes()
+            .OfType<CSharpStatementBodySyntax>()
+            .Single();
+
+        // Open `{` at position 1 (after the `@` transition).
+        var openBraceToken = statementBody.OpenBrace.MetaCode.Single();
+        Assert.False(openBraceToken.IsMissing);
+        Assert.Equal(SyntaxKind.LeftBrace, openBraceToken.Kind);
+        Assert.Equal(1, openBraceToken.SpanStart);
+
+        // The closing `}` is missing at the EOF position (source length
+        // 69, after the `</p>\r\n`) with the new zero-width diagnostic
+        // span. Legacy mode produces the same missing-token shape but
+        // attaches the diagnostic to `ErrorSink` instead of the token
+        // and uses a 1-char span at position 1 (the `{`).
+        var rightBraceToken = statementBody.CloseBrace.MetaCode.Single();
+        Assert.True(rightBraceToken.IsMissing);
+        Assert.Equal(SyntaxKind.RightBrace, rightBraceToken.Kind);
+        Assert.Equal(source.Length, rightBraceToken.SpanStart);
+        Assert.Equal(0, rightBraceToken.Span.Length);
+
+        // The diagnostic is RZ1006 (`Parsing_ExpectedEndOfBlockBeforeEOF`
+        // -- same descriptor as legacy, only the span has narrowed). It's
+        // attached to the missing token, not duplicated into `ErrorSink`
+        // (the new recovery contract).
+        var rz1006 = tree.Diagnostics.Where(d => d.Id == "RZ1006").ToArray();
+        Assert.Single(rz1006);
+        Assert.Equal(source.Length, rz1006[0].Span.AbsoluteIndex);
+        Assert.Equal(0, rz1006[0].Span.Length);
+
+        // The markup following the unclosed `@{` (`<p>...</p>`) must be
+        // parsed as real markup nested inside the `CSharpStatementBody`,
+        // not absorbed as a fat `CSharpStatementLiteral`. Only zero-width
+        // marker literals (flushed by `OutputTokensAsStatementLiteral`) may
+        // appear at or past the `<p>` position.
+        var pStartTagPosition = source.IndexOf("<p>");
+        Assert.True(pStartTagPosition > 0, "Corpus file should contain `<p>` markup.");
+        Assert.All(
+            statementBody.CSharpCode.DescendantNodes().OfType<CSharpStatementLiteralSyntax>(),
+            lit =>
+            {
+                if (lit.Width == 0)
+                {
+                    return;
+                }
+                Assert.True(
+                    lit.EndPosition <= pStartTagPosition,
+                    $"Non-empty CSharpStatementLiteral at [{lit.SpanStart}..{lit.EndPosition}) overlaps the `<p>` markup at {pStartTagPosition}.");
+            });
+
+        // The recovered markup region must NOT be re-wrapped as
+        // `MarkupMiscAttributeContent` (Stage 2 exit criterion #4).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
     private void ParseCorpusFile(string corpusFileName)
     {
         var testFile = TestFile.Create("ParserRecoveryCorpus/" + corpusFileName, typeof(ParserRecoveryCorpusSnapshotTests));

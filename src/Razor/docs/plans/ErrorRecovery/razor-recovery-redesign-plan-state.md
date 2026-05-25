@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 2.1 complete. Ready for Stage 2.2 (ParseStatementBody / ParseCodeBlock).
+Stage 2.2 complete. Ready for Stage 2.3 (ParseStandardStatement).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -23,7 +23,7 @@ Stage 2.1 complete. Ready for Stage 2.2 (ParseStatementBody / ParseCodeBlock).
 - Stage 1.3: complete
 - Stage 1.4: complete
 - Stage 2.1: complete
-- Stage 2.2: not started
+- Stage 2.2: complete
 - Stage 2.3: not started
 - Stage 2.4: not started
 - Stage 2.5: not started
@@ -548,4 +548,106 @@ commit `f445deb5f8c`):
 
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1314 / 1314 (1312 baseline + 2 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
+
+- 2026-05-26: Stage 2.2 done. Migration of
+  `CSharpCodeParser.ParseStatementBody` (lines ~768-836 of
+  `Legacy/CSharpCodeParser.cs`) under the `UseEnhancedRecovery` flag.
+  Two adjacent sites in the function are now split into legacy /
+  enhanced branches:
+  - **EOF diagnostic site** (was line ~785-790): legacy emits
+    `CreateParsing_ExpectedEndOfBlockBeforeEOF` to `ErrorSink`
+    with a 1-char span at `block.Start` (the `{` at position 1);
+    enhanced skips this branch entirely (the diagnostic is now
+    attached to the missing `RightBrace` token below).
+  - **RightBrace consume / missing site** (was line ~804-814):
+    legacy keeps the `if (At(RightBrace)) eat; else MissingToken`
+    pair byte-for-byte; enhanced calls the Stage 1.2
+    `Required(SyntaxKind.RightBrace, ...)` helper, which
+    consumes the brace if present or emits
+    `MissingToken(RightBrace)` with
+    `CreateParsing_ExpectedEndOfBlockBeforeEOF_At(CurrentStart, ...)`
+    attached (zero-width span at EOF, not 1-char at `block.Start`).
+    `Required`'s sync follow-set is `FollowSet.Empty` because
+    `ParseCodeBlock`'s loop invariant guarantees the cursor is
+    at EOF or at `RightBrace` on exit -- a `Debug.Assert`
+    documents that `sync.Skipped` is always `null` here.
+
+  **Option B chosen** (signature of `ParseCodeBlock` unchanged).
+  The plan offered two options:
+  - **A**: add a `FollowSet outerFollow` parameter to
+    `ParseCodeBlock` now, threaded `FollowSet.Empty` from all
+    three callers with `[TODO Stage 4.2]` comments.
+  - **B**: keep the signature unchanged, defer parameter threading
+    to Stage 4.2.
+
+  Picked **B**: the synchronization inside `ParseCodeBlock`'s
+  `while` loop is functionally inert until Stage 2.3 migrates
+  `ParseStandardStatement`'s panic (the current
+  `ParseStatement` consumes-or-panics; there is no "failed
+  statement parse" return-without-progress to synchronize on).
+  Adding the parameter now would be dead plumbing whose only
+  effect would be to ripple through the `Stage 4.2` diff with
+  no behavioural meaning at any intermediate stage. The
+  `[TODO Stage 4.2]` marker lives in the new enhanced branch's
+  comment block instead.
+
+  **Test added** to
+  `legacyTest/Legacy/ParserRecoveryCorpusSnapshotTests.cs`:
+  `UnclosedCodeBlock_EnhancedRecovery` re-parses the corpus
+  `UnclosedCodeBlock.razor` (created in Stage 0.1) with
+  `UseEnhancedRecovery = true` and asserts the Stage 2.2 exit
+  criteria:
+  - `OpenBrace` token present at position 1 (the `{`).
+  - `CloseBrace` token is missing at the EOF position
+    (`source.Length == 69`), `Span.Length == 0` -- down from
+    the legacy missing-token's position-69 placement but
+    paired-with a diagnostic at the wrong location.
+  - Exactly one `RZ1006` diagnostic, at `AbsoluteIndex == source.Length`,
+    `Length == 0` (the new zero-width placement at EOF, vs the
+    legacy 1-char span at position 1).
+  - No non-empty `CSharpStatementLiteralSyntax` inside the
+    code block overlaps the `<p>` markup at position 17 (the
+    trailing zero-width marker literal at `[69..69)` is
+    permitted via the `Width == 0` guard).
+  - Zero `MarkupMiscAttributeContentSyntax` nodes (the recovered
+    markup is parsed as a real `MarkupBlock` -- in this corpus
+    case the legacy parser already does this, so the assertion
+    just pins the property under enhanced mode too).
+
+  Before / after diagnostic spans for `UnclosedCodeBlock`:
+  - **Legacy** (unchanged baseline): `RZ1006` at
+    `(1,2)` = AbsoluteIndex 1, Length 1 (covers the `{`).
+  - **Enhanced**: `RZ1006` at AbsoluteIndex 69 (EOF), Length 0.
+
+  In-memory assertions are used (matching the Stage 1.4 / 2.1
+  deviation about not generating parallel
+  `.enhanced.{stree,diag,cspans}.txt` baselines for
+  enhanced-mode-only tests). The legacy
+  `UnclosedCodeBlock.{stree,diag,cspans}.txt` baselines remain
+  untouched.
+
+  **Sites intentionally NOT migrated in Stage 2.2:**
+  - The nested verbatim-block site in `ParseStatement`'s
+    `case SyntaxKind.LeftBrace` (lines ~945-957 of
+    `Legacy/CSharpCodeParser.cs`) has the same shape
+    (`ParseCodeBlock` followed by an `if (EndOfFile)
+    ErrorSink.OnError(...)` + `Assert(RightBrace)`). It belongs
+    to Stage 2.3's `ParseStandardStatement` family and will be
+    migrated there.
+  - The other `MissingToken(SyntaxKind.RightBrace)` at line
+    ~2120 is inside `ParseExtensibleDirective`-style code and
+    belongs to Stage 2.5 (directive parsers).
+
+  No new RZ IDs allocated (reuses RZ1006 via the `_At` factory
+  from Stage 1.3). Diagnostic ID inventory unchanged.
+
+  **`AcceptUntil(LessThan)` audit** (Stage 2 exit-criteria
+  check): unchanged from Stage 2.1 -- 4 occurrences total (lines
+  501, 636, 1184, 1198). Stage 2.2 added no new occurrences and
+  removed none (it only touches the `RightBrace` recovery, which
+  never used `AcceptUntil(LessThan)`).
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1315 / 1315 (1314 baseline + 1 new); language tests 3600 / 3600
   unchanged. Both TFMs.

@@ -782,8 +782,12 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             }
             ParseCodeBlock(builder, block);
 
-            if (EndOfFile)
+            if (EndOfFile && !Context.Options.UseEnhancedRecovery)
             {
+                // ---- Legacy path: emit the diagnostic to `ErrorSink` with a 1-char
+                // span at `block.Start` (the opening `{`). The enhanced path below
+                // attaches the diagnostic directly to the missing `RightBrace`
+                // token at the precise cursor position instead.
                 Context.ErrorSink.OnError(
                     RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF(
                         new SourceSpan(block.Start, contentLength: 1 /* { OR } */), block.Name, "}", "{"));
@@ -802,7 +806,37 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         }
 
         RazorMetaCodeSyntax? rightBrace;
-        if (At(SyntaxKind.RightBrace))
+        if (Context.Options.UseEnhancedRecovery)
+        {
+            // ---- Enhanced recovery path (Stage 2.2 canonical migration). ----
+            //
+            // Replaces the legacy `ErrorSink.OnError(...)` + `MissingToken(RightBrace)`
+            // pair with a single `Required` call that emits the missing token with
+            // the diagnostic (RZ1006) attached at the precise cursor position
+            // (`CurrentStart`, which is the EOF or the follow token), rather than a
+            // 1-char span at `block.Start` (the opening `{`).
+            //
+            // `ParseCodeBlock`'s loop invariant guarantees the cursor is either at
+            // EOF or at `RightBrace` on exit (see its `while` condition). In the
+            // RightBrace case `Required` consumes it; in the EOF case it emits the
+            // missing token and synchronizes (with `FollowSet.Empty`, since there
+            // is nothing left to skip). Skipped content is null in practice.
+            //
+            // [TODO Stage 4.2: thread the caller's outer follow set into
+            // `ParseCodeBlock` so its inner loop can synchronize on it. Stage 2.2
+            // keeps `ParseCodeBlock`'s signature unchanged because the synchronize
+            // would be functionally inert until Stage 2.3 migrates
+            // `ParseStandardStatement`'s panic.]
+            var (rightBraceToken, skipped) = Required(
+                SyntaxKind.RightBrace,
+                RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At(
+                    CurrentStart, block.Name, "}", "{"),
+                FollowSet.Empty,
+                originatingLanguage: SyntaxKind.CSharpCodeBlock);
+            Debug.Assert(skipped is null, "ParseCodeBlock leaves the cursor at EOF or RightBrace; Required has nothing to skip.");
+            rightBrace = OutputAsMetaCode(rightBraceToken, Context.CurrentAcceptedCharacters);
+        }
+        else if (At(SyntaxKind.RightBrace))
         {
             rightBrace = OutputAsMetaCode(EatCurrentToken());
         }
