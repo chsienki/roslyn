@@ -658,12 +658,51 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
             return ParseStartTextTag(openAngleToken, out tagMode, out isWellFormed);
         }
 
-        var tagNameToken = At(SyntaxKind.Text) ? EatCurrentToken() : SyntaxFactory.MissingToken(SyntaxKind.Text);
+        SkippedContentSyntax? tagNameSkipped = null;
+        SyntaxToken tagNameToken;
+        if (Context.Options.UseEnhancedRecovery)
+        {
+            // Stage 3.1: emit a narrow, zero-width RZ1047 (Parsing_TagNameExpected) on the
+            // missing token at the precise cursor position when the tag name is absent
+            // (e.g. `<>foo</>`, `< class="x">`). Legacy mode produces a bare
+            // `MissingToken(Text)` with no diagnostic for the missing name (any
+            // related diagnostic is the wide-span `Parsing_UnfinishedTag` emitted
+            // below in `MarkupInCodeBlock` mode).
+            //
+            // The follow set is HTML-side per Big Design Decision #4 (see
+            // `RecoveryFollowSets.HtmlTagRecovery`): the typical "next token" at a
+            // missing-tag-name site (`Whitespace`, `Equals`, `ForwardSlash`,
+            // `CloseAngle`, `OpenAngle`, `Transition`, ...) is always in the
+            // follow set, so the sync stops immediately at the cursor with no
+            // skipped content in the common case.
+            //
+            // Stage 3.1 uses the convenience overload of `Synchronize`; Stage 4.2
+            // will mechanically upgrade these calls to thread the caller's outer
+            // follow set per Big Design Decision #4.
+            (tagNameToken, tagNameSkipped) = Required(
+                SyntaxKind.Text,
+                RazorDiagnosticFactory.CreateParsing_TagNameExpected_At(CurrentStart),
+                RecoveryFollowSets.HtmlTagRecovery,
+                originatingLanguage: SyntaxKind.MarkupBlock);
+        }
+        else
+        {
+            tagNameToken = At(SyntaxKind.Text) ? EatCurrentToken() : SyntaxFactory.MissingToken(SyntaxKind.Text);
+        }
 
         var attributes = EmptySyntaxList;
         using (var pooledResult = Pool.Allocate<RazorSyntaxNode>())
         {
             var attributeBuilder = pooledResult.Builder;
+
+            if (tagNameSkipped is not null)
+            {
+                // Insert any recovered skipped content from the missing-tag-name
+                // sync into the attribute list (positionally between the tag name
+                // and the first real attribute) so source positions are preserved
+                // without contaminating any `MarkupTextLiteral` content.
+                attributeBuilder.Add(tagNameSkipped);
+            }
 
             // Parse the contents of a tag like attributes.
             ParseAttributes(attributeBuilder);
@@ -681,24 +720,57 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
         var closeAngleToken = SyntaxFactory.MissingToken(SyntaxKind.CloseAngle);
         if (mode == ParseMode.MarkupInCodeBlock)
         {
-            if (EndOfFile || !At(SyntaxKind.CloseAngle))
+            bool closeAngleConsumed;
+            if (Context.Options.UseEnhancedRecovery)
             {
-                // Unfinished tag
-                Context.ErrorSink.OnError(
-                    RazorDiagnosticFactory.CreateParsing_UnfinishedTag(
-                        new SourceSpan(
-                            tagName.Length == 0 ? tagStartLocation : SourceLocationTracker.Advance(tagStartLocation, "<"),
-                            Math.Max(tagName.Length, 1)),
-                        tagName));
+                // Stage 3.1: emit a narrow, zero-width RZ1024 (Parsing_UnfinishedTag)
+                // attached to the `MissingToken(CloseAngle)` at the precise cursor
+                // position (the missing-close-angle site) rather than the legacy
+                // wide span at start-of-tag emitted via ErrorSink.OnError.
+                //
+                // The follow set is HTML-side per Big Design Decision #4
+                // (`RecoveryFollowSets.HtmlTagRecovery`); see the tag-name site
+                // above for the rationale. The skipped slot is asserted null
+                // because by this point in `ParseStartTag` `ParseAttributes` has
+                // already absorbed everything up to a tag-recovery boundary, so
+                // the current token is always in `HtmlTagRecovery` (or EOF).
+                var (token, skipped) = Required(
+                    SyntaxKind.CloseAngle,
+                    RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName),
+                    RecoveryFollowSets.HtmlTagRecovery,
+                    originatingLanguage: SyntaxKind.MarkupBlock);
+                Debug.Assert(skipped is null,
+                    "ParseStartTag's close-angle Required call is invoked at a tag-recovery boundary; sync should have nothing to skip.");
+                closeAngleToken = token;
+                closeAngleConsumed = !token.IsMissing;
+                if (closeAngleConsumed)
+                {
+                    isWellFormed = true;
+                }
             }
             else
             {
-                if (At(SyntaxKind.CloseAngle))
+                if (EndOfFile || !At(SyntaxKind.CloseAngle))
+                {
+                    // Unfinished tag
+                    Context.ErrorSink.OnError(
+                        RazorDiagnosticFactory.CreateParsing_UnfinishedTag(
+                            new SourceSpan(
+                                tagName.Length == 0 ? tagStartLocation : SourceLocationTracker.Advance(tagStartLocation, "<"),
+                                Math.Max(tagName.Length, 1)),
+                            tagName));
+                    closeAngleConsumed = false;
+                }
+                else
                 {
                     isWellFormed = true;
                     closeAngleToken = EatCurrentToken();
+                    closeAngleConsumed = true;
                 }
+            }
 
+            if (closeAngleConsumed)
+            {
                 // Completed tags in code blocks have no accepted characters.
                 SetAcceptedCharacters(AcceptedCharactersInternal.None);
 
@@ -857,6 +929,7 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
 
         tagName = string.Empty;
         SyntaxToken tagNameToken;
+        SkippedContentSyntax? tagNameSkipped = null;
 
         var openAngleToken = EatCurrentToken(); // Accept '<'
         var forwardSlashToken = At(SyntaxKind.ForwardSlash) ? EatCurrentToken() : SyntaxFactory.MissingToken(SyntaxKind.ForwardSlash);
@@ -892,6 +965,20 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
 
             tagNameToken = EatCurrentToken();
         }
+        else if (Context.Options.UseEnhancedRecovery)
+        {
+            // Stage 3.1: emit a narrow, zero-width RZ1047 (Parsing_TagNameExpected) on the
+            // missing token at the precise cursor position when the end tag name is absent
+            // (e.g. `</>`). Legacy mode produces a bare `MissingToken(Text)` with no
+            // diagnostic for the missing name. The follow set is HTML-side per Big Design
+            // Decision #4 (see `RecoveryFollowSets.HtmlTagRecovery`); see `ParseStartTag`
+            // for the rationale.
+            (tagNameToken, tagNameSkipped) = Required(
+                SyntaxKind.Text,
+                RazorDiagnosticFactory.CreateParsing_TagNameExpected_At(CurrentStart),
+                RecoveryFollowSets.HtmlTagRecovery,
+                originatingLanguage: SyntaxKind.MarkupBlock);
+        }
         else
         {
             tagNameToken = SyntaxFactory.MissingToken(SyntaxKind.Text);
@@ -902,6 +989,15 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
         using (var pooledResult = Pool.Allocate<RazorSyntaxNode>())
         {
             var miscAttributeBuilder = pooledResult.Builder;
+
+            if (tagNameSkipped is not null)
+            {
+                // Insert any recovered skipped content from the missing-tag-name sync
+                // into the misc-attribute slot (positionally between the tag name and
+                // the close angle) so source positions are preserved without
+                // contaminating the misc-attribute literal content.
+                miscAttributeBuilder.Add(tagNameSkipped);
+            }
 
             AcceptWhile(SyntaxKind.Whitespace);
             miscAttributeBuilder.Add(OutputAsMarkupLiteral());
@@ -929,6 +1025,24 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
         {
             isWellFormed = true;
             closeAngleToken = EatCurrentToken();
+        }
+        else if (Context.Options.UseEnhancedRecovery)
+        {
+            // Stage 3.1: emit a narrow, zero-width RZ1024 (Parsing_UnfinishedTag) on the
+            // missing `>` token at the precise cursor position. Legacy mode produces a
+            // bare `MissingToken(CloseAngle)` with no diagnostic for an end tag missing
+            // its close angle. The recovery sync stops immediately because by this point
+            // the absorb-malformed-end-tags branch (`AcceptUntil(CloseAngle, OpenAngle)`)
+            // above has positioned the cursor at EOF, `<`, or another tag-recovery token.
+            isWellFormed = false;
+            var (token, skipped) = Required(
+                SyntaxKind.CloseAngle,
+                RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName),
+                RecoveryFollowSets.HtmlTagRecovery,
+                originatingLanguage: SyntaxKind.MarkupBlock);
+            Debug.Assert(skipped is null,
+                "ParseEndTag's close-angle Required call is invoked at a tag-recovery boundary; sync should have nothing to skip.");
+            closeAngleToken = token;
         }
         else
         {

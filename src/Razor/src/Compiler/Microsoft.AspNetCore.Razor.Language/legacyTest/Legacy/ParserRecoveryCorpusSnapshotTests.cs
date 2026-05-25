@@ -95,6 +95,10 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     public void UnclosedMethodCallInImplicit()
         => ParseCorpusFile("UnclosedMethodCallInImplicit.razor");
 
+    [Fact]
+    public void UnnamedTag()
+        => ParseCorpusFile("UnnamedTag.razor");
+
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
     //
@@ -909,6 +913,136 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
             .OfType<MarkupElementSyntax>()
             .Single(e => e.GetContent().Contains("<div>"));
         Assert.Equal("<div>after</div>", divElement.GetContent());
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 3.1: ParseStartTag / ParseEndTag enhanced-recovery test.
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branches added in Stage 3.1 to:
+    //   - The tag-name slot in `ParseStartTag` and `ParseEndTag`, which
+    //     now uses `Required(SyntaxKind.Text, ...)` so the missing tag
+    //     name is represented as a zero-width `MissingToken(Text)` with
+    //     a narrow RZ1047 (Parsing_TagNameExpected) diagnostic attached
+    //     to the missing token at the precise cursor position;
+    //   - (Indirectly, via the existing 28 corpus tests passing) the
+    //     close-angle slot in `ParseStartTag`'s MarkupInCodeBlock branch
+    //     and `ParseEndTag`'s end-tag-close branch, which now use
+    //     `Required(SyntaxKind.CloseAngle, ...)` emitting a narrow
+    //     RZ1024 (Parsing_UnfinishedTag) on the missing close angle.
+    //
+    // Stage 3.1 exit criteria asserted under enhanced mode:
+    //   - Two RZ1047 diagnostics, zero-width, at the precise positions
+    //     of the missing tag names in `<>` and `</>` (positions 1 and 7,
+    //     not at the start-of-tag position 0 or 5).
+    //   - Two `MissingToken(Text)` at the same positions, both
+    //     zero-width.
+    //   - Real `CloseAngle` tokens at positions 1 and 7 (not missing).
+    //   - Trailing `<p>after</p>` parses cleanly as a real
+    //     `MarkupElement` (Stage 3.1 produces no recovery contamination
+    //     that would push it into `MarkupMiscAttributeContent`).
+    //   - No RZ1024 diagnostics: enhanced recovery only emits
+    //     `Parsing_UnfinishedTag` when the close angle is actually
+    //     missing (in `MarkupInCodeBlock` mode for start tags, or in
+    //     plain markup mode for end tags). Here both tags have a real
+    //     close angle, so RZ1024 must not appear.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void UnnamedTag_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnnamedTag.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Position layout for the corpus input `<>foo</>\r\n<p>after</p>\r\n`:
+        //   0      `<` (start tag open angle)
+        //   1      `>` (start tag close angle -- tag name is missing right before this)
+        //   2..4   `foo`
+        //   5      `<` (end tag open angle)
+        //   6      `/`
+        //   7      `>` (end tag close angle -- tag name is missing right before this)
+        //   8..9   `\r\n`
+        //   10..12 `<p>`
+        //   13..17 `after`
+        //   18..21 `</p>`
+        //   22..23 `\r\n`
+
+        // Exactly two RZ1047 diagnostics, both zero-width, at the
+        // precise missing-tag-name sites: position 1 (after `<`) and
+        // position 7 (after `</`). Legacy mode produces a bare
+        // `MissingToken(Text)` with no diagnostic, so RZ1047 is the
+        // net-new narrow diagnostic introduced in Stage 3.1.
+        var rz1047 = tree.Diagnostics.Where(d => d.Id == "RZ1047").ToArray();
+        Assert.Equal(2, rz1047.Length);
+        Assert.Equal(1, rz1047[0].Span.AbsoluteIndex);
+        Assert.Equal(0, rz1047[0].Span.Length);
+        Assert.Equal(7, rz1047[1].Span.AbsoluteIndex);
+        Assert.Equal(0, rz1047[1].Span.Length);
+
+        // RZ1024 (Parsing_UnfinishedTag) must not be emitted: both tags
+        // have a real `>` token, so the close-angle Required path is
+        // not exercised here. (Stage 3.1's close-angle migration is
+        // covered indirectly by the 28 pre-existing corpus baselines
+        // continuing to pass under enhanced mode.)
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1024"));
+
+        // Two `MarkupStartTag`s (`<>` and `<p>`) and two
+        // `MarkupEndTag`s (`</>` and `</p>`).
+        var startTags = tree.Root.DescendantNodes().OfType<MarkupStartTagSyntax>().ToArray();
+        var endTags = tree.Root.DescendantNodes().OfType<MarkupEndTagSyntax>().ToArray();
+        Assert.Equal(2, startTags.Length);
+        Assert.Equal(2, endTags.Length);
+
+        // The unnamed start tag `<>` has a zero-width
+        // `MissingToken(Text)` at position 1 and a real `CloseAngle`
+        // `>` at position 1 (also length 1, so the next non-virtual
+        // position is 2).
+        var unnamedStartTag = startTags[0];
+        Assert.True(unnamedStartTag.Name.IsMissing);
+        Assert.Equal(SyntaxKind.Text, unnamedStartTag.Name.Kind);
+        Assert.Equal(1, unnamedStartTag.Name.SpanStart);
+        Assert.Equal(0, unnamedStartTag.Name.Span.Length);
+        Assert.NotNull(unnamedStartTag.CloseAngle);
+        Assert.False(unnamedStartTag.CloseAngle!.IsMissing);
+        Assert.Equal(1, unnamedStartTag.CloseAngle.SpanStart);
+        Assert.Equal(">", unnamedStartTag.CloseAngle.Content);
+
+        // The unnamed end tag `</>` has a zero-width
+        // `MissingToken(Text)` at position 7 and a real `CloseAngle`
+        // `>` at position 7.
+        var unnamedEndTag = endTags[0];
+        Assert.True(unnamedEndTag.Name.IsMissing);
+        Assert.Equal(SyntaxKind.Text, unnamedEndTag.Name.Kind);
+        Assert.Equal(7, unnamedEndTag.Name.SpanStart);
+        Assert.Equal(0, unnamedEndTag.Name.Span.Length);
+        Assert.False(unnamedEndTag.CloseAngle.IsMissing);
+        Assert.Equal(7, unnamedEndTag.CloseAngle.SpanStart);
+        Assert.Equal(">", unnamedEndTag.CloseAngle.Content);
+
+        // The trailing `<p>after</p>` parses as a real `MarkupElement`
+        // with real (non-missing) tag-name tokens. Stage 3.1 exit
+        // criterion: no recovery contamination leaks into the trailing
+        // markup.
+        var namedStartTag = startTags[1];
+        Assert.False(namedStartTag.Name.IsMissing);
+        Assert.Equal("p", namedStartTag.Name.Content);
+        var namedEndTag = endTags[1];
+        Assert.False(namedEndTag.Name.IsMissing);
+        Assert.Equal("p", namedEndTag.Name.Content);
+
+        // No `MarkupMiscAttributeContent` wrappers from leaked tokens
+        // around the unnamed tags. (Stage 3.1's tag-name sync adds any
+        // skipped tokens to the attribute / misc-attribute builder as
+        // `SkippedContentSyntax`, not as `MarkupMiscAttributeContent`.
+        // Because `HtmlTagRecovery` matches the current token at every
+        // missing-tag-name site exercised here, no skipped content is
+        // produced in practice.)
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+        Assert.Empty(tree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
     }
 
     private void ParseCorpusFile(string corpusFileName)

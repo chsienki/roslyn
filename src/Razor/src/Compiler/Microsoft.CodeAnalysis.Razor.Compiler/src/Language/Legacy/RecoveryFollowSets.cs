@@ -86,4 +86,52 @@ internal static class RecoveryFollowSets
     /// </remarks>
     public static readonly FollowSet CSharpImplicitExpressionTrailing =
         new(SyntaxKind.LessThan, SyntaxKind.NewLine, SyntaxKind.Whitespace);
+
+    /// <summary>
+    /// Tag-internal recovery follow set for the HTML-side
+    /// <c>ParseStartTag</c> / <c>ParseEndTag</c> migrations (Stage 3.1 of the
+    /// recovery plan). The kinds are HTML-side per Big Design Decision #4.
+    /// </summary>
+    /// <remarks>
+    /// Used by <c>Required(SyntaxKind.Text, ...)</c> when the tag name is
+    /// missing and by <c>Required(SyntaxKind.CloseAngle, ...)</c> when the
+    /// closing <c>&gt;</c> is missing. The set captures every token that is
+    /// a sensible "boundary" inside or around an HTML tag, so the recovery
+    /// sync stops immediately at the cursor in the typical case (no skipped
+    /// content produced). The omitted kinds are <see cref="SyntaxKind.Text"/>
+    /// itself (since stopping at <c>Text</c> while looking for <c>Text</c>
+    /// is what triggers the consume path of <c>Required</c>) and the
+    /// razor-comment / unrelated kinds, which would be absorbed as
+    /// <see cref="SkippedContentSyntax"/> on the rare paths that reach them.
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Whitespace"/>, <see cref="SyntaxKind.NewLine"/>
+    ///     -- intra-tag separators and line boundaries.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.OpenAngle"/>, <see cref="SyntaxKind.CloseAngle"/>,
+    ///     <see cref="SyntaxKind.ForwardSlash"/> -- tag terminators / next-tag
+    ///     boundary.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Equals"/>, <see cref="SyntaxKind.DoubleQuote"/>,
+    ///     <see cref="SyntaxKind.SingleQuote"/> -- attribute boundaries.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Transition"/> -- a Razor <c>@</c> transition
+    ///     embedded in or after the tag.
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    public static readonly FollowSet HtmlTagRecovery =
+        new(
+            SyntaxKind.Whitespace,
+            SyntaxKind.NewLine,
+            SyntaxKind.OpenAngle,
+            SyntaxKind.CloseAngle,
+            SyntaxKind.ForwardSlash,
+            SyntaxKind.Equals,
+            SyntaxKind.DoubleQuote,
+            SyntaxKind.SingleQuote,
+            SyntaxKind.Transition);
 }
