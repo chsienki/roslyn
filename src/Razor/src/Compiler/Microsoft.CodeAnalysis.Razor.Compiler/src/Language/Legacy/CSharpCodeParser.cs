@@ -1213,9 +1213,65 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             }
             else
             {
-                _tokenizer.Reset(bookmark);
-                NextToken();
-                AcceptUntil(SyntaxKind.LessThan, SyntaxKind.LeftBrace, SyntaxKind.RightBrace);
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // ---- Enhanced recovery path (Stage 2.3 canonical migration). ----
+                    //
+                    // Replaces the legacy `AcceptUntil(LessThan, LeftBrace, RightBrace)`
+                    // (the canonical "fat literal" producer) with a precise
+                    // diagnostic + `Synchronize` pair. The legacy branch absorbs
+                    // every token between the bookmark and the next sync token
+                    // into `CSharpStatementLiteral.LiteralTokens`, which codegen
+                    // then dumps as C# text -- producing cascading CS errors.
+                    // The enhanced branch instead:
+                    //   1. Rewinds the tokenizer to the iteration bookmark
+                    //      (undoing the speculative `ReadWhile`) so
+                    //      `CurrentStart` points at the actual offending token.
+                    //   2. Emits a zero-width `Parsing_UnexpectedTokenInStatement`
+                    //      (RZ1046) diagnostic at the offending-token position.
+                    //   3. Flushes any tokens accepted in prior iterations of
+                    //      this loop as a `CSharpStatementLiteral` so the
+                    //      pre-recovery boundary is precise.
+                    //   4. Calls the convenience overload of `Synchronize`
+                    //      with the C#-side follow set
+                    //      `(Semicolon | RightBrace | Transition | LessThan)`
+                    //      per Big Design Decision #4 (C#-side kinds:
+                    //      `LessThan`, not the HTML-side `OpenAngle`).
+                    //      Stage 4.2 will mechanically upgrade this call to
+                    //      thread the caller's outer follow set.
+                    //   5. Inserts the resulting `SkippedContentSyntax` into
+                    //      the builder so positions are preserved without
+                    //      contaminating the next statement literal.
+                    //
+                    // Note: today this branch is unreachable for inputs in the
+                    // Stage 0.1 corpus -- `ReadWhile`'s stop set covers every
+                    // kind handled by the if-else chain above, so the
+                    // panic-else only fires on truly unexpected tokenizer
+                    // states. The migration is forward-looking; the legacy
+                    // branch is preserved for documentation symmetry and to
+                    // catch any future input that does hit this path.
+                    _tokenizer.Reset(bookmark);
+                    NextToken();
+                    Context.ErrorSink.OnError(
+                        RazorDiagnosticFactory.CreateParsing_UnexpectedTokenInStatement_At(
+                            CurrentStart, CurrentToken.Content));
+                    var sync = Synchronize(
+                        new FollowSet(SyntaxKind.Semicolon, SyntaxKind.RightBrace, SyntaxKind.Transition, SyntaxKind.LessThan),
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    builder.Add(OutputTokensAsStatementLiteral());
+                    if (sync.Skipped is not null)
+                    {
+                        builder.Add(sync.Skipped);
+                    }
+                }
+                else
+                {
+                    // ---- Legacy path: unchanged. ----
+                    _tokenizer.Reset(bookmark);
+                    NextToken();
+                    AcceptUntil(SyntaxKind.LessThan, SyntaxKind.LeftBrace, SyntaxKind.RightBrace);
+                }
                 return;
             }
         }
@@ -1229,7 +1285,38 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             else
             {
                 // Recovery
-                AcceptUntil(SyntaxKind.LessThan, SyntaxKind.RightBrace);
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // ---- Enhanced recovery path (Stage 2.3). ----
+                    //
+                    // Replaces `AcceptUntil(LessThan, RightBrace)` with
+                    // `Synchronize` so any absorbed garbage becomes a
+                    // `SkippedContentSyntax` rather than fat statement-literal
+                    // content. The `Balance` failure has already emitted
+                    // RZ1027 (`Parsing_ExpectedCloseBracketBeforeEOF`) via
+                    // ErrorSink with a 1-char span at the opening bracket;
+                    // narrowing that pre-existing diagnostic belongs to
+                    // whichever stage owns the construct's open-bracket
+                    // emission, not Stage 2.3.
+                    //
+                    // Stage 2.3 uses the convenience overload of `Synchronize`
+                    // (C#-side follow set `(LessThan, RightBrace)` per Big
+                    // Design Decision #4); Stage 4.2 will mechanically upgrade
+                    // this call to thread the caller's outer follow set.
+                    var sync = Synchronize(
+                        new FollowSet(SyntaxKind.LessThan, SyntaxKind.RightBrace),
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    builder.Add(OutputTokensAsStatementLiteral());
+                    if (sync.Skipped is not null)
+                    {
+                        builder.Add(sync.Skipped);
+                    }
+                }
+                else
+                {
+                    AcceptUntil(SyntaxKind.LessThan, SyntaxKind.RightBrace);
+                }
                 return false;
             }
 

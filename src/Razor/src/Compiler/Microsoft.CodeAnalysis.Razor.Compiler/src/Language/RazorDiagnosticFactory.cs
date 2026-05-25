@@ -432,6 +432,17 @@ internal static class RazorDiagnosticFactory
     public static RazorDiagnostic CreateParsing_DefineAndUndefNotAllowed(SourceSpan location)
         => RazorDiagnostic.Create(Parsing_DefineAndUndefNotAllowed, location);
 
+    internal static readonly RazorDiagnosticDescriptor Parsing_UnexpectedTokenInStatement =
+        new($"{DiagnosticPrefix}1046",
+            Resources.ParseError_UnexpectedTokenInStatement,
+            RazorDiagnosticSeverity.Error);
+
+    // Zero-width span at the offending-token cursor position (per the _At convention from Stage 1.3).
+    // There is no non-_At pair for this descriptor: the diagnostic was introduced new in Stage 2.3
+    // (ParseStandardStatement / TryBalanceBlock enhanced recovery) and only ever has the narrow span.
+    public static RazorDiagnostic CreateParsing_UnexpectedTokenInStatement_At(SourceLocation location, string token)
+        => RazorDiagnostic.Create(Parsing_UnexpectedTokenInStatement, new SourceSpan(location, contentLength: 0), token);
+
     #endregion
 
     #region Semantic Errors

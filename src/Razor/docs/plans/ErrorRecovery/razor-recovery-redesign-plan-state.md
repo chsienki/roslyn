@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 2.2 complete. Ready for Stage 2.3 (ParseStandardStatement).
+Stage 2.3 complete. Ready for Stage 2.4 (Conditional / loop / try frames).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -24,7 +24,7 @@ Stage 2.2 complete. Ready for Stage 2.3 (ParseStandardStatement).
 - Stage 1.4: complete
 - Stage 2.1: complete
 - Stage 2.2: complete
-- Stage 2.3: not started
+- Stage 2.3: complete
 - Stage 2.4: not started
 - Stage 2.5: not started
 - Stage 2.6: not started
@@ -63,8 +63,11 @@ appear.
 
 - **RZ0xxx** (general / infrastructure) -- max in use: **RZ0000**
   (`Directive_BlockDirectiveCannotBeImported`).
-- **RZ1xxx** (parser diagnostics) -- max in use: **RZ1045**. Next free
-  parser-recovery ID: **RZ1046**.
+- **RZ1xxx** (parser diagnostics) -- max in use: **RZ1046**. Next free
+  parser-recovery ID: **RZ1047**. (Stage 2.3 allocated RZ1046 for
+  `Parsing_UnexpectedTokenInStatement`, a new diagnostic emitted at
+  zero width when the panic-else of `ParseStandardStatement` fires;
+  see notes below for empirical observations on reachability.)
 - **RZ2xxx** (tag-helper / binding diagnostics) -- max in use:
   **RZ2012**. Next free: **RZ2013**.
 - **RZ3xxx** (descriptor / tag-helper-resolution diagnostics) -- max in
@@ -650,4 +653,145 @@ commit `f445deb5f8c`):
 
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1315 / 1315 (1314 baseline + 1 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
+
+- 2026-05-26: Stage 2.3 done. Canonical migration of
+  `CSharpCodeParser.ParseStandardStatement`'s panic-else branch
+  (lines ~1214-1220 of `Legacy/CSharpCodeParser.cs`) and its inner
+  `TryBalanceBlock` recovery (was line ~1232) under the
+  `UseEnhancedRecovery` flag. This is the `fat literal` site the
+  plan calls out as the canonical Stage 2 producer.
+
+  - **Panic-else** (`ParseStandardStatement`'s outer `while` loop):
+    legacy `_tokenizer.Reset(bookmark); NextToken();
+    AcceptUntil(LessThan, LeftBrace, RightBrace)` is preserved
+    byte-for-byte. The enhanced branch (a) emits the new RZ1046
+    `Parsing_UnexpectedTokenInStatement` diagnostic at zero width
+    via `ErrorSink.OnError` (the diagnostic is purely positional;
+    there is no missing token to attach it to), (b) flushes any
+    prior-iteration accepted tokens via
+    `AcceptMarkerTokenIfNecessary` + `OutputTokensAsStatementLiteral`
+    so the pre-recovery literal boundary is precise, (c) calls
+    `Synchronize(new FollowSet(Semicolon, RightBrace, Transition,
+    LessThan), originatingLanguage: CSharpCodeBlock)` and (d) adds
+    the resulting `SkippedContentSyntax` to the builder.
+
+  - **`TryBalanceBlock`** (inner local function, hot for `@{ var x =
+    (foo;` style inputs): legacy `AcceptUntil(LessThan, RightBrace)`
+    is preserved. The enhanced branch runs `Synchronize(new
+    FollowSet(LessThan, RightBrace), CSharpCodeBlock)`, flushes the
+    prior literal, and adds `SkippedContentSyntax`. The pre-existing
+    RZ1027 (`Parsing_ExpectedCloseBracketBeforeEOF`) emitted by
+    `Balance` itself is preserved unchanged -- its narrowing belongs
+    to whichever stage owns the construct's open-bracket emission, not
+    Stage 2.3.
+
+  **Per Big Design Decision #4** the follow sets are C#-side
+  (`LessThan`, not the HTML-side `OpenAngle`; `Semicolon` /
+  `RightBrace` / `Transition` are shared). Stage 4.2 will
+  mechanically upgrade both `Synchronize` calls to the full overload
+  threading the caller's outer follow set.
+
+  **New diagnostic factory:**
+  - Resource string `ParseError_UnexpectedTokenInStatement` added to
+    `Language/Resources.resx` with message `An unexpected token was
+    encountered in a CSharp statement: '{0}'.`.
+  - `Parsing_UnexpectedTokenInStatement` descriptor at `RZ1046`,
+    severity Error.
+  - `CreateParsing_UnexpectedTokenInStatement_At(SourceLocation,
+    string token)` factory emits a zero-width `SourceSpan` at the
+    cursor per the `_At` convention from Stage 1.3. There is no
+    non-`_At` paired variant: the diagnostic was introduced new in
+    Stage 2.3 and only ever has the narrow span.
+
+  No `.xlf` files exist for `Microsoft.CodeAnalysis.Razor.Compiler`
+  (`Microsoft.CodeAnalysis.Razor.Compiler.csproj` only registers
+  `EmbeddedResource` `.resx` updates; the strongly-typed
+  `Resources` accessor is SDK-generated). No `UpdateXlf` target
+  invocation was needed; the resource designer regenerates at build.
+
+  **Tests added** to
+  `legacyTest/Legacy/ParserRecoveryCorpusSnapshotTests.cs` (three
+  `[Fact]`s, in-memory assertions per the Stage 1.4 deviation):
+  - `MidStatementGarbage_EnhancedRecovery` -- parity test for the
+    Stage 0.1 corpus file `MidStatementGarbage.razor`.
+  - `UnclosedIfParen_EnhancedRecovery` -- parity test for
+    `UnclosedIfParen.razor`.
+  - `UnclosedParenInsideCodeBlock_EnhancedRecovery` -- synthetic
+    test on `@{ var x = (foo; }` that actually exercises
+    `TryBalanceBlock`'s enhanced recovery (the corpus files don't;
+    see deviation below).
+
+  **Plan deviations (significant, documented):**
+
+  1. **Empirical: the corpus files don't exercise Stage 2.3 paths.**
+     The plan literal calls for `MidStatementGarbage` and
+     `UnclosedIfParen` to assert `garbage absorbed as
+     SkippedContentSyntax, no CSharpStatementLiteral wraps the
+     recovered region`. Empirically:
+     - `MidStatementGarbage` (`@{ var x = ?? 1; <p>...</p> }`) is
+       fully well-formed at the lexer/parser level: `??` is a valid
+       C# `NullCoalesce` token, `<p>` triggers
+       `ParseStatement`'s markup-transition handoff (line ~916 of
+       `CSharpCodeParser.cs`), and `}` closes the block. The
+       legacy parse produces zero diagnostics and the enhanced parse
+       is identical.
+     - `UnclosedIfParen` (`@if(foo bar ...`) is parsed via
+       `ParseImplicitExpression` + `ParseMethodCallOrArrayIndex`
+       (Stage 2.6 territory), NOT `ParseStandardStatement`. The
+       recovery site at line 636 (`AcceptUntil(LessThan)` in
+       `ParseMethodCallOrArrayIndex`) is owned by Stage 2.6 and is
+       unchanged by this stage.
+
+     **Structural finding**: `ParseStandardStatement`'s panic-else
+     is effectively unreachable from typical input. `ReadWhile`'s
+     stop set (Semicolon, RazorCommentTransition, Transition,
+     LeftBrace, LeftParenthesis, LeftBracket, RightBrace, Keyword)
+     is identical to the kinds handled by the function's if-else
+     chain; `ParseStatement` (the caller) already dispatches
+     markup-transition (`LessThan` / `Transition+:`) to the HTML
+     parser before reaching `ParseStandardStatement`. The panic
+     would only fire on pathological tokenizer states. The
+     migration is still landed for forward-compatibility and to keep
+     the code path consistent with the rest of Stage 2.
+
+     `TryBalanceBlock`'s recovery IS reachable -- the synthetic
+     `UnclosedParenInsideCodeBlock_EnhancedRecovery` test exercises
+     it directly (`@{ var x = (foo; }`).
+
+  2. **In-memory assertions** instead of parallel
+     `.enhanced.{stree,diag,cspans}.txt` baselines (same rationale
+     as Stage 1.4 / 2.1 / 2.2).
+
+  3. **Synthetic test added** beyond the plan literal's two corpus
+     tests, to give Stage 2.3's actual behaviour-changing code path
+     real test coverage. The corpus parity tests are kept (as the
+     plan literal directs) but they pin the invariant that Stage
+     2.3 doesn't regress these inputs rather than demonstrating the
+     new shape -- which the synthetic test does.
+
+  4. **Diagnostic attachment is via `ErrorSink`, not the missing
+     token.** RZ1046 fires for an *unexpected* token (not a
+     *missing* one), so there is no `MissingToken(kind)` to attach
+     it to. The `_At` factory still produces a zero-width
+     `SourceSpan`; it is just placed in `ErrorSink` rather than
+     on a token. This matches Stage 1.4's pre-existing pattern for
+     diagnostics that don't have a natural token home. The new
+     RZ1046 will therefore appear in `RazorSyntaxTree.Diagnostics`
+     via the `ErrorSink` merge path, not the tree-attached path.
+
+  **`AcceptUntil(LessThan)` audit** (Stage 2 exit-criteria check):
+  `Select-String -Path ... -Pattern "AcceptUntil\(SyntaxKind\.LessThan"`
+  reports 4 occurrences -- the same count as before Stage 2.3
+  started. Two old occurrences (the panic-else at line ~1218 and
+  `TryBalanceBlock`'s recovery at line ~1232) are now inside the
+  `else` of their respective `UseEnhancedRecovery` guards
+  (lines 1273 and 1318 after the migration). Lines 501 (Stage 2.1
+  legacy) and 636 (Stage 2.6) are unchanged. The enhanced branches
+  added by Stage 2.3 contain zero `AcceptUntil(LessThan)`
+  occurrences -- satisfies the per-stage `enhanced branches must
+  not contribute new occurrences` rule.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1318 / 1318 (1315 baseline + 3 new); language tests 3600 / 3600
   unchanged. Both TFMs.

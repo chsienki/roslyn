@@ -277,6 +277,190 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
     }
 
+    // ----------------------------------------------------------------
+    // Stage 2.3: ParseStandardStatement enhanced-recovery tests.
+    //
+    // Exercise the new `Context.Options.UseEnhancedRecovery == true`
+    // branches added in Stage 2.3 to:
+    //   - `ParseStandardStatement`'s panic-else (the canonical "fat
+    //     literal" producer at the end of the function's while loop);
+    //   - `TryBalanceBlock`'s recovery after a failed `Balance` with
+    //     `BacktrackOnFailure`.
+    //
+    // Stage 2.3 exit criteria asserted under enhanced mode:
+    //   - Absorbed garbage is wrapped in `SkippedContentSyntax` (not
+    //     `CSharpStatementLiteral.LiteralTokens`), so codegen won't
+    //     dump it as C# text.
+    //   - The new `RZ1046` (`Parsing_UnexpectedTokenInStatement`)
+    //     diagnostic is zero-width at the offending token (only fires
+    //     from the panic-else, not from `TryBalanceBlock` -- Balance's
+    //     RZ1027 covers that site).
+    //   - The surrounding markup parses cleanly without
+    //     `MarkupMiscAttributeContent` wrappers.
+    //
+    // Empirical note: the corpus files `MidStatementGarbage.razor` and
+    // `UnclosedIfParen.razor` do NOT actually exercise Stage 2.3's
+    // panic branches (see the per-test comment). The panic-else in
+    // `ParseStandardStatement` is structurally unreachable from typical
+    // input (`ReadWhile`'s stop set covers every kind handled by the
+    // if-else chain); `UnclosedIfParen` is handled by
+    // `ParseMethodCallOrArrayIndex` (Stage 2.6 territory).
+    // `UnclosedParenInsideCodeBlock_EnhancedRecovery` constructs an
+    // input that DOES exercise `TryBalanceBlock`'s enhanced recovery,
+    // giving Stage 2.3 real test coverage.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void MidStatementGarbage_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/MidStatementGarbage.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // The corpus input `@{ var x = ?? 1; <p>...</p> }` is fully
+        // recognised by the lexer/parser: `??` is a valid C# NullCoalesce
+        // token, `<p>` triggers `ParseStatement`'s markup-transition
+        // handoff, and `}` closes the block. No recovery branch is hit,
+        // so Stage 2.3's enhanced path is dead code for this input.
+        //
+        // Parity assertions: enhanced mode produces the same shape as
+        // legacy (the existing `MidStatementGarbage` baseline). This
+        // pins the invariant that Stage 2.3 doesn't regress well-formed
+        // mixed C#/markup inputs.
+        Assert.Empty(tree.Diagnostics);
+        Assert.Empty(tree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        // No new RZ1046 (`Parsing_UnexpectedTokenInStatement`) -- the
+        // panic-else didn't fire.
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        // The `<p>...</p>` markup is parsed as a real `MarkupElement`,
+        // not absorbed as a fat statement literal.
+        var pStartTagPosition = source.IndexOf("<p>");
+        Assert.True(pStartTagPosition > 0, "Corpus file should contain `<p>` markup.");
+        var pElement = tree.Root.DescendantNodes().OfType<MarkupElementSyntax>().Single();
+        Assert.Equal(pStartTagPosition, pElement.SpanStart);
+    }
+
+    [Fact]
+    public void UnclosedIfParen_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnclosedIfParen.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // The corpus input `@if(foo bar\nbaz\n\n<p>...</p>` is parsed
+        // via `ParseImplicitExpression` / `ParseMethodCallOrArrayIndex`
+        // (Stage 2.6 territory), NOT `ParseStandardStatement`. The
+        // implicit-expression recovery at line ~636 of CSharpCodeParser
+        // (`AcceptUntil(SyntaxKind.LessThan)`) is unchanged by Stage 2.3
+        // and is owned by Stage 2.6.
+        //
+        // Parity assertions: enhanced mode produces the same shape as
+        // legacy (the existing `UnclosedIfParen.{stree,diag}` baselines).
+        // The single RZ1027 (`Parsing_ExpectedCloseBracketBeforeEOF`)
+        // from `Balance` remains -- its narrowing belongs to Stage 2.6.
+        // No new RZ1046 fires (the panic-else didn't run).
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+        Assert.Empty(tree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        // The trailing `<p>this should still parse as HTML</p>` parses
+        // as a real markup element after the unclosed `@if(...`. The
+        // `</p>` is the end-tag of that element -- not absorbed as a
+        // fat literal.
+        var pElement = tree.Root.DescendantNodes().OfType<MarkupElementSyntax>().Single();
+        Assert.Equal(source.IndexOf("<p>"), pElement.SpanStart);
+    }
+
+    [Fact]
+    public void UnclosedParenInsideCodeBlock_EnhancedRecovery()
+    {
+        // Synthetic input that DOES exercise Stage 2.3's `TryBalanceBlock`
+        // enhanced recovery branch (the corpus files don't -- see
+        // per-test comments above).
+        //
+        //   @{ var x = (foo; }
+        //         ^^^^^^^^^^^^
+        //         ParseStandardStatement reads `var x = ` via ReadWhile,
+        //         then At(LeftParen) -> TryBalanceBlock.
+        //         Balance(BacktrackOnFailure) fails (no matching `)`
+        //         before the outer `}`); the cursor is backtracked to
+        //         right after `(`. Stage 2.3's enhanced recovery branch
+        //         then runs `Synchronize((LessThan, RightBrace))` which
+        //         skips `foo;` (plus trailing whitespace) and stops at
+        //         the outer `}`. The skipped tokens are wrapped in a
+        //         `SkippedContentSyntax` rather than absorbed into a
+        //         fat `CSharpStatementLiteral`.
+        const string source = "@{ var x = (foo; }";
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Exactly one `SkippedContentSyntax`, with `OriginatingLanguage ==
+        // CSharpCodeBlock`, covering `foo;` (plus the trailing whitespace
+        // up to the `}`).
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        var openParenPosition = source.IndexOf('(');
+        var closeBracePosition = source.LastIndexOf('}');
+        Assert.Equal(openParenPosition + 1, skipped.SpanStart);
+        Assert.True(skipped.EndPosition <= closeBracePosition,
+            $"SkippedContent at [{skipped.SpanStart}..{skipped.EndPosition}) overlaps the closing `}}` at {closeBracePosition}.");
+        Assert.Contains("foo", skipped.GetContent());
+
+        // Every `CSharpStatementLiteral` past the `(` must be zero-width:
+        // the legacy "fat literal" wrapping `foo;` is now a
+        // `SkippedContentSyntax`. Only the marker literal flushed by
+        // `OutputTokensAsStatementLiteral` (Width == 0) may remain.
+        Assert.All(
+            tree.Root.DescendantNodes().OfType<CSharpStatementLiteralSyntax>(),
+            lit =>
+            {
+                if (lit.Width == 0)
+                {
+                    return;
+                }
+                Assert.True(
+                    lit.EndPosition <= openParenPosition + 1,
+                    $"Non-empty CSharpStatementLiteral at [{lit.SpanStart}..{lit.EndPosition}) overlaps the skipped region starting at {openParenPosition + 1}.");
+            });
+
+        // The pre-existing RZ1027 from `Balance` remains (Stage 2.3 does
+        // NOT narrow it -- that belongs to whichever stage owns the
+        // open-bracket emission). It's emitted with a 1-char span at the
+        // `(` position via `ErrorSink`.
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Equal(openParenPosition, rz1027[0].Span.AbsoluteIndex);
+
+        // No new RZ1046 (`Parsing_UnexpectedTokenInStatement`) -- that
+        // diagnostic only fires from the panic-else, which `TryBalanceBlock`
+        // doesn't touch.
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        // The outer `}` is consumed as a real `RightBrace` MetaCode -- not
+        // absorbed by recovery.
+        var statementBody = tree.Root.DescendantNodes().OfType<CSharpStatementBodySyntax>().Single();
+        var rightBraceToken = statementBody.CloseBrace.MetaCode.Single();
+        Assert.False(rightBraceToken.IsMissing);
+        Assert.Equal(SyntaxKind.RightBrace, rightBraceToken.Kind);
+        Assert.Equal(closeBracePosition, rightBraceToken.SpanStart);
+
+        // No `MarkupMiscAttributeContent` produced (Stage 2 exit criterion #4).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
     private void ParseCorpusFile(string corpusFileName)
     {
         var testFile = TestFile.Create("ParserRecoveryCorpus/" + corpusFileName, typeof(ParserRecoveryCorpusSnapshotTests));
