@@ -449,6 +449,8 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         using (var pooledResult = Pool.Allocate<RazorSyntaxNode>())
         {
             var expressionBuilder = pooledResult.Builder;
+            var balanceFailedInEnhancedMode = false;
+            SkippedContentSyntax? enhancedSkipped = null;
             using (PushSpanContextConfig(ExplicitExpressionSpanContextConfig))
             {
                 var success = Balance(
@@ -462,15 +464,61 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
 
                 if (!success)
                 {
-                    AcceptUntil(SyntaxKind.LessThan);
-                    Context.ErrorSink.OnError(
-                        RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF(
-                            new SourceSpan(block.Start, contentLength: 1 /* ( */), block.Name, ")", "("));
+                    if (Context.Options.UseEnhancedRecovery)
+                    {
+                        // ---- Enhanced recovery path (Stage 2.1 canonical migration). ----
+                        //
+                        // Replaces the legacy `AcceptUntil(LessThan)` + `ErrorSink.OnError`
+                        // pair with `Synchronize` + a `MissingToken` whose diagnostic is
+                        // attached at the precise un-matched position (see
+                        // `RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At`,
+                        // a zero-width span at the cursor rather than a 1-char span at the
+                        // opening `(`).
+                        //
+                        // After `Balance` failure with `BalancingModes.BacktrackOnFailure`
+                        // the tokenizer cursor has been rewound to immediately after the
+                        // opening `(`. The follow set is C#-side
+                        // (`RightParenthesis | LessThan | Transition`):
+                        //   - `RightParenthesis` -- a stray `)` later in the source means
+                        //     we can still close the construct;
+                        //   - `LessThan` -- the canonical handoff to the HTML parser
+                        //     (e.g. `@(foo.Bar</p>`);
+                        //   - `Transition` -- a nested `@` block transition.
+                        //
+                        // Stage 2.1 uses the convenience overload of `Synchronize` (no
+                        // `outerFollow`); Stage 4.2 will mechanically upgrade these calls
+                        // to thread the caller's outer follow set per Big Design Decision
+                        // #4.
+                        var sync = Synchronize(
+                            new FollowSet(SyntaxKind.RightParenthesis, SyntaxKind.LessThan, SyntaxKind.Transition),
+                            originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        enhancedSkipped = sync.Skipped;
+                        balanceFailedInEnhancedMode = true;
+                    }
+                    else
+                    {
+                        // ---- Legacy path: unchanged. ----
+                        AcceptUntil(SyntaxKind.LessThan);
+                        Context.ErrorSink.OnError(
+                            RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF(
+                                new SourceSpan(block.Start, contentLength: 1 /* ( */), block.Name, ")", "("));
+                    }
                 }
 
                 // If necessary, put an empty-content marker token here
                 AcceptMarkerTokenIfNecessary();
                 expressionBuilder.Add(OutputTokensAsExpressionLiteral());
+
+                if (enhancedSkipped is not null)
+                {
+                    // Insert the recovered skipped content into the expression block AFTER
+                    // any marker / accepted-token flush so positions remain monotonic. The
+                    // `SkippedContentSyntax` carries the absorbed tokens so source
+                    // positions are preserved without contaminating
+                    // `CSharpExpressionLiteral.LiteralTokens` (which codegen treats as
+                    // emittable C#).
+                    expressionBuilder.Add(enhancedSkipped);
+                }
             }
 
             var expressionBlock = SyntaxFactory.CSharpCodeBlock(expressionBuilder.ToList());
@@ -482,7 +530,23 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             }
             else
             {
-                var missingToken = SyntaxFactory.MissingToken(SyntaxKind.RightParenthesis);
+                SyntaxToken missingToken;
+                if (balanceFailedInEnhancedMode)
+                {
+                    // Attach the diagnostic directly to the missing token (the new
+                    // recovery contract -- never also push to `ErrorSink`; the
+                    // tree-attached diagnostic is the diagnostic). The span is zero-width
+                    // at `CurrentStart`, which after `Synchronize` is the first un-matched
+                    // position (the follow token or EOF) per the Stage 2.1 exit criterion.
+                    missingToken = SyntaxFactory.MissingToken(
+                        SyntaxKind.RightParenthesis,
+                        RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At(
+                            CurrentStart, block.Name, ")", "("));
+                }
+                else
+                {
+                    missingToken = SyntaxFactory.MissingToken(SyntaxKind.RightParenthesis);
+                }
                 rightParen = OutputAsMetaCode(missingToken, Context.CurrentAcceptedCharacters);
             }
             if (!EndOfFile)
