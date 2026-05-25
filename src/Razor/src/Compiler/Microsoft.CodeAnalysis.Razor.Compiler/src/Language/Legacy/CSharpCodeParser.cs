@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -1756,7 +1756,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                             RazorDiagnosticFactory.CreateParsing_DirectiveTokensMustBeSeparatedByWhitespace(
                                 new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
 
-                        builder.Add(BuildDirective(SyntaxKind.Whitespace));
+                        builder.Add(BuildBailedDirective(SyntaxKind.Whitespace));
                         return;
                     }
 
@@ -1810,7 +1810,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 new SourceSpan(CurrentStart, contentLength: 1),
                                 descriptor.Directive,
                                 tokenDescriptor.Kind.ToString().ToLowerInvariant()));
-                        builder.Add(BuildDirective(SyntaxKind.Identifier));
+                        builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                         return;
                     }
 
@@ -1823,7 +1823,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsTypeName(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
 
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
                             break;
@@ -1835,7 +1835,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsNamespace(
                                         new SourceSpan(CurrentStart, identifierLength), descriptor.Directive));
 
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
                             break;
@@ -1851,7 +1851,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsIdentifier(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
                             break;
@@ -1866,7 +1866,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsQuotedStringLiteral(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.StringLiteral));
+                                builder.Add(BuildBailedDirective(SyntaxKind.StringLiteral));
                                 return;
                             }
                             break;
@@ -1881,7 +1881,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsBooleanLiteral(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.CSharpExpressionLiteral));
+                                builder.Add(BuildBailedDirective(SyntaxKind.CSharpExpressionLiteral));
                                 return;
                             }
                             break;
@@ -1899,7 +1899,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsCSharpAttribute(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.LeftBracket));
+                                builder.Add(BuildBailedDirective(SyntaxKind.LeftBracket));
                                 return;
                             }
 
@@ -1920,7 +1920,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     Context.ErrorSink.OnError(
                                         RazorDiagnosticFactory.CreateParsing_GenericTypeParameterIdentifierMismatch(
                                             new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive, CurrentToken.Content, lastSeenMemberIdentifier ?? string.Empty));
-                                    builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                    builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                     return;
                                 }
                                 else
@@ -1953,7 +1953,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                         CurrentToken.Content,
                                         CSharpSyntaxFacts.GetText(CSharpSyntaxKind.WhereKeyword)));
 
-                                builder.Add(BuildDirective(SyntaxKind.Keyword));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Keyword));
                                 return;
                             }
 
@@ -1974,7 +1974,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsIdentifierOrExpression(
                                         new SourceSpan(CurrentStart, identifierLength), descriptor.Directive));
 
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
 
@@ -2015,6 +2015,28 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     new SourceSpan(CurrentStart, CurrentToken.Content.Length),
                                     descriptor.Directive,
                                     Resources.ErrorComponent_Newline));
+
+                            if (Context.Options.UseEnhancedRecovery)
+                            {
+                                // Stage 2.5: absorb the trailing junk on this
+                                // line so it doesn't leak to the outer markup
+                                // parser (which would treat it as MarkupText
+                                // / fake MarkupStartTag). The pre-existing
+                                // diagnostic above keeps its narrow span.
+                                var sync = Synchronize(
+                                    RecoveryFollowSets.CSharpDirectiveTrailing,
+                                    originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                                AcceptMarkerTokenIfNecessary();
+                                var pending = OutputTokensAsStatementLiteral();
+                                if (pending is not null)
+                                {
+                                    directiveBuilder.Add(pending);
+                                }
+                                if (sync.Skipped is not null)
+                                {
+                                    directiveBuilder.Add(sync.Skipped);
+                                }
+                            }
                         }
 
                         // This should contain the optional whitespace after the optional semicolon and the new line.
@@ -2113,6 +2135,48 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                 var diagnostics = directiveErrorSink.GetErrorsAndClear();
                 directive = directive.WithDiagnosticsGreen(diagnostics);
                 return directive;
+            }
+
+            // Stage 2.5 (enhanced recovery): wraps the legacy
+            // `builder.Add(BuildDirective(...)); return;` early-bail with a
+            // `Synchronize` call so trailing garbage on the directive's line
+            // is absorbed as `SkippedContentSyntax` inside the directive
+            // rather than leaking to the outer markup parser (which would
+            // re-process it as `MarkupTextLiteral` + fake `MarkupStartTag`,
+            // producing cascading errors). The pre-existing diagnostic on
+            // the directive (emitted to `directiveErrorSink` immediately
+            // before each call to this helper) is unchanged in span; only
+            // the cursor advancement and recovered-content shape differ.
+            //
+            // The follow set is C#-side per Big Design Decision #4 (see
+            // `RecoveryFollowSets.CSharpDirectiveTrailing`).
+            //
+            // Uses the convenience overload of `Synchronize` (no outer
+            // follow set); Stage 4.2 will mechanically upgrade this to
+            // thread the caller's outer follow set.
+            //
+            // Returns the built directive (which the caller adds to
+            // `builder`). Returning is necessary because `builder` is an
+            // `in` parameter and cannot be captured by a local function.
+            RazorDirectiveSyntax BuildBailedDirective(SyntaxKind missingKind)
+            {
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    var sync = Synchronize(
+                        RecoveryFollowSets.CSharpDirectiveTrailing,
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    var pending = OutputTokensAsStatementLiteral();
+                    if (pending is not null)
+                    {
+                        directiveBuilder.Add(pending);
+                    }
+                    if (sync.Skipped is not null)
+                    {
+                        directiveBuilder.Add(sync.Skipped);
+                    }
+                }
+                return BuildDirective(missingKind);
             }
         }
     }
@@ -2875,6 +2939,31 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             var keywordTokens = OutputTokensAsStatementLiteral();
             var directiveBody = SyntaxFactory.RazorDirectiveBody(keywordTokens, null);
             builder.Add(SyntaxFactory.RazorUsingDirective(transition, directiveBody));
+
+            if (Context.Options.UseEnhancedRecovery)
+            {
+                // Stage 2.5: absorb any trailing garbage on the directive's
+                // line as `SkippedContentSyntax` so the outer markup parser
+                // doesn't see leaked C# tokens as `MarkupTextLiteral` /
+                // fake markup. The legacy path falls straight through to
+                // `CaptureWhitespaceToEndOfLine`, leaving any non-whitespace
+                // (e.g. `! garbage` after `@using `) for the outer parser
+                // to mis-categorise. Stage 4.2 will mechanically upgrade
+                // this convenience-overload call to thread the caller's
+                // outer follow set per Big Design Decision #4.
+                //
+                // No new diagnostic is emitted: the legacy path is also
+                // silent for this input (no `Parsing_DirectiveMustHaveValue`
+                // for `@using`), so the recovery is purely about tree
+                // shape, not error reporting.
+                var sync = Synchronize(
+                    RecoveryFollowSets.CSharpDirectiveTrailing,
+                    originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                if (sync.Skipped is not null)
+                {
+                    builder.Add(sync.Skipped);
+                }
+            }
 
             CaptureWhitespaceToEndOfLine();
             builder.Add(OutputAsMetaCode(Output(), Context.CurrentAcceptedCharacters));

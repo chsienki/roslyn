@@ -1,7 +1,9 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Immutable;
 using System.Linq;
+using Microsoft.AspNetCore.Razor.Language.Extensions;
 using Microsoft.AspNetCore.Razor.Language.Syntax;
 using Xunit;
 
@@ -84,6 +86,10 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     [Fact]
     public void UnclosedSwitch()
         => ParseCorpusFile("UnclosedSwitch.razor");
+
+    [Fact]
+    public void MalformedUsing()
+        => ParseCorpusFile("MalformedUsing.razor");
 
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
@@ -670,6 +676,138 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         Assert.Equal("foo bar", skipped.GetContent());
 
         Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 2.5: Razor directive parsers enhanced-recovery tests.
+    //
+    // Stage 2.5 migrates `ParseExtensibleDirective` (the workhorse for
+    // user-defined directives like `@inherits`, `@model`, `@attribute`
+    // etc., plus the built-in `@namespace`) and `ParseUsingDeclaration`
+    // (the `@using foo.bar` import directive).
+    //
+    // Exit criteria (per plan section "Stage 2.5"):
+    //   - Trailing garbage on the directive's line is absorbed as
+    //     `SkippedContentSyntax` (originating language: C#) inside the
+    //     directive's syntax span, not leaked to outer markup where it
+    //     would become `MarkupTextLiteral` or fake `MarkupStartTag` +
+    //     `MarkupMiscAttributeContent`.
+    //   - The pre-existing directive diagnostic (e.g. RZ1014 for an
+    //     `@inherits` with a malformed type name) is unchanged in span;
+    //     no new RZ diagnostics are introduced.
+    //   - Subsequent well-formed markup parses cleanly (no cascading
+    //     `MarkupMiscAttributeContent` from leaked C# tokens).
+    //
+    // `ParseUsingDeclaration` is silent for trailing garbage on
+    // `@using foo bar` (the legacy path also emits no diagnostic);
+    // recovery here is purely about tree shape, not error reporting.
+    //
+    // Corpus coverage: `MalformedUsing.razor` (added in Stage 2.5)
+    // exercises `ParseUsingDeclaration`. Extensible directives like
+    // `@inherits` cannot be in the corpus (the corpus test harness
+    // doesn't pass `DirectiveDescriptor`s), so `MalformedInherits`
+    // below uses inline source with `directives: [InheritsDirective.Directive]`.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void MalformedUsing_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/MalformedUsing.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // `@using foo bar` produces no diagnostic on either path; the
+        // enhanced branch is purely shape-cleanup.
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        // Exactly one `SkippedContentSyntax` covers ` bar` (the leading
+        // whitespace is consumed by sync because the follow set does not
+        // include `Whitespace`; the legacy path leaked this as
+        // `MarkupTextLiteral - " bar"` on the markup side, see the
+        // `MalformedUsing.stree.txt` baseline at offsets [10..16)).
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Equal(" bar", skipped.GetContent());
+
+        // The `<p>after</p>` element parses cleanly on the markup side
+        // (the legacy baseline shows it does too, but the cleanup target
+        // is asserting the absence of leaked `MarkupTextLiteral` content
+        // overlapping `bar`).
+        var markupElements = tree.Root.DescendantNodes().OfType<MarkupElementSyntax>().ToArray();
+        Assert.Single(markupElements);
+
+        // No fake markup wrappers from leaked C# tokens.
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        // No `MarkupTextLiteral` containing `bar` (the legacy leaked
+        // ` bar` as `MarkupTextLiteral` -- enhanced recovery absorbs it
+        // before the outer markup parser sees it).
+        Assert.DoesNotContain(
+            tree.Root.DescendantNodes().OfType<MarkupTextLiteralSyntax>(),
+            lit => lit.GetContent().Contains("bar"));
+    }
+
+    [Fact]
+    public void MalformedInherits_EnhancedRecovery()
+    {
+        // Synthetic input exercising `ParseExtensibleDirective` via
+        // `@inherits` (an `AddTypeToken` / `FileScopedSinglyOccurring`
+        // directive). The leading `+` after `@inherits ` is neither
+        // an Identifier nor a Keyword, so `TryParseNamespaceOrTypeName`
+        // returns false and the directive's type-token branch bails
+        // with `Parsing_DirectiveExpectsTypeName` (RZ1014).
+        //
+        // Stage 2.5's `BuildBailedDirective` helper wraps the bail
+        // with a `Synchronize` so `+ bad` is absorbed as
+        // `SkippedContentSyntax` (originating: C#) inside the directive,
+        // rather than leaking to the outer markup parser (which would
+        // produce a `MarkupTextLiteral` for ` bad`).
+        //
+        //   @inherits + badLF<p>after</p>LF
+        //             ^^^^^^
+        //             Stage 2.5: absorbed as SkippedContent.
+        const string source = "@inherits + bad\r\n<p>after</p>\r\n";
+
+        var tree = ParseDocument(
+            source,
+            directives: [InheritsDirective.Directive],
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // RZ1013 (DirectiveExpectsTypeName) is preserved -- the
+        // pre-existing diagnostic's span is unchanged.
+        var rz1013 = tree.Diagnostics.Where(d => d.Id == "RZ1013").ToArray();
+        Assert.Single(rz1013);
+
+        // Stage 2.5 introduces no new diagnostics.
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        // Exactly one `SkippedContentSyntax` covers `+ bad`. The legacy
+        // path would leak ` bad` as `MarkupTextLiteral` to the outer
+        // markup parser.
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Contains("+", skipped.GetContent());
+        Assert.Contains("bad", skipped.GetContent());
+
+        // No fake `MarkupMiscAttributeContent` from leaked tokens.
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        // The trailing `<p>after</p>` parses as a real element on the
+        // markup side. Enhanced recovery prevents leaked C# tokens
+        // (` bad`) from polluting the outer markup parser.
+        var markupElements = tree.Root.DescendantNodes().OfType<MarkupElementSyntax>().ToArray();
+        Assert.Single(markupElements);
+        Assert.Equal("<p>after</p>", markupElements[0].GetContent());
+
+        // No `MarkupTextLiteral` containing `bad` (the legacy leaked
+        // ` bad` as `MarkupTextLiteral` -- enhanced recovery absorbs it
+        // before the outer markup parser sees it).
+        Assert.DoesNotContain(
+            tree.Root.DescendantNodes().OfType<MarkupTextLiteralSyntax>(),
+            lit => lit.GetContent().Contains("bad"));
     }
 
     private void ParseCorpusFile(string corpusFileName)

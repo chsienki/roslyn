@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 2.4 complete. Ready for Stage 2.5 (Directive parsers).
+Stage 2.5 complete. Ready for Stage 2.6 (Statement / expression-level parsers).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -26,7 +26,7 @@ Stage 2.4 complete. Ready for Stage 2.5 (Directive parsers).
 - Stage 2.2: complete
 - Stage 2.3: complete
 - Stage 2.4: complete
-- Stage 2.5: not started
+- Stage 2.5: complete
 - Stage 2.6: not started
 - Stage 3.1: not started
 - Stage 3.2: not started
@@ -946,4 +946,118 @@ commit `f445deb5f8c`):
 
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1325 / 1325 (1318 baseline + 2 new legacy corpus + 5 new enhanced);
+  language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+- 2026-05-28: Stage 2.5 done. Migration of the Razor directive parsers
+  in `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Legacy/CSharpCodeParser.cs`
+  to the `Required` / `Synchronize` machinery under the
+  `UseEnhancedRecovery` flag.
+
+  **What landed:**
+
+  - `RecoveryFollowSets.CSharpDirectiveTrailing` named constant
+    (`{ NewLine, RightBrace }`, C#-side kinds per Big Design Decision
+    #4). `LessThan` was deliberately excluded after experimenting:
+    including it would cause sync to stop at a stray `<` on the
+    directive line, leaving the bad `<` to leak to the outer markup
+    parser as a fake `MarkupStartTag` + `MarkupMiscAttributeContent`
+    (the very pollution Stage 2.5 is trying to eliminate). The
+    trade-off: a directive on the same line as a real markup tag
+    (`@inherits System<p>after</p>`, no intervening newline) would
+    have its trailing `<p>after</p>` absorbed into SkippedContent.
+    This is an acceptable corner-case loss because directives are
+    line-terminated in practice, and the dominant pattern is
+    newline-separated markup after the directive.
+
+  - `BuildBailedDirective(SyntaxKind missingKind)` local function added
+    to `ParseExtensibleDirective` (right after the existing
+    `BuildDirective` local function). Under enhanced mode it calls
+    `Synchronize(CSharpDirectiveTrailing, originatingLanguage: CSharpCodeBlock)`,
+    flushes pending tokens via `AcceptMarkerTokenIfNecessary` +
+    `OutputTokensAsStatementLiteral`, then appends `sync.Skipped` to
+    `directiveBuilder` before delegating to `BuildDirective`. The
+    helper returns `RazorDirectiveSyntax` (rather than calling
+    `builder.Add` directly) because `builder` is an `in` parameter
+    and C# does not permit capturing `ref`/`in`/`out` parameters in
+    nested functions.
+
+  - All 11 early-bail sites in `ParseExtensibleDirective` migrated
+    from `builder.Add(BuildDirective(K)); return;` to
+    `builder.Add(BuildBailedDirective(K)); return;`. Diagnostics
+    covered: `DirectiveTokensMustBeSeparated`,
+    `UnexpectedEOFAfterDirective`, `DirectiveExpectsTypeName` (RZ1013),
+    `DirectiveExpectsNamespace` (RZ1015), `DirectiveExpectsIdentifier`,
+    `DirectiveExpectsQuotedStringLiteral`,
+    `DirectiveExpectsBooleanLiteral`,
+    `DirectiveExpectsCSharpAttribute`,
+    `GenericTypeParameterIdentifierMismatch`, `UnexpectedIdentifier`,
+    `DirectiveExpectsIdentifierOrExpression`. The pre-existing
+    diagnostic factories and their spans are unchanged; only the
+    cursor advancement and recovered tree shape differ.
+
+  - Trailing-literal site at `Parsing_UnexpectedDirectiveLiteral`
+    (the SingleLine directive's trailing-content error) wrapped with
+    the same enhanced-mode `Synchronize` pattern (inline, not via
+    `BuildBailedDirective`).
+
+  - `ParseUsingDeclaration` gained an enhanced-mode `Synchronize`
+    block between `builder.Add(SyntaxFactory.RazorUsingDirective(...))`
+    and `CaptureWhitespaceToEndOfLine()`. Skipped content is added to
+    the OUTER `builder` (not `directiveBuilder`, which is asserted
+    empty) and appears as a sibling AFTER the `RazorUsingDirective`.
+    No new diagnostic is emitted (the legacy path is also silent for
+    `@using foo bar`).
+
+  **Sites intentionally NOT migrated in Stage 2.5:**
+
+  - `ParseTagHelperDirective` (and its `ParseTagHelperPrefixDirective`
+    / `ParseAddTagHelperDirective` / `ParseRemoveTagHelperDirective`
+    front doors) -- the `AcceptUntil(SyntaxKind.NewLine)` at
+    `CSharpCodeParser.cs:1541` is value-collection (it builds the
+    directive's value string up to the line terminator), NOT panic
+    recovery. Replacing it with `Synchronize` would change
+    well-formed-input behavior by absorbing the entire value content
+    into SkippedContent. The diagnostic for missing-value at
+    `Parsing_DirectiveMustHaveValue` already runs at a narrow span
+    (1 char); no recovery cleanup is required.
+
+  - `ParseUsingStatement` / `ParseUsingKeyword` -- already migrated
+    in Stage 2.4 via `TryParseCondition`. The Stage 2.4 enhanced
+    branch handles the `using (` Balance-fails path; nothing further
+    to add here.
+
+  **Deviations from the plan:**
+
+  - No `MalformedExtensible.razor` corpus file. The corpus test
+    infrastructure (`ParseCorpusFile`) doesn't pass `DirectiveDescriptor`s
+    to `ParseDocument`, and extensible directives like `@inherits`
+    require their descriptor to be registered to take the
+    `ParseExtensibleDirective` path. The `MalformedInherits_EnhancedRecovery`
+    synthetic test uses inline source plus
+    `directives: [InheritsDirective.Directive]` instead (matching
+    the Stage 2.4 `UnclosedCatchParen_EnhancedRecovery` pattern).
+
+  - In-memory assertions for new enhanced tests (matching the Stage
+    1.4 / 2.1 / 2.2 / 2.3 / 2.4 deviation): no parallel
+    `.enhanced.{stree,diag,cspans}.txt` baselines generated; the
+    test asserts the Stage 2.5 exit criteria directly.
+
+  **No new RZ IDs allocated** in Stage 2.5. All migrated bail sites
+  reuse the existing diagnostic factories with their existing narrow
+  spans. The redesign target for Stage 2.5 is purely about
+  recovered-tree shape (absorb trailing garbage as `SkippedContentSyntax`
+  inside the directive instead of leaking as `MarkupTextLiteral` /
+  `MarkupMiscAttributeContent` on the outer markup side), not about
+  changing error reporting.
+
+  **Risk verified:** A first cut had `BailWithSync` as a `void`
+  local function calling `builder.Add(...)` internally, which failed
+  to compile (CS1628: cannot use `in` parameter inside local
+  function). The fix was to make it return the directive and have
+  each caller do `builder.Add(BuildBailedDirective(K))`. The
+  identifier was also renamed to `BuildBailedDirective` to reflect
+  the return-based shape. End-to-end metrics (the cross-cutting
+  `RecoveryDelta` aggregation) are deferred to Stage 5.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1328 / 1328 (1325 baseline + 1 new legacy corpus + 2 new enhanced);
   language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
