@@ -2373,7 +2373,58 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             var complete = Balance(builder, BalancingModes.BacktrackOnFailure | BalancingModes.AllowCommentsAndTemplates);
             if (!complete)
             {
-                AcceptUntil(SyntaxKind.NewLine);
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // ---- Enhanced recovery path (Stage 2.4 canonical migration). ----
+                    //
+                    // Replaces the legacy `AcceptUntil(NewLine)` panic with
+                    // `Synchronize` so any absorbed garbage becomes a
+                    // `SkippedContentSyntax` rather than fat statement-literal
+                    // content (which codegen would otherwise dump as C# text,
+                    // producing cascading CS errors).
+                    //
+                    // After `Balance` failure with `BalancingModes.BacktrackOnFailure`
+                    // the open `(` has already been accepted (by the single-arg
+                    // `Balance(builder, mode)`'s `AcceptAndMoveNext()`) and the
+                    // tokenizer cursor has been rewound to immediately after
+                    // the open `(`. The pending accept buffer therefore contains
+                    // the `(`; we flush it as a precise statement literal
+                    // boundary before adding the recovered `SkippedContentSyntax`
+                    // so positions remain monotonic.
+                    //
+                    // `Balance` itself has already emitted RZ1027
+                    // (`Parsing_ExpectedCloseBracketBeforeEOF`) via `ErrorSink`
+                    // with a 1-char span at the opening `(`; narrowing that
+                    // pre-existing diagnostic belongs to whichever stage owns
+                    // the construct's open-bracket emission, not Stage 2.4.
+                    //
+                    // The follow set is C#-side per Big Design Decision #4:
+                    //   - `NewLine` -- preserves the legacy panic boundary so
+                    //     single-line-control-flow inputs sync at end of line;
+                    //   - `RightBrace` -- the enclosing code block's closing
+                    //     brace, so `@{ for(... }` recovers at the outer `}`;
+                    //   - `LeftBrace` -- the body of the conditional, so the
+                    //     body of `@if(foo bar { ... }` can still be parsed
+                    //     even when the condition is malformed.
+                    //
+                    // Stage 2.4 uses the convenience overload of `Synchronize`;
+                    // Stage 4.2 will mechanically upgrade this call to thread
+                    // the caller's outer follow set per BDD #4.
+                    var sync = Synchronize(
+                        new FollowSet(SyntaxKind.NewLine, SyntaxKind.RightBrace, SyntaxKind.LeftBrace),
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    builder.Add(OutputTokensAsStatementLiteral());
+                    if (sync.Skipped is not null)
+                    {
+                        builder.Add(sync.Skipped);
+                    }
+                }
+                else
+                {
+                    // ---- Legacy path: unchanged. ----
+                    AcceptUntil(SyntaxKind.NewLine);
+                }
             }
             else
             {

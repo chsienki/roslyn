@@ -77,6 +77,14 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     public void EmptyExplicitExpression()
         => ParseCorpusFile("EmptyExplicitExpression.razor");
 
+    [Fact]
+    public void UnclosedForeach()
+        => ParseCorpusFile("UnclosedForeach.razor");
+
+    [Fact]
+    public void UnclosedSwitch()
+        => ParseCorpusFile("UnclosedSwitch.razor");
+
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
     //
@@ -356,28 +364,40 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
             source,
             configureParserOptions: builder => builder.UseEnhancedRecovery = true);
 
-        // The corpus input `@if(foo bar\nbaz\n\n<p>...</p>` is parsed
-        // via `ParseImplicitExpression` / `ParseMethodCallOrArrayIndex`
-        // (Stage 2.6 territory), NOT `ParseStandardStatement`. The
-        // implicit-expression recovery at line ~636 of CSharpCodeParser
-        // (`AcceptUntil(SyntaxKind.LessThan)`) is unchanged by Stage 2.3
-        // and is owned by Stage 2.6.
+        // Stage 2.4 update: `@if(foo bar` IS exercised by Stage 2.4's
+        // migrated `TryParseCondition` (the Stage 2.3 comment that
+        // labelled this "Stage 2.6 territory" was empirically incorrect:
+        // `if` IS dispatched to `ParseIfStatement` -> `ParseConditionalBlock`
+        // -> `TryParseCondition`, and the legacy `AcceptUntil(NewLine)` was
+        // flattening the structure into a single fat `CSharpStatementLiteral`).
         //
-        // Parity assertions: enhanced mode produces the same shape as
-        // legacy (the existing `UnclosedIfParen.{stree,diag}` baselines).
-        // The single RZ1027 (`Parsing_ExpectedCloseBracketBeforeEOF`)
-        // from `Balance` remains -- its narrowing belongs to Stage 2.6.
-        // No new RZ1046 fires (the panic-else didn't run).
+        // Stage 2.4 enhanced-recovery assertions for `TryParseCondition`:
+        //   - `Balance`'s pre-existing RZ1027 at the opening `(` is preserved.
+        //   - No new RZ1046 fires (Stage 2.4 introduced no new diagnostics).
+        //   - Absorbed garbage between the unclosed `(` and the synchronization
+        //     point (`NewLine` here) is wrapped in `SkippedContentSyntax`
+        //     tagged with `CSharpCodeBlock`, NOT a fat `CSharpStatementLiteral`.
+        //   - The trailing markup parses cleanly as a real `MarkupElement`.
+        //   - No `MarkupMiscAttributeContent` is produced (Stage 2 exit
+        //     criterion #4).
         var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
         Assert.Single(rz1027);
         Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
-        Assert.Empty(tree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
+
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+
+        // The skipped span covers `foo bar` -- the content between the
+        // unclosed `(` and the synchronization point (the trailing `\n`).
+        // The leading `(` remains accepted as part of the precise
+        // `CSharpStatementLiteral` flushed before the recovery sync.
+        Assert.Equal("foo bar", skipped.GetContent());
+
         Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
 
-        // The trailing `<p>this should still parse as HTML</p>` parses
-        // as a real markup element after the unclosed `@if(...`. The
-        // `</p>` is the end-tag of that element -- not absorbed as a
-        // fat literal.
+        // The trailing `<p>this should still parse as HTML</p>` parses as
+        // a real markup element after the unclosed `@if(...`. The `</p>`
+        // is the end-tag of that element -- not absorbed as a fat literal.
         var pElement = tree.Root.DescendantNodes().OfType<MarkupElementSyntax>().Single();
         Assert.Equal(source.IndexOf("<p>"), pElement.SpanStart);
     }
@@ -458,6 +478,197 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         Assert.Equal(closeBracePosition, rightBraceToken.SpanStart);
 
         // No `MarkupMiscAttributeContent` produced (Stage 2 exit criterion #4).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 2.4: TryParseCondition enhanced-recovery tests.
+    //
+    // Stage 2.4 migrates the C# control-flow keyword frames
+    // (`@if`, `@for`, `@foreach`, `@while`, `@switch`, `@lock`,
+    // `@try`, `@do`, `@using`, plus `catch` / `while` clauses).
+    // Structurally all of these route through `TryParseCondition`
+    // for their `(condition)` syntax: it's the single migration site
+    // that covers the entire family. The body `{...}` block is
+    // already migrated by Stage 2.2's `ParseStatementBody`.
+    //
+    // Stage 2.4 exit criteria asserted under enhanced mode:
+    //   - Absorbed garbage between an unclosed `(` and the next sync
+    //     point (`NewLine`, `LeftBrace`, or `RightBrace`) is wrapped
+    //     in a `SkippedContentSyntax` tagged with `CSharpCodeBlock`
+    //     (not absorbed into a fat `CSharpStatementLiteral.LiteralTokens`).
+    //   - `Balance`'s pre-existing RZ1027 at the opening `(` is preserved
+    //     (its narrowing belongs to the construct's open-bracket stage).
+    //   - No new RZ1046 (Stage 2.4 introduces no new diagnostics).
+    //   - The surrounding markup parses cleanly without
+    //     `MarkupMiscAttributeContent` wrappers.
+    //
+    // Corpus coverage: `UnclosedForeach.razor` and `UnclosedSwitch.razor`
+    // (added in Stage 2.4) exercise the canonical conditional-block
+    // recovery via `ParseConditionalBlock` + `TryParseCondition`.
+    // `UnclosedIfParen_EnhancedRecovery` above (updated in Stage 2.4)
+    // also exercises the same path via `ParseIfStatement`. Additional
+    // synthetic in-memory tests below cover `ParseFilterableCatchBlock`,
+    // `ParseUsingStatement`, and `ParseWhileClause`.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void UnclosedForeach_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnclosedForeach.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // RZ1027 from `Balance` is preserved. No new RZ1046.
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        // Exactly one `SkippedContentSyntax` covers the malformed
+        // condition body `var x in items`. The legacy parser absorbed
+        // these tokens into the fat `CSharpStatementLiteral` shown by
+        // the `UnclosedForeach.stree.txt` baseline.
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Equal("var x in items", skipped.GetContent());
+
+        // No fat `CSharpStatementLiteral` overlaps the skipped region:
+        // every non-empty literal must lie entirely before the skipped
+        // span (the pre-recovery `foreach(` boundary) or entirely after
+        // it (trailing-trivia whitespace consumed by outer parsing).
+        Assert.All(
+            tree.Root.DescendantNodes().OfType<CSharpStatementLiteralSyntax>(),
+            lit =>
+            {
+                if (lit.Width == 0)
+                {
+                    return;
+                }
+                Assert.True(
+                    lit.EndPosition <= skipped.SpanStart || lit.SpanStart >= skipped.EndPosition,
+                    $"Non-empty CSharpStatementLiteral at [{lit.SpanStart}..{lit.EndPosition}) overlaps the skipped region [{skipped.SpanStart}..{skipped.EndPosition}).");
+            });
+
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
+    [Fact]
+    public void UnclosedSwitch_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnclosedSwitch.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // RZ1027 from `Balance` is preserved. No new RZ1046.
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        // Exactly one `SkippedContentSyntax` covers the malformed
+        // condition body `x`. The legacy parser absorbed `x` and the
+        // trailing newline into the fat `CSharpStatementLiteral` shown
+        // by the `UnclosedSwitch.stree.txt` baseline.
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Equal("x", skipped.GetContent());
+
+        // The trailing markup elements parse cleanly. The legacy baseline
+        // shows two `MarkupElement`s for the `<p>one</p>` and `<p>other</p>`
+        // chunks; the enhanced shape preserves them (the SkippedContent
+        // doesn't pollute the markup transition).
+        var markupElements = tree.Root.DescendantNodes().OfType<MarkupElementSyntax>().ToArray();
+        Assert.Equal(2, markupElements.Length);
+
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
+    [Fact]
+    public void UnclosedCatchParen_EnhancedRecovery()
+    {
+        // Synthetic input exercising `TryParseCondition` via
+        // `ParseFilterableCatchBlock` (the `catch (ExceptionType ex)` site).
+        //
+        //   @try { } catch(ex bad { }
+        //                ^^^^^^^^
+        //                Balance(BacktrackOnFailure) fails (no `)`); the
+        //                Stage 2.4 enhanced branch syncs at the body `{`,
+        //                wrapping `ex bad` in SkippedContent.
+        const string source = "@try { } catch(ex bad { }";
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Equal("ex bad ", skipped.GetContent());
+
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
+    [Fact]
+    public void UnclosedUsingParen_EnhancedRecovery()
+    {
+        // Synthetic input exercising `TryParseCondition` via
+        // `ParseUsingStatement` (the `using (resource)` site).
+        //
+        //   @using(var x = foo bar { }
+        //         ^^^^^^^^^^^^^^^^^
+        //         Balance(BacktrackOnFailure) fails; the Stage 2.4
+        //         enhanced branch syncs at the body `{`, wrapping
+        //         the malformed content in SkippedContent.
+        const string source = "@using(var x = foo bar { }";
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Contains("var x = foo bar", skipped.GetContent());
+
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+    }
+
+    [Fact]
+    public void UnclosedWhileInDoLoop_EnhancedRecovery()
+    {
+        // Synthetic input exercising `TryParseCondition` via
+        // `ParseWhileClause` (the `while (condition)` site after `do`).
+        //
+        //   @do { } while(foo bar
+        //                ^^^^^^^^
+        //                Balance(BacktrackOnFailure) fails at EOF; the
+        //                Stage 2.4 enhanced branch syncs at EOF,
+        //                wrapping `foo bar` in SkippedContent.
+        const string source = "@do { } while(foo bar";
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
+        Assert.Single(rz1027);
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1046"));
+
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Equal("foo bar", skipped.GetContent());
+
         Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
     }
 
