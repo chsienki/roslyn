@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 6.2 complete. Ready for Stage 6.3.
+Stage 6.3 complete. Ready for Stage 6.4.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -47,7 +47,7 @@ Stage 6.2 complete. Ready for Stage 6.3.
 - Stage 5.6: complete
 - Stage 6.1: complete
 - Stage 6.2: complete
-- Stage 6.3: not started
+- Stage 6.3: complete
 - Stage 6.4: not started
 - Stage 7: not started
 
@@ -3592,3 +3592,81 @@ Select-String "UseEnhancedRecovery" -SimpleMatch` returns zero hits.
 **Stage 6.2 complete.** The Razor parser no longer carries a recovery
 feature flag; the enhanced path is the only path. Stage 6.3 can
 proceed.
+
+## Stage 6.3 documentation
+
+- 2026-05-26: Stage 6.3 done. Two documentation deliverables landed:
+
+  **(A) `src/Razor/docs/Parsing.md`** -- added a new section
+  "Error recovery: missing tokens and `SkippedContentSyntax`" after the
+  existing whitespace / `@using` content. The section introduces the
+  two recovery invariants in the tree (every expected-but-absent token
+  is a zero-width `MissingToken` at the precise position with the
+  diagnostic attached; every absorbed-during-recovery token lives
+  inside `SkippedContentSyntax` with an `OriginatingLanguage` field)
+  and points at the new `parser-recovery.md` for the full design.
+  Two short subsections "Missing-token invariant" and
+  "`SkippedContentSyntax`" describe the shapes a reader of the tree
+  needs to understand without leaving `Parsing.md`. The cross-link to
+  `parser-recovery.md` is at the bottom of the section.
+
+  **(B) `src/Razor/docs/parser-recovery.md`** (new, kebab-case per
+  the user-level docs naming convention) -- the contributor-facing
+  reference for the recovery model. Sections:
+
+  1. Overview (the high-level idea: Roslyn-style missing tokens +
+     skipped content + synchronize on follow sets).
+  2. The `FollowSet` API (struct layout, language scoping, the
+     cross-language translation table, named constants in
+     `RecoveryFollowSets`).
+  3. The `Synchronize` helper (full + convenience overloads, semantics,
+     when to call vs when not to call).
+  4. The `Required` / `Optional` helpers (signatures, consume/missing
+     paths, "do not double-emit to ErrorSink" rule).
+  5. How to write a new recovery-aware parser function (a step-by-step
+     worked example using `ParseRazorComment`, plus a pointer to
+     `ParseExplicitExpressionBody` as a cross-parser example, plus a
+     7-item checklist for new call sites).
+  6. The `SkippedContentSyntax` node (XML definition, producer, table
+     of consumers and how each handles it).
+  7. Diagnostic factory `_At` convention (pairing table, when to use
+     `_At` vs the original factory, how to add a new `_At` variant).
+  8. "How we got here" -- cross-references the historical plan files
+     under `plans/ErrorRecovery/` (`razor-parser-analysis.md`,
+     `razor-recovery-redesign-plan.md`,
+     `razor-recovery-redesign-plan-state.md`), and notes that this doc
+     is the live contract and the plan files are historical.
+
+  **Cross-link verification:** `Get-ChildItem src\Razor\docs -Recurse
+  -Filter *.md | Select-String -Pattern "parser-recovery"` returns
+  matches in `Parsing.md` (cross-link in the new section + closing
+  pointer to the worked example), in
+  `plans/ErrorRecovery/razor-recovery-redesign-plan.md`, and in this
+  state file. `parser-recovery.md` itself does not contain its own
+  name -- that is expected; reachability is via inbound links, which
+  Parsing.md provides.
+
+  **Source verification:** the code descriptions in
+  `parser-recovery.md` were cross-checked against
+  `Legacy/FollowSet.cs`, `Legacy/SyncResult.cs`,
+  `Legacy/RecoveryFollowSets.cs`, `Legacy/TokenizerBackedParser.cs`
+  (`Synchronize`, `Required`, `Optional`), `Syntax.xml`
+  (`SkippedContentSyntax` definition),
+  `Legacy/TokenizerBackedParser.cs::ParseRazorComment` (the worked
+  example),
+  `Legacy/CSharpCodeParser.cs::ParseExplicitExpressionBody` (the
+  cross-parser example), and `RazorDiagnosticFactory.cs` (the `_At`
+  pairs).
+
+  **Deviations from the plan literal:** none of substance.
+
+  - The plan's exit-criterion verification command
+    (`Select-String -Path "src\Razor\docs\**\*.md" -Pattern
+    "parser-recovery"`) hits `Parsing.md` (the cross-link) and the
+    plan files, but not `parser-recovery.md` itself, because the new
+    doc's body doesn't reference its own filename. This satisfies the
+    spirit of the criterion (reachability), but a future reader of
+    this state file should know not to expect a self-hit.
+
+**Stage 6.3 complete.** Documentation now reflects the live recovery
+contract. Stage 6.4 (performance pass) can proceed.
