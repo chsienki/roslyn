@@ -1152,6 +1152,211 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         }
     }
 
+    // ----------------------------------------------------------------
+    // Stage 3.3: TryRecoverStartTag / CompleteEndTag enhanced-recovery
+    // test.
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branches added in Stage 3.3 to `HtmlMarkupParser`:
+    //   - `CompleteMarkupInCodeBlock` (the markup-in-code-block EOF
+    //     cleanup loop): emits a narrow zero-width RZ1025
+    //     (Parsing_MissingEndTag) at the precise cursor position (EOF
+    //     or end-of-block) rather than the legacy wide span at the
+    //     unclosed start tag's name.
+    //   - `CompleteEndTag` (the "no tracker" / orphan-end-tag branch):
+    //     emits a narrow zero-width RZ1026 (Parsing_UnexpectedEndTag)
+    //     at the precise cursor position (start of the unexpected
+    //     `</`) rather than the legacy span covering the end tag name.
+    //   - `CompleteEndTag` (the outer-unclosed-tag cleanup loop):
+    //     emits a narrow zero-width RZ1025 at the unexpected end tag's
+    //     start position (where the missing end tag should have
+    //     appeared) rather than the legacy wide span at the unclosed
+    //     start tag's name.
+    //
+    // Stage 3.3 exit criteria asserted here:
+    //   - The corpus file `UnclosedTag.razor` is pure document-mode
+    //     markup where `TryRecoverStartTag` silently pops the
+    //     intermediate `<span>` / `<p>` as malformed elements (this
+    //     silent path is unchanged by Stage 3.3 -- see the
+    //     "tag-stack recovery itself doesn't change structurally"
+    //     wording in the plan). The corpus exercises the resulting
+    //     tree shape: a well-formed `<div>...</div>` outer element
+    //     with malformed `<span>` / `<p>` inside, a sibling
+    //     `<section>...</section>` element parsing cleanly, and no
+    //     `MarkupMiscAttributeContent` across the whole file.
+    //   - In-memory `@{ </div> }` and `@{ <div> }` sources cover the
+    //     three migrated diagnostic sites and verify the new spans
+    //     are zero-width at the precise tag positions (not at the
+    //     start of the construct).
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void UnclosedTag_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnclosedTag.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // The corpus file `<div>\r\n    <span>\r\n        <p>text</div>\r\n\r\n<section>after the mismatch</section>\r\n`
+        // parses to:
+        //   - One outer `<div>...</div>` `MarkupElement` containing the
+        //     two intermediate unclosed elements (`<span>` and `<p>`)
+        //     popped as malformed by `TryRecoverStartTag`.
+        //   - One sibling `<section>...</section>` element parsing
+        //     cleanly (no contamination from the recovery).
+        var topLevelMarkupBlock = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupBlockSyntax>()
+            .First();
+
+        var topLevelElements = topLevelMarkupBlock.Children
+            .OfType<MarkupElementSyntax>()
+            .ToArray();
+        Assert.Equal(2, topLevelElements.Length);
+
+        // The outer `<div>` element has a real `</div>` end tag (the
+        // recovery in `TryRecoverStartTag` matched it past the
+        // intermediate unclosed `<span>` / `<p>`).
+        var divElement = topLevelElements[0];
+        Assert.NotNull(divElement.MarkupStartTag);
+        Assert.Equal("div", divElement.MarkupStartTag.Name.Content);
+        Assert.NotNull(divElement.MarkupEndTag);
+        Assert.Equal("div", divElement.MarkupEndTag.Name.Content);
+
+        // The sibling `<section>` element is well-formed and unaffected
+        // by the upstream recovery -- no recovery contamination leaks
+        // into trailing markup.
+        var sectionElement = topLevelElements[1];
+        Assert.NotNull(sectionElement.MarkupStartTag);
+        Assert.Equal("section", sectionElement.MarkupStartTag.Name.Content);
+        Assert.NotNull(sectionElement.MarkupEndTag);
+        Assert.Equal("section", sectionElement.MarkupEndTag.Name.Content);
+
+        // Inside the `<div>` element, the intermediate `<span>` and
+        // `<p>` are nested malformed elements (start tag present, end
+        // tag absent). This is the "user-visible structure" exit
+        // criterion: nested elements are grouped correctly rather than
+        // sitting as siblings.
+        var spanElement = divElement.Body
+            .OfType<MarkupElementSyntax>()
+            .Single();
+        Assert.NotNull(spanElement.MarkupStartTag);
+        Assert.Equal("span", spanElement.MarkupStartTag.Name.Content);
+        Assert.Null(spanElement.MarkupEndTag);
+
+        var pElement = spanElement.Body
+            .OfType<MarkupElementSyntax>()
+            .Single();
+        Assert.NotNull(pElement.MarkupStartTag);
+        Assert.Equal("p", pElement.MarkupStartTag.Name.Content);
+        Assert.Null(pElement.MarkupEndTag);
+
+        // No `MarkupMiscAttributeContent` across the whole file --
+        // recovery did not absorb anything into a fat misc-attribute
+        // wrapper (Stage 3 exit criterion).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        // The corpus file exercises only the silent `TryRecoverStartTag`
+        // success path (and the document-mode EOF cleanup in
+        // `ParseDocument`, which also pops silently). Neither path is
+        // a Stage 3.3 diagnostic emission site, so no RZ1025 / RZ1026
+        // diagnostics fire here. The in-memory verifications below
+        // cover the actual migrated sites.
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1025"));
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1026"));
+
+        // ----------------------------------------------------------------
+        // In-memory verification of the three migrated diagnostic sites.
+        //
+        // Each scenario uses `@{ ... }` so that the markup parser runs
+        // in `ParseMode.MarkupInCodeBlock`, which is the mode that
+        // actually fires `CompleteEndTag` (the no-tracker branch and
+        // the outer-unclosed cleanup) and `CompleteMarkupInCodeBlock`
+        // (the markup-in-code-block EOF cleanup). These three sites
+        // are the only emitters of RZ1025 / RZ1026 inside
+        // `HtmlMarkupParser`.
+        // ----------------------------------------------------------------
+
+        // Site #2 -- `CompleteEndTag` with an empty tag tracker:
+        // `</div>` inside a code block with no matching start tag.
+        // Legacy emits RZ1026 covering the end tag name; enhanced
+        // emits zero-width at the start of `</` (position 3: `@{ ` is
+        // 3 chars, then `</div>` begins).
+        {
+            var unexpectedSource = "@{ </div> }";
+            var unexpectedTree = ParseDocument(
+                unexpectedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var rz1026 = unexpectedTree.Diagnostics
+                .Where(d => d.Id == "RZ1026")
+                .ToArray();
+            var unexpectedEndTagDiagnostic = Assert.Single(rz1026);
+            Assert.Equal(3, unexpectedEndTagDiagnostic.Span.AbsoluteIndex);
+            Assert.Equal(0, unexpectedEndTagDiagnostic.Span.Length);
+        }
+
+        // Sites #1 and #3 -- `CompleteMarkupInCodeBlock` and
+        // `CompleteEndTag` outer-unclosed cleanup respectively.
+        //
+        // `@{ <div> }` reaches `CompleteMarkupInCodeBlock` (site #1)
+        // because the loop exits with `<div>` still on the tracker at
+        // the `}` of the code block. Legacy emits RZ1025 covering
+        // `div` at the unclosed start tag (position 4, length 3);
+        // enhanced emits zero-width at the cursor (the `}` at position
+        // 9). The unclosed `<div>` is also marked `IsWellFormed=true`
+        // (it had a real `>` close angle), so the diagnostic does
+        // fire.
+        {
+            var unclosedSource = "@{ <div> }";
+            var unclosedTree = ParseDocument(
+                unclosedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var rz1025 = unclosedTree.Diagnostics
+                .Where(d => d.Id == "RZ1025")
+                .ToArray();
+            var missingEndTagDiagnostic = Assert.Single(rz1025);
+            Assert.Equal(0, missingEndTagDiagnostic.Span.Length);
+            // The cursor at `CompleteMarkupInCodeBlock` is past the
+            // close `}` of the code block (the markup parser exits its
+            // loop at EOF, which sits at the very end of the source --
+            // position 10 for a 10-character `@{ <div> }`). The
+            // diagnostic is zero-width at that cursor.
+            Assert.Equal(unclosedSource.Length, missingEndTagDiagnostic.Span.AbsoluteIndex);
+        }
+
+        // Site #3 -- `CompleteEndTag` outer-unclosed cleanup loop.
+        // `@{ <div></span> }`: `</span>` has no matching open in the
+        // tracker; `TryRecoverStartTag` returns false; `CompleteEndTag`
+        // is called with a non-empty tracker (still holding `<div>`).
+        // The loop emits RZ1025 for the unclosed `<div>` at the
+        // position of the unexpected end tag (position 8: start of
+        // `</span>`). Note that the orphan `</span>` itself does NOT
+        // emit RZ1026 here -- in `CompleteEndTag`, RZ1026 only fires
+        // in the empty-tracker branch (site #2 above); the non-empty
+        // branch attributes the recovery to the unclosed start tags
+        // (RZ1025), not to the extra end tag.
+        {
+            var mixedSource = "@{ <div></span> }";
+            var mixedTree = ParseDocument(
+                mixedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var rz1025 = mixedTree.Diagnostics
+                .Where(d => d.Id == "RZ1025")
+                .ToArray();
+            var missingEndTagDiagnostic = Assert.Single(rz1025);
+            Assert.Equal(8, missingEndTagDiagnostic.Span.AbsoluteIndex);
+            Assert.Equal(0, missingEndTagDiagnostic.Span.Length);
+
+            Assert.Empty(mixedTree.Diagnostics.Where(d => d.Id == "RZ1026"));
+        }
+    }
+
     private void ParseCorpusFile(string corpusFileName)
     {
         var testFile = TestFile.Create("ParserRecoveryCorpus/" + corpusFileName, typeof(ParserRecoveryCorpusSnapshotTests));

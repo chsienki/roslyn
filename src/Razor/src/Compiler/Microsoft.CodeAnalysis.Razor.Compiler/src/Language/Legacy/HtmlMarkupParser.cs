@@ -333,12 +333,28 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
                 {
                     // We're at the outermost start tag. Add an error.
                     // We don't want to add this error if the tag is unfinished. A different error would have already been added.
-                    Context.ErrorSink.OnError(
-                        RazorDiagnosticFactory.CreateParsing_MissingEndTag(
-                            new SourceSpan(
-                                SourceLocationTracker.Advance(tracker.TagLocation, "<"),
-                                tracker.TagName.Length),
-                            tracker.TagName));
+                    if (Context.Options.UseEnhancedRecovery)
+                    {
+                        // Stage 3.3: emit a narrow, zero-width RZ1025 (Parsing_MissingEndTag)
+                        // at the precise cursor position (EOF or end-of-block, i.e. where the
+                        // matching end tag should have appeared) rather than the legacy wide
+                        // span at the unclosed start tag's name. Same descriptor (RZ1025),
+                        // only the span has narrowed -- see CreateParsing_MissingEndTag_At in
+                        // RazorDiagnosticFactory and the Stage 1.3 pairing doc.
+                        Context.ErrorSink.OnError(
+                            RazorDiagnosticFactory.CreateParsing_MissingEndTag_At(
+                                CurrentStart,
+                                tracker.TagName));
+                    }
+                    else
+                    {
+                        Context.ErrorSink.OnError(
+                            RazorDiagnosticFactory.CreateParsing_MissingEndTag(
+                                new SourceSpan(
+                                    SourceLocationTracker.Advance(tracker.TagLocation, "<"),
+                                    tracker.TagName.Length),
+                                tracker.TagName));
+                    }
                 }
             }
         }
@@ -548,9 +564,25 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
         if (_tagTracker.Count == 0)
         {
             // We can't possibly have a matching start tag.
-            Context.ErrorSink.OnError(
-                RazorDiagnosticFactory.CreateParsing_UnexpectedEndTag(
-                    new SourceSpan(SourceLocationTracker.Advance(endTagStartLocation, "</"), Math.Max(endTagName.Length, 1)), endTagName));
+            if (Context.Options.UseEnhancedRecovery)
+            {
+                // Stage 3.3: emit a narrow, zero-width RZ1026 (Parsing_UnexpectedEndTag)
+                // at the precise cursor position (start of the unexpected `</`) rather
+                // than the legacy span covering the end tag name. Same descriptor
+                // (RZ1026), only the span has narrowed -- see
+                // CreateParsing_UnexpectedEndTag_At in RazorDiagnosticFactory and the
+                // Stage 1.3 pairing doc.
+                Context.ErrorSink.OnError(
+                    RazorDiagnosticFactory.CreateParsing_UnexpectedEndTag_At(
+                        endTagStartLocation,
+                        endTagName));
+            }
+            else
+            {
+                Context.ErrorSink.OnError(
+                    RazorDiagnosticFactory.CreateParsing_UnexpectedEndTag(
+                        new SourceSpan(SourceLocationTracker.Advance(endTagStartLocation, "</"), Math.Max(endTagName.Length, 1)), endTagName));
+            }
             return;
         }
 
@@ -564,12 +596,27 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
             if (_tagTracker.Count == 0)
             {
                 // This means we couldn't find a match and we're at the outermost start tag. Add an error.
-                Context.ErrorSink.OnError(
-                    RazorDiagnosticFactory.CreateParsing_MissingEndTag(
-                        new SourceSpan(
-                            SourceLocationTracker.Advance(tracker.TagLocation, "<"),
-                            tracker.TagName.Length),
-                        tracker.TagName));
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // Stage 3.3: emit a narrow, zero-width RZ1025 (Parsing_MissingEndTag)
+                    // at the precise cursor position (the unexpected end tag's start --
+                    // where the matching end tag for the outermost unclosed start tag
+                    // should have appeared) rather than the legacy wide span at the
+                    // unclosed start tag's name.
+                    Context.ErrorSink.OnError(
+                        RazorDiagnosticFactory.CreateParsing_MissingEndTag_At(
+                            endTagStartLocation,
+                            tracker.TagName));
+                }
+                else
+                {
+                    Context.ErrorSink.OnError(
+                        RazorDiagnosticFactory.CreateParsing_MissingEndTag(
+                            new SourceSpan(
+                                SourceLocationTracker.Advance(tracker.TagLocation, "<"),
+                                tracker.TagName.Length),
+                            tracker.TagName));
+                }
             }
         }
     }

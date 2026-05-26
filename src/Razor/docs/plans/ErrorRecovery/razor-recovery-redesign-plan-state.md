@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 3.2 complete. Ready for Stage 3.3 (HtmlMarkupParser remaining recovery sites).
+Stage 3.3 complete. Ready for Stage 3.4 (`ParseMiscAttribute` -> recovery rather than absorb-all).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -30,7 +30,7 @@ Stage 3.2 complete. Ready for Stage 3.3 (HtmlMarkupParser remaining recovery sit
 - Stage 2.6: complete
 - Stage 3.1: complete
 - Stage 3.2: complete
-- Stage 3.3: not started
+- Stage 3.3: complete
 - Stage 3.4: not started
 - Stage 4.1: not started
 - Stage 4.2: not started
@@ -1451,4 +1451,96 @@ commit `f445deb5f8c`):
 
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1333 / 1333 (1332 baseline + 1 new enhanced); language tests
+  3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+
+- **Stage 3.3 (HtmlMarkupParser tag-stack-recovery diagnostic
+  position migration -- complete)**: Three diagnostic emission
+  sites in `HtmlMarkupParser.cs` gated under
+  `Context.Options.UseEnhancedRecovery`. The tag-stack recovery
+  algorithm itself is unchanged; only the diagnostic spans
+  narrow.
+
+  Migrated sites (all in `HtmlMarkupParser.cs`):
+
+  1. `CompleteMarkupInCodeBlock` (~line 336): RZ1025
+     (`Parsing_MissingEndTag`) for unclosed start tags at the
+     code block's end. Legacy span: at the unclosed start tag's
+     name (`SourceLocationTracker.Advance(tracker.TagLocation, "<")`,
+     length = `tracker.TagName.Length`). Enhanced span: zero-width
+     at `CurrentStart` (the cursor at EOF / end-of-block).
+     Migrated to `CreateParsing_MissingEndTag_At` (Stage 1.3
+     pairing, RZ1025 reused).
+
+  2. `CompleteEndTag` empty-tracker branch (~line 552): RZ1026
+     (`Parsing_UnexpectedEndTag`) for an orphan end tag with no
+     matching open. Legacy span: at the end-tag name
+     (`SourceLocationTracker.Advance(endTagStartLocation, "</")`,
+     length = `Math.Max(endTagName.Length, 1)`). Enhanced span:
+     zero-width at `endTagStartLocation` (the start of `</`).
+     Migrated to `CreateParsing_UnexpectedEndTag_At` (Stage 1.3
+     pairing, RZ1026 reused).
+
+  3. `CompleteEndTag` outer-unclosed cleanup loop (~line 568):
+     RZ1025 for the outermost unclosed start tag when an
+     unexpected end tag triggers tracker unwinding. Legacy span:
+     at the unclosed start tag's name. Enhanced span: zero-width
+     at `endTagStartLocation` (where the matching end tag should
+     have appeared -- i.e. where the unexpected end tag now is).
+     Migrated to `CreateParsing_MissingEndTag_At`.
+
+  **No new RZ IDs**: Stage 3.3 reuses the existing RZ1025 /
+  RZ1026 descriptors via the `_At` pairings allocated by Stage
+  1.3. Next free parser-recovery ID is still **RZ1048**.
+
+  **Tag-stack recovery silent-success path NOT changed**:
+  `TryRecoverStartTag`'s success path (where it finds a matching
+  open tag further down the stack) silently pops intermediate
+  unclosed tags as malformed elements without emitting any
+  diagnostic. This long-standing behaviour is unchanged. The
+  document-mode EOF cleanup in `ParseDocument` (lines 83-102)
+  similarly pops without emitting. These silent paths are
+  outside Stage 3.3's scope -- the plan says "the tag-stack
+  recovery itself doesn't change structurally; what changes is
+  the position of existing diagnostics". Adding new emission
+  sites is deferred (potentially to a later stage if a corpus
+  case requires it).
+
+  **`TryRecoverStartTag` failure path** (returns false) is
+  handled by `ParseMarkupElement` -> `CompleteEndTag` -> sites
+  #2 and #3, which are migrated.
+
+  **Corpus assertion (`UnclosedTag_EnhancedRecovery`)**: pure
+  document-mode markup (`<div>...<span>...<p>text</div>...<section>...</section>`).
+  All recovery for this file flows through the silent paths
+  (`TryRecoverStartTag` success path matches the outer `<div>`,
+  popping `<span>` and `<p>` silently), so no RZ1025 / RZ1026
+  diagnostics fire. The test asserts the tree shape: outer
+  `<div>...</div>` `MarkupElement` containing nested malformed
+  `<span>` and `<p>` (start tag, no end tag), sibling
+  `<section>...</section>` parsing cleanly, no
+  `MarkupMiscAttributeContent` across the whole file.
+
+  The test additionally exercises three in-memory sources to
+  validate the migrated diagnostic positions on the three sites:
+
+  - `@{ </div> }` -- site #2: RZ1026 zero-width at position 3
+    (start of `</`).
+  - `@{ <div> }` -- site #1: RZ1025 zero-width at position 10
+    (EOF / end of source -- the markup parser's `CurrentStart`
+    after exiting the in-code-block loop).
+  - `@{ <div></span> }` -- site #3: RZ1025 zero-width at
+    position 8 (start of the unexpected `</span>`). Note that
+    in this scenario RZ1026 does NOT fire -- the
+    non-empty-tracker branch of `CompleteEndTag` attributes the
+    recovery to the unclosed start tags only (RZ1025), not to
+    the orphan end tag itself.
+
+  **Corpus baselines (`UnclosedTag.{stree,cspans}.txt`)
+  unchanged**: legacy mode parses the corpus file identically
+  to the existing baselines. No `.diag.txt` exists for
+  `UnclosedTag` because the silent recovery paths emit no
+  diagnostics under legacy either.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1334 / 1334 (1333 baseline + 1 new enhanced); language tests
   3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
