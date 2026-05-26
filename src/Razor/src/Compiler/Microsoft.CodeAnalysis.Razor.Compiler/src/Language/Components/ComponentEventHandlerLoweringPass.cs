@@ -162,7 +162,12 @@ internal sealed class ComponentEventHandlerLoweringPass : ComponentIntermediateN
     {
         var original = GetAttributeContent(node);
 
-        // Stage 5.0: detect "effectively empty" value streams (length 0, or all
+        // EventArgs type comes from the tag-helper binding; needed both for the
+        // wrapping Create<T>(this, ...) call and for the Stage 5.1 placeholder
+        // text below.
+        var eventArgsType = node.TagHelper.GetEventArgsType().AssumeNotNull();
+
+        // Stage 5.0 / 5.1: detect "effectively empty" value streams (length 0, or all
         // tokens are missing-value markers / empty content). Under the legacy
         // parser the value of @onclick="" arrives as an empty array (length 0);
         // under the enhanced parser (BDD #9) it arrives as a single
@@ -170,13 +175,15 @@ internal sealed class ComponentEventHandlerLoweringPass : ComponentIntermediateN
         // IntermediateToken.IsMissingValue. Both shapes are treated as
         // "missing value" so a safe placeholder flows into codegen instead of
         // the attribute being silently dropped (legacy) or producing CS1525
-        // (enhanced, today). The exact placeholder content is finalized by
-        // Stage 5.1's codegen; Stage 5.0 supplies an empty tagged token that
-        // codegen interprets as "emit default!" (or similar) based on the bound
-        // type. See razor-recovery-redesign-plan.md Stages 5.0 / 5.1.
+        // (enhanced, today). Stage 5.1 picks the placeholder text using the
+        // surrounding generated context -- here that is the inner expression
+        // slot of EventCallback.Factory.Create<TEventArgs>(this, ...), so the
+        // safe substitution is default(global::System.Action<TEventArgs>) which
+        // binds to the Create<TValue>(object, Action<TValue>) overload.
+        // See razor-recovery-redesign-plan.md Stages 5.0 / 5.1.
         if (MissingValueMarker.IsMissingValueMarker(original))
         {
-            original = SubstituteMissingValuePlaceholder(node, original);
+            original = SubstituteMissingValuePlaceholder(node, original, eventArgsType);
         }
 
         // Now rewrite the content of the value node to look like:
@@ -185,7 +192,6 @@ internal sealed class ComponentEventHandlerLoweringPass : ComponentIntermediateN
         //
         // This method is overloaded on string and T, which means that it will put the code in the
         // correct context for intellisense when typing in the attribute.
-        var eventArgsType = node.TagHelper.GetEventArgsType().AssumeNotNull();
 
         using var tokens = new PooledArrayBuilder<IntermediateToken>(capacity: original.Length + 2);
 
@@ -242,21 +248,23 @@ internal sealed class ComponentEventHandlerLoweringPass : ComponentIntermediateN
 
     private static ImmutableArray<IntermediateToken> SubstituteMissingValuePlaceholder(
         TagHelperDirectiveAttributeIntermediateNode node,
-        ImmutableArray<IntermediateToken> original)
+        ImmutableArray<IntermediateToken> original,
+        string eventArgsType)
     {
-        // Stage 5.0: produce a single tagged token that stands in for the missing
-        // user value. The token's IsMissingValue flag tells Stage 5.1's codegen to
-        // emit the appropriate placeholder (e.g. "default!") in the surrounding
-        // C# context (see the placeholder matrix in razor-recovery-redesign-plan.md).
-        // The placeholder is wired in here -- rather than left for codegen to
-        // synthesize from scratch -- so the lowering-pass site
-        // (ComponentEventHandlerLoweringPass) and any future codegen-site fix can
-        // share the same detection target (an IntermediateToken with
-        // IsMissingValue == true). The token's Source preserves the original
-        // missing-value span so signature help / diagnostics map back to the
-        // user's "" position.
+        // Stage 5.1: produce a single tagged token containing the safe placeholder
+        // text the surrounding Create<TEventArgs>(this, ...) call expects, so the
+        // generated C# parses cleanly under Roslyn (no more CS1525). The token's
+        // IsMissingValue flag is retained so downstream consumers (codegen
+        // #line emission, Stage 5.3 source-mapping refinement) can recognise it
+        // as synthetic rather than user-authored. The token's Source preserves the
+        // original missing-value span so signature help / diagnostics map back to
+        // the user's "" position.
         SourceSpan? source = original.Length > 0 ? original[0].Source : node.Source;
-        return [MissingValueMarker.CreateMissingCSharpToken(source)];
+        var qualifiedTypeArgument = TypeNameHelper.GetGloballyQualifiedNameIfNeeded(eventArgsType);
+        var placeholder = MissingValueMarker.GetPlaceholderText(
+            MissingValuePlaceholderKind.EventCallbackTyped,
+            qualifiedTypeArgument);
+        return [MissingValueMarker.CreateMissingCSharpToken(placeholder, source)];
     }
 
     private static ImmutableArray<IntermediateToken> GetAttributeContent(IntermediateNode node)

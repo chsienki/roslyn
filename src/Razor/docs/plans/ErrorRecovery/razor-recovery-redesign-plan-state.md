@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.0 complete. Ready for Stage 5.1.
+Stage 5.1 complete. Ready for Stage 5.2.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -38,7 +38,7 @@ Stage 5.0 complete. Ready for Stage 5.1.
 - Stage 4.4: complete
 - Stage 5.0.0: complete
 - Stage 5.0: complete
-- Stage 5.1: not started
+- Stage 5.1: complete
 - Stage 5.2: not started
 - Stage 5.3: not started
 - Stage 5.4: not started
@@ -2462,3 +2462,169 @@ behaviour-inert.
        call (empty argument) for `@onclick=""` instead of silently
        dropping the attribute. This is the intended unification: it
        gives Stage 5.1 a single codegen site to fix.
+
+- 2026-05-28: Stage 5.1 done. Codegen now substitutes safe C#
+  placeholders for every missing-value marker emitted by the
+  Stage 5.0 IR-shape pass, eliminating the cascading CS1525 /
+  CS1003 wall-of-red for `dotnet/razor#10383`.
+
+  Deliverables:
+    1. `MissingValuePlaceholderKind` (new internal enum) encodes
+       the six surrounding generated-C# contexts from the plan's
+       placeholder matrix: `EventCallbackTyped`,
+       `EventCallbackUntyped`, `BoundAttributeTyped`,
+       `BoundAttributeUnknown`, `MarkupExpression`,
+       `StatementContext`.
+    2. `MissingValueMarker.GetPlaceholderText(kind, typeArgument)`
+       is the single source of truth that turns a kind +
+       optionally-globally-qualified type into the literal C#
+       text to splice in (e.g.
+       `default(global::System.Action<MouseEventArgs>)` for
+       `EventCallbackTyped`).
+    3. Site #1 fix (lowering pass):
+       `ComponentEventHandlerLoweringPass.RewriteUsage` now
+       computes the `eventArgsType` first, then
+       `SubstituteMissingValuePlaceholder(node, original,
+       eventArgsType)` pre-fills the missing-value token's
+       `Content` with
+       `default(global::System.Action<{globally-qualified
+       eventArgsType}>)`. The token keeps `IsMissingValue=true`
+       so downstream stages can still see the marker; only the
+       textual content changes.
+    4. Site #2 fix (component writer):
+       `ComponentNodeWriter.WriteComponentAttributeInnards` now
+       detects `MissingValueMarker.IsMissingValueMarker(tokens)`
+       at all three `WriteCSharpTokens` sites
+       (delegate/childContent, `EventCallback`, other-typed)
+       and dispatches to `WriteMissingEventCallbackPlaceholder`
+       (emits `default(global::System.Action<T>)` or
+       `default(global::System.Action)`) or
+       `WriteMissingDelegateOrTypedPlaceholder` (emits
+       `default(<globally-qualified TypeName>)` or `default!`
+       when the type is open-generic / unknown).
+    5. Stage 5.3 source-mapping safeguard:
+       `ComponentNodeWriter.WriteCSharpToken` now skips the
+       `#line` pragma when `token.IsMissingValue == true`.
+       Synthetic placeholder text should not anchor source
+       mappings -- if the user's IDE asks "what produced this
+       generated code", the answer must NOT be "the empty
+       string the user just typed".
+    6. Generic `MissingValueMarker.IsMissingValueMarker<T>`
+       overload was needed because
+       `ImmutableArray<CSharpIntermediateToken>` is not
+       covariant to `IReadOnlyList<IntermediateToken>` at the
+       caller in `ComponentNodeWriter`.
+
+  Concrete BEFORE / AFTER for the motivating bug
+  (`Shared/Component1.razor` containing
+  `<button @onclick="">Click</button>`):
+
+  BEFORE (Stage 5.0, generated source-gen output):
+  ```cs
+  __builder.AddAttribute(7, "onclick",
+      global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this,
+
+  #line (1,21)-(1,21) "..."
+
+  #line default
+  #line hidden
+  ));
+  ```
+  --> Roslyn reports CS1525 ("Invalid expression term ')'").
+
+  AFTER (Stage 5.1):
+  ```cs
+  __builder.AddAttribute(7, "onclick",
+      global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this,
+          default(global::System.Action<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>)));
+  ```
+  --> Compiles cleanly; only the narrow RZ2008 from the parser
+  remains, which is the intended user-facing diagnostic.
+
+  Tests added:
+    - `Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`:
+      * `ParserRecoveryCorpus_CodegenSafetyTests` (new file):
+        + `EmptyBoundAttribute_Onclick_EnhancedMode_NoCascadingCSharpDiagnostics`
+          loads
+          `legacyTest/ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor`
+          (prepending `@using Microsoft.AspNetCore.Components.Web`,
+          which the corpus file does not contain), runs the
+          source generator under `use-enhanced-recovery=true`,
+          and asserts the output compilation has zero
+          diagnostics.
+        + `EmptyBoundAttribute_Onclick_LegacyMode_NoCascadingCSharpDiagnostics`
+          asserts the same invariant under the default
+          (legacy) parser, because Stage 5.0 unified the legacy
+          and enhanced shapes.
+      * `MissingValuePlaceholder_MatrixTests` (new file):
+        + `PlaceholderMatrix_EventCallbackTyped_GeneratesValidCSharp`
+          (compile + assert placeholder text for `@onclick=""`).
+        + `PlaceholderMatrix_EventCallbackUntyped_GeneratesValidCSharp`
+          (custom `<MyButton OnPressed="" />` with
+          `EventCallback OnPressed` parameter; asserts
+          `default(global::System.Action)` in generated text).
+        + `PlaceholderMatrix_TypedBoundAttribute_GeneratesValidCSharp`
+          (custom `<MyCounter Count="" />` with `int Count`
+          parameter; asserts `default(global::System.Int32)`).
+        + `PlaceholderMatrix_GetPlaceholderText_MatchesContract`
+          (theory; 8 rows; locks down every matrix entry by
+          string-kind to avoid exposing the internal enum to a
+          public Theory parameter).
+        The end-to-end `@expr` markup-output compile test is
+        intentionally deferred -- Stage 5.0 only tags
+        missing-value markers on the attribute-value path; the
+        markup-output path will be wired in a later stage. The
+        contract for what that placeholder text should be
+        (`""`) is still locked down by the theory above.
+    - `Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`
+      `RazorSourceGeneratorComponentTests.EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping`:
+      the test's `verify: static _ => { }` CS-diagnostic
+      suppression was REMOVED, so the existing default
+      `c => c.VerifyDiagnostics()` now asserts zero CS errors.
+      A new assertion confirms the literal
+      `default(global::System.Action<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>)`
+      appears in the generated source.
+
+  Test counts after Stage 5.1 (Debug):
+    - Legacy parser (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1342 / 1342 on net10.0 and net472 (unchanged from
+      Stage 5.0).
+    - Language (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3604 / 3604 on net10.0 and net472 (unchanged from
+      Stage 5.0).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      230 / 230 on net10.0 (up from 217 -- 13 new tests across
+      the two new test files; one was a theory with 8 inline
+      data rows).
+
+  Deviations carried into Stage 5.2:
+    1. The `@expr` markup-output path is not yet tagged with
+       `IsMissingValue`. Stage 5.1's placeholder selector and
+       the writer-side substitution are both ready for it; the
+       follow-up is to wire `MissingValueMarker.IsMissingValue`
+       on the parse-tree shape for missing-content markup
+       expressions and route the writer's literal-emission
+       path through `IsMissingValueMarker`. Once that lands the
+       `MarkupExpression` matrix entry will switch from
+       theory-only coverage to a real compile-test.
+    2. `LiteralRuntimeNodeWriter` and
+       `TagHelperHtmlAttributeRuntimeNodeWriter` still contain
+       the same stub bail-out from Stage 5.0 (writer-site
+       fallback when tokens is empty). Stage 5.1 did NOT
+       refactor these to use `IsMissingValueMarker` because the
+       enhanced-recovery path now keeps the synthetic token in
+       the array (`tokens.Length == 1, IsMissingValue == true`),
+       so the empty-tokens stub is unreachable for that path.
+       The stub remains correct for the genuinely-empty edge
+       cases the legacy parser still produces in non-attribute
+       contexts. Stage 5.4 (or 5.5) is the right place to
+       refactor those writers to a single shared helper.
+    3. The `BuildEnhancedLinePragma` source-mapping suppression
+       was applied ONLY to `ComponentNodeWriter.WriteCSharpToken`;
+       `IntermediateNodeWriter`, `LiteralRuntimeNodeWriter`,
+       and `TagHelperHtmlAttributeRuntimeNodeWriter` are NOT
+       updated. They currently don't route missing-value
+       markers through their writers (see deviation #2), but if
+       Stage 5.4 unifies the writers, the same suppression must
+       propagate.

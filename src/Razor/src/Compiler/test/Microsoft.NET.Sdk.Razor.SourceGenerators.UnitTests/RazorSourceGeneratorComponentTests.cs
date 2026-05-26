@@ -2022,10 +2022,12 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         var compilation = await project.GetCompilationAsync();
         var driver = await GetDriverAsync(project);
 
-        // Suppress C# diagnostic verification: Stage 5.0's substitution still
-        // emits an empty placeholder argument inside the EventCallback.Factory.Create
-        // call, which currently produces CS1525. Stage 5.1 will fix the codegen.
-        var result = RunGenerator(compilation!, ref driver, out _, verify: static _ => { });
+        // Stage 5.1: the placeholder substitution replaces the empty argument with
+        // default(global::System.Action<TEventArgs>) so the generated C# parses
+        // cleanly under Roslyn (no CS1525). The wall-of-red for the motivating bug
+        // dotnet/razor#10383 is gone end-to-end at this point; the host
+        // compilation should produce zero diagnostics from the generated source.
+        var result = RunGenerator(compilation!, ref driver, out var outputCompilation);
 
         var generated = Assert.Single(result.GeneratedSources);
         var source = generated.SourceText.ToString();
@@ -2041,6 +2043,10 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         // proves the bail-out has been replaced with placeholder substitution.
         Assert.Contains("EventCallback.Factory.Create", source);
         Assert.Contains("AddAttribute(7, \"onclick\"", source);
+
+        // Stage 5.1 guarantee: the placeholder for the missing C# value is
+        // emitted in the inner expression slot of Create<TEventArgs>(this, ...).
+        Assert.Contains("default(global::System.Action<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>)", source);
     }
 
     private static RazorCSharpDocument ProcessSingleComponent(string componentSource, bool useEnhancedRecovery)
