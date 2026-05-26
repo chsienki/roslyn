@@ -29,6 +29,4 @@
                             Identifier;[bork];
                     RazorMetaCode - [25..26)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [26..26)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

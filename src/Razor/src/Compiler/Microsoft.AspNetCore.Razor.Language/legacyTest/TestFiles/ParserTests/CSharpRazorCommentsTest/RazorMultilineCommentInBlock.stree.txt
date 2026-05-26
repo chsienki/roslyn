@@ -21,7 +21,7 @@
                             RazorCommentTransition;[@];
                         CSharpStatementLiteral - [39..41)::2 - [LF] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             NewLine;[LF];
-                    RazorMetaCode - [41..42)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [41..42)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [42..44)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];

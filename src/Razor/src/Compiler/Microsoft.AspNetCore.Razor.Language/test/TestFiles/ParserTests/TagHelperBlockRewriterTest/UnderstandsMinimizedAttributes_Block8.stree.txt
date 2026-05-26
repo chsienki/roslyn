@@ -20,15 +20,12 @@
                                             Whitespace;[ ];
                                         MarkupTextLiteral - [9..20)::11 - [int-prefix-] - Gen<Markup>
                                             Text;[int-prefix-];
-                                    MarkupMiscAttributeContent - [20..21)::1
-                                        MarkupTextLiteral - [20..21)::1 - [ ] - Gen<Markup>
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [20..21)::1 - [ ] - Gen<Markup>
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [23..23)::0 - [] - Gen<Stmt>
                             Marker;[];
                     RazorMetaCode - [23..24)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [24..24)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

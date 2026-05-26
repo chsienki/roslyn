@@ -31,9 +31,8 @@
                                 Text;[def];
                     MarkupTextLiteral - [22..23)::1 - ['] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         SingleQuote;['];
-                MarkupMiscAttributeContent - [23..24)::1
-                    MarkupTextLiteral - [23..24)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [23..24)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
         MarkupTextLiteral - [26..27)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any

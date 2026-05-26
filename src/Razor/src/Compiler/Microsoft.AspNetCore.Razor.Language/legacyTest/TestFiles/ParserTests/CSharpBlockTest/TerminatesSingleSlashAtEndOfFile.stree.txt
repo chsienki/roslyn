@@ -5,7 +5,7 @@
         CSharpCodeBlock - [0..38)::38
             CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                 Transition;[@];
-            CSharpStatementLiteral - [1..38)::37 - [foreach(var f in Foo) { / foo bar baz] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+            CSharpStatementLiteral - [1..25)::24 - [foreach(var f in Foo) { ] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 Keyword;[foreach];
                 LeftParenthesis;[(];
                 Identifier;[var];
@@ -19,6 +19,7 @@
                 Whitespace;[ ];
                 LeftBrace;[{];
                 Whitespace;[ ];
+            SkippedContent - [25..38)::13
                 Slash;[/];
                 Whitespace;[ ];
                 Identifier;[foo];

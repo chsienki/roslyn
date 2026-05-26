@@ -10,13 +10,15 @@
                     RazorMetaCode - [1..2)::1 - Gen<None>
                         LeftParenthesis;[(];
                     CSharpCodeBlock - [2..11)::9
-                        CSharpExpressionLiteral - [2..11)::9 - [foo barLF] - Gen<Expr>
+                        CSharpExpressionLiteral - [2..2)::0 - [] - Gen<Expr>
+                            Marker;[];
+                        SkippedContent - [2..11)::9
                             Identifier;[foo];
                             Whitespace;[ ];
                             Identifier;[bar];
                             NewLine;[LF];
                     RazorMetaCode - [11..11)::0 - Gen<None>
-                        RightParenthesis;[<Missing>];
+                        RightParenthesis;[<Missing>];RZ1006(11:1,0 [0] )
         MarkupElement - [11..30)::19
             MarkupStartTag - [11..17)::6 - [<html>] - Gen<Markup>
                 OpenAngle;[<];
@@ -30,5 +32,5 @@
                 OpenAngle;[<];
                 ForwardSlash;[/];
                 Text;[html];
-                CloseAngle;[<Missing>];
+                CloseAngle;[<Missing>];RZ1024(30:3,6 [0] )
     EndOfFile;[];

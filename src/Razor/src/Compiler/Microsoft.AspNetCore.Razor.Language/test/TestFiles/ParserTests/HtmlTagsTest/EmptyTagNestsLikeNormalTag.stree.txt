@@ -20,7 +20,7 @@
                                     MarkupEndTag - [5..8)::3 - [</>] - Gen<Markup>
                                         OpenAngle;[<];
                                         ForwardSlash;[/];
-                                        Text;[<Missing>];
+                                        Text;[<Missing>];RZ1047(7:0,7 [0] )
                                         CloseAngle;[>];
                             MarkupTextLiteral - [8..9)::1 - [ ] - Gen<Markup>
                                 Whitespace;[ ];
@@ -28,6 +28,4 @@
                             Identifier;[Bar];
                     RazorMetaCode - [12..13)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [13..13)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

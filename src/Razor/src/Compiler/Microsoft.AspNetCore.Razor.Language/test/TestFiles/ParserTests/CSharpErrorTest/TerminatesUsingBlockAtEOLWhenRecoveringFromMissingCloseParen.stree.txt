@@ -5,12 +5,14 @@
         CSharpCodeBlock - [0..16)::16
             CSharpTransition - [0..1)::1 - Gen<None>
                 Transition;[@];
-            CSharpStatementLiteral - [1..16)::15 - [using(foo barLF] - Gen<Stmt>
+            CSharpStatementLiteral - [1..7)::6 - [using(] - Gen<Stmt>
                 Keyword;[using];
                 LeftParenthesis;[(];
+            SkippedContent - [7..14)::7
                 Identifier;[foo];
                 Whitespace;[ ];
                 Identifier;[bar];
+            CSharpStatementLiteral - [14..16)::2 - [LF] - Gen<Stmt>
                 NewLine;[LF];
         MarkupTextLiteral - [16..19)::3 - [baz] - Gen<Markup>
             Text;[baz];

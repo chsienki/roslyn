@@ -50,14 +50,14 @@ public class RazorParserOptionsTest
     }
 
     [Fact]
-    public void UseEnhancedRecovery_DefaultsToFalse()
+    public void UseEnhancedRecovery_DefaultsToTrue()
     {
         // Arrange & Act
         var builder = new RazorParserOptions.Builder(RazorLanguageVersion.Latest, RazorFileKind.Legacy);
         var options = builder.ToOptions();
 
         // Assert
-        Assert.False(options.UseEnhancedRecovery);
+        Assert.True(options.UseEnhancedRecovery);
     }
 
     [Fact]
@@ -66,14 +66,14 @@ public class RazorParserOptionsTest
         // Arrange
         var builder = new RazorParserOptions.Builder(RazorLanguageVersion.Latest, RazorFileKind.Legacy)
         {
-            UseEnhancedRecovery = true,
+            UseEnhancedRecovery = false,
         };
 
         // Act
         var options = builder.ToOptions();
 
         // Assert
-        Assert.True(options.UseEnhancedRecovery);
+        Assert.False(options.UseEnhancedRecovery);
     }
 
     [Fact]
@@ -81,16 +81,16 @@ public class RazorParserOptionsTest
     {
         // Arrange
         var defaultOptions = RazorParserOptions.Default;
-        Assert.False(defaultOptions.UseEnhancedRecovery);
+        Assert.True(defaultOptions.UseEnhancedRecovery);
 
         // Act
-        var enhanced = defaultOptions.WithFlags(useEnhancedRecovery: true);
+        var legacy = defaultOptions.WithFlags(useEnhancedRecovery: false);
 
         // Assert
-        Assert.True(enhanced.UseEnhancedRecovery);
-
-        // Round-trip back off:
-        var legacy = enhanced.WithFlags(useEnhancedRecovery: false);
         Assert.False(legacy.UseEnhancedRecovery);
+
+        // Round-trip back on:
+        var enhanced = legacy.WithFlags(useEnhancedRecovery: true);
+        Assert.True(enhanced.UseEnhancedRecovery);
     }
 }

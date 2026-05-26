@@ -54,9 +54,8 @@
                     RazorCommentLiteral;[ comment3 ];
                     RazorCommentStar;[*];
                     RazorCommentTransition;[@];
-                MarkupMiscAttributeContent - [76..77)::1
-                    MarkupTextLiteral - [76..77)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [76..77)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

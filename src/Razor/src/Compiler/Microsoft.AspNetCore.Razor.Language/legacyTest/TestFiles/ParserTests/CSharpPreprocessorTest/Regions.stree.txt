@@ -17,7 +17,7 @@
                             Whitespace;[ ];
                             Identifier;[MyRegion];
                             Whitespace;[ ];
-                    RazorMetaCode - [21..22)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [21..22)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [22..24)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];

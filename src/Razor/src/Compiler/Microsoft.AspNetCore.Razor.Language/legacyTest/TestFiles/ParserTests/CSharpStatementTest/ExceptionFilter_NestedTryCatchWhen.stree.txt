@@ -41,8 +41,6 @@
                             Semicolon;[;];
                             Whitespace;[ ];
                             RightBrace;[}];
-                    RazorMetaCode - [68..69)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [68..69)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [69..69)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

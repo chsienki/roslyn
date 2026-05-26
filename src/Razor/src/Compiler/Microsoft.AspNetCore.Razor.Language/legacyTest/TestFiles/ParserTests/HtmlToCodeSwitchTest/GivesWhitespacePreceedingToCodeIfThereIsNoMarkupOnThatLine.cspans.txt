@@ -18,5 +18,4 @@ Code span at (81:3,0 [7] ) (Accepts:None) - Parent: Statement block at (11:1,0 [
 Markup span at (88:4,0 [4] ) (Accepts:Any) - Parent: Markup block at (2:0,2 [95] )
 Markup span at (92:4,4 [5] ) (Accepts:None) - Parent: Tag block at (92:4,4 [5] )
 Code span at (97:4,9 [0] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [98] )
-MetaCode span at (97:4,9 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [98] )
-Markup span at (98:4,10 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [98] )
+MetaCode span at (97:4,9 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [98] )

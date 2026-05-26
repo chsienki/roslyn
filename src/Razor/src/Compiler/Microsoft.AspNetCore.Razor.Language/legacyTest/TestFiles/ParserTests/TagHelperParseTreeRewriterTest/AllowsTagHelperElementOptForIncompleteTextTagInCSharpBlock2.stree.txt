@@ -16,16 +16,15 @@
                                     OpenAngle;[<];
                                     Bang;[!];
                                     Text;[text];
-                                    MarkupMiscAttributeContent - [8..9)::1
-                                        MarkupTextLiteral - [8..9)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [8..9)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[ ];
                                     MarkupMiscAttributeContent - [9..10)::1
                                         MarkupTextLiteral - [9..10)::1 - [/] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             ForwardSlash;[/];
                                     MarkupMinimizedAttributeBlock - [10..11)::1 - [}]
                                         MarkupTextLiteral - [10..11)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             Text;[}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(11:0,11 [0] )
                     RazorMetaCode - [11..11)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(11:0,11 [0] )
     EndOfFile;[];

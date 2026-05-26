@@ -25,9 +25,8 @@
                     Equals;[=];
                     MarkupTagHelperAttributeValue - [25..25)::0
                         CSharpExpressionLiteral - [25..25)::0 - [] - Gen<None>
-                MarkupMiscAttributeContent - [25..27)::2
-                    MarkupTextLiteral - [25..27)::2 - [  ] - Gen<Markup>
-                        Whitespace;[  ];
+                MarkupTextLiteral - [25..27)::2 - [  ] - Gen<Markup>
+                    Whitespace;[  ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

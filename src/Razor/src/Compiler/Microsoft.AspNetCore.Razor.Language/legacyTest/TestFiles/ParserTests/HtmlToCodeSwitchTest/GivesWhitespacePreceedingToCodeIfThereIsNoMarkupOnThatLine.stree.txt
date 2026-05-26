@@ -80,8 +80,6 @@
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [97..97)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [97..98)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [97..98)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [98..98)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

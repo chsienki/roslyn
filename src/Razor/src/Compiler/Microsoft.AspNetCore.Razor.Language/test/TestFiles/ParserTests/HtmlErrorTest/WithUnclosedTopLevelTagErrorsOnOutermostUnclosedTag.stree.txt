@@ -31,6 +31,4 @@
                             Marker;[];
                     RazorMetaCode - [16..17)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [17..17)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

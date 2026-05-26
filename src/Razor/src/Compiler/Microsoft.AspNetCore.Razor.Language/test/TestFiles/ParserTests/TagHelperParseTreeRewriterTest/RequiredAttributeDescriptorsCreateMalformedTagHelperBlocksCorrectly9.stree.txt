@@ -18,13 +18,12 @@
                                 Text;[btn];
                     MarkupTextLiteral - [13..14)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [14..15)::1
-                    MarkupTextLiteral - [14..15)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [14..15)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 CloseAngle;[<Missing>];
             MarkupTagHelperEndTag - [15..18)::3 - [</p]
                 OpenAngle;[<];
                 ForwardSlash;[/];
                 Text;[p];
-                CloseAngle;[<Missing>];
+                CloseAngle;[<Missing>];RZ1024(18:0,18 [0] )
     EndOfFile;[];

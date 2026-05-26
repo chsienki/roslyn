@@ -17,6 +17,4 @@
                             CSharpDirective;[#pragma checksum "file.cs" "{00000000-0000-0000-0000-000000000000}" "1234"LF];
                     RazorMetaCode - [138..139)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [139..139)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

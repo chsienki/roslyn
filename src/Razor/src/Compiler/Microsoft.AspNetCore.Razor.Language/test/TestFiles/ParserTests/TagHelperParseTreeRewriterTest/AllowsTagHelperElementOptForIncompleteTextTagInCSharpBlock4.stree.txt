@@ -28,7 +28,7 @@
                                             MarkupLiteralAttributeValue - [16..20)::4 - [btn}]
                                                 MarkupTextLiteral - [16..20)::4 - [btn}] - Gen<Markup>
                                                     Text;[btn}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(20:0,20 [0] )
                     RazorMetaCode - [20..20)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(20:0,20 [0] )
     EndOfFile;[];

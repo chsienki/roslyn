@@ -73,9 +73,8 @@
                                                     Identifier;[Now];
                     MarkupTextLiteral - [72..73)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [73..74)::1
-                    MarkupTextLiteral - [73..74)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [73..74)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 CloseAngle;[>];
             MarkupTextLiteral - [75..91)::16 - [words and spaces] - Gen<Markup>
                 Text;[words];

@@ -8,5 +8,4 @@ Code span at (18:0,18 [3] ) (Accepts:NonWhitespace) - Parent: Expression block a
 Markup span at (21:0,21 [6] ) (Accepts:None) - Parent: Markup block at (2:0,2 [31] )
 Markup span at (27:0,27 [6] ) (Accepts:None) - Parent: Tag block at (27:0,27 [6] )
 Code span at (33:0,33 [0] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [34] )
-MetaCode span at (33:0,33 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [34] )
-Markup span at (34:0,34 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [34] )
+MetaCode span at (33:0,33 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [34] )

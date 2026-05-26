@@ -27,5 +27,4 @@ Markup span at (121:5,4 [5] ) (Accepts:Any) - Parent: Tag block at (121:5,4 [5] 
 Markup span at (126:5,9 [2] ) (Accepts:Any) - Parent: Markup block at (16:0,16 [112] )
 MetaCode span at (128:6,0 [1] ) (Accepts:None) - Parent: Directive block at (2:0,2 [127] )
 Code span at (129:6,1 [0] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [130] )
-MetaCode span at (129:6,1 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [130] )
-Markup span at (130:6,2 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [130] )
+MetaCode span at (129:6,1 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [130] )

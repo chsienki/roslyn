@@ -16,7 +16,7 @@
                                     OpenAngle;[<];
                                     Bang;[!];
                                     Text;[p}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(6:0,6 [0] )
                     RazorMetaCode - [6..6)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(6:0,6 [0] )
     EndOfFile;[];

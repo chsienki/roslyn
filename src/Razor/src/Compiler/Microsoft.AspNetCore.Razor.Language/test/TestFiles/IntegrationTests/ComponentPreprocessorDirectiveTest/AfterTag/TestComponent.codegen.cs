@@ -40,13 +40,6 @@ namespace Test
 
             __builder.CloseElement();
             __builder.CloseElement();
-#nullable restore
-#line (8,2)-(8,2) "x:\dir\subdir\Test\TestComponent.razor"
-
-#line default
-#line hidden
-#nullable disable
-
         }
         #pragma warning restore 1998
     }

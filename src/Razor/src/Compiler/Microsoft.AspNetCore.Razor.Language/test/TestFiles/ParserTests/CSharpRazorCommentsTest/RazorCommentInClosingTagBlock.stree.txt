@@ -12,7 +12,7 @@
                 MarkupMiscAttributeContent - [12..13)::1
                     MarkupTextLiteral - [12..13)::1 - [ ] - Gen<Markup>
                         Whitespace;[ ];
-                CloseAngle;[<Missing>];
+                CloseAngle;[<Missing>];RZ1024(13:0,13 [0] )
         RazorComment - [13..32)::19
             RazorCommentTransition;[@];
             RazorCommentStar;[*];

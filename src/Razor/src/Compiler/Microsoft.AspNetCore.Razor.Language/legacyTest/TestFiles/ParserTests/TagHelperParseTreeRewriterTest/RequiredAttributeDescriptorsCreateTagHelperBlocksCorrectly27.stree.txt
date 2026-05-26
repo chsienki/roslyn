@@ -44,9 +44,8 @@
                                 Text;[hi];
                     MarkupTextLiteral - [38..39)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [39..40)::1
-                    MarkupTextLiteral - [39..40)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [39..40)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 CloseAngle;[>];
             MarkupTextLiteral - [41..57)::16 - [words and spaces] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 Text;[words];

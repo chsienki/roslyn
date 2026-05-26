@@ -12,9 +12,8 @@
                     MarkupTextLiteral - [4..9)::5 - [@attr] - Gen<Markup>
                         Transition;[@];
                         Text;[attr];
-                MarkupMiscAttributeContent - [9..10)::1
-                    MarkupTextLiteral - [9..10)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [9..10)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

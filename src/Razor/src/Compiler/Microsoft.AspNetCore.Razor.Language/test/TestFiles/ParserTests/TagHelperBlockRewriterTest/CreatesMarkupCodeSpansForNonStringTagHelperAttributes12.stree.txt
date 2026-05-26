@@ -40,9 +40,8 @@
                                             RightBrace;[}];
                     MarkupTextLiteral - [35..36)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [36..37)::1
-                    MarkupTextLiteral - [36..37)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [36..37)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

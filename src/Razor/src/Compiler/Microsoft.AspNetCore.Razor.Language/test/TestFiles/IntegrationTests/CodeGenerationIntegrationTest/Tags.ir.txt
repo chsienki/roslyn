@@ -38,8 +38,7 @@
                     LazyIntermediateToken - (97:5,4 [5] Tags.cshtml) - Html - <%var
                 HtmlAttribute - (102:5,9 [4] Tags.cshtml) -  x = - 
                 HtmlAttribute - (106:5,13 [9] Tags.cshtml) -  window = - 
-                HtmlContent - (115:5,22 [41] Tags.cshtml)
-                    LazyIntermediateToken - (115:5,22 [7] Tags.cshtml) - Html - = null%
+                HtmlContent - (122:5,29 [34] Tags.cshtml)
                     LazyIntermediateToken - (122:5,29 [1] Tags.cshtml) - Html - >
                     LazyIntermediateToken - (123:5,30 [2] Tags.cshtml) - Html - \n
                     LazyIntermediateToken - (125:6,0 [9] Tags.cshtml) - Html - </script>

@@ -1,34 +1,41 @@
 ﻿RazorDocument - [0..45)::45 - [<div>@if(foo bar baz<p>still html</p></div>LF]
     MarkupBlock - [0..45)::45
-        MarkupElement - [0..45)::45
+        MarkupElement - [0..43)::43
             MarkupStartTag - [0..5)::5 - [<div>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 Text;[div];
                 CloseAngle;[>];
-            CSharpCodeBlock - [5..45)::40
+            CSharpCodeBlock - [5..20)::15
                 CSharpTransition - [5..6)::1 - Gen<None> - SpanEditHandler;Accepts:None
                     Transition;[@];
-                CSharpStatementLiteral - [6..45)::39 - [if(foo bar baz<p>still html</p></div>LF] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+                CSharpStatementLiteral - [6..9)::3 - [if(] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                     Keyword;[if];
                     LeftParenthesis;[(];
+                SkippedContent - [9..20)::11
                     Identifier;[foo];
                     Whitespace;[ ];
                     Identifier;[bar];
                     Whitespace;[ ];
                     Identifier;[baz];
-                    LessThan;[<];
-                    Identifier;[p];
-                    GreaterThan;[>];
-                    Identifier;[still];
+            MarkupElement - [20..37)::17
+                MarkupStartTag - [20..23)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    OpenAngle;[<];
+                    Text;[p];
+                    CloseAngle;[>];
+                MarkupTextLiteral - [23..33)::10 - [still html] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Text;[still];
                     Whitespace;[ ];
-                    Identifier;[html];
-                    LessThan;[<];
-                    Slash;[/];
-                    Identifier;[p];
-                    GreaterThan;[>];
-                    LessThan;[<];
-                    Slash;[/];
-                    Identifier;[div];
-                    GreaterThan;[>];
-                    NewLine;[LF];
+                    Text;[html];
+                MarkupEndTag - [33..37)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    OpenAngle;[<];
+                    ForwardSlash;[/];
+                    Text;[p];
+                    CloseAngle;[>];
+            MarkupEndTag - [37..43)::6 - [</div>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[div];
+                CloseAngle;[>];
+        MarkupTextLiteral - [43..45)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
     EndOfFile;[];

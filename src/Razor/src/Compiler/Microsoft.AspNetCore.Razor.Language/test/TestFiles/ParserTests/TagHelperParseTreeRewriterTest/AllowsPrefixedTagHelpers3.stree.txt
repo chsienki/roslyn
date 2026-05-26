@@ -4,9 +4,8 @@
             MarkupTagHelperStartTag - [0..11)::11 - [<th:myth />] - Gen<Markup>
                 OpenAngle;[<];
                 Text;[th:myth];
-                MarkupMiscAttributeContent - [8..9)::1
-                    MarkupTextLiteral - [8..9)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [8..9)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

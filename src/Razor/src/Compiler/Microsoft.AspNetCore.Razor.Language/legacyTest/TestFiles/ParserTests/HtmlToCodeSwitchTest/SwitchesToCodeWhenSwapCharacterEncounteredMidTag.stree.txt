@@ -26,15 +26,12 @@
                                                     CSharpCodeBlock - [8..11)::3
                                                         CSharpExpressionLiteral - [8..11)::3 - [bar] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
                                                             Identifier;[bar];
-                                    MarkupMiscAttributeContent - [11..12)::1
-                                        MarkupTextLiteral - [11..12)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [11..12)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [14..14)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [14..15)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [14..15)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [15..15)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

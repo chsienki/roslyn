@@ -28,7 +28,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [25..26)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [25..26)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [26..28)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -58,7 +58,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [53..54)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [53..54)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [54..56)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -88,7 +88,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [79..80)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [79..80)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [80..82)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -118,7 +118,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [106..107)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [106..107)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [107..109)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -148,7 +148,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [137..138)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [137..138)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [138..140)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -178,7 +178,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [166..167)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [166..167)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [167..169)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -208,7 +208,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [192..193)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [192..193)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [193..195)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -238,7 +238,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [219..220)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [219..220)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [220..222)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -268,7 +268,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [248..249)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [248..249)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [249..251)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -298,7 +298,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [278..279)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [278..279)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [279..281)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -328,7 +328,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [306..307)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [306..307)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [307..309)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -358,7 +358,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [334..335)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [334..335)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [335..337)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -388,7 +388,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [363..364)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [363..364)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [364..366)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -418,7 +418,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [393..394)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [393..394)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [394..396)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -448,7 +448,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [422..423)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [422..423)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [423..425)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -478,7 +478,7 @@
                             Keyword;[true];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [449..450)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [449..450)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [450..452)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];

@@ -6,6 +6,6 @@
             RazorCommentTransition;[@];
             RazorCommentStar;[*];
             RazorCommentLiteral;[<Missing>];
-            RazorCommentStar;[<Missing>];RZ1028(0:0,0 [2] )
+            RazorCommentStar;[<Missing>];RZ1028(2:0,2 [0] )
             RazorCommentTransition;[<Missing>];
     EndOfFile;[];

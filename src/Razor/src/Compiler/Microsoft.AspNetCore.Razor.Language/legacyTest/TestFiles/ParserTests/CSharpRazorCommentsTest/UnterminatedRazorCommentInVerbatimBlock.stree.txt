@@ -16,8 +16,8 @@
                             RazorCommentTransition;[@];
                             RazorCommentStar;[*];
                             RazorCommentLiteral;[<Missing>];
-                            RazorCommentStar;[<Missing>];RZ1028(2:0,2 [2] )
+                            RazorCommentStar;[<Missing>];RZ1028(4:0,4 [0] )
                             RazorCommentTransition;[<Missing>];
                     RazorMetaCode - [4..4)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(4:0,4 [0] )
     EndOfFile;[];

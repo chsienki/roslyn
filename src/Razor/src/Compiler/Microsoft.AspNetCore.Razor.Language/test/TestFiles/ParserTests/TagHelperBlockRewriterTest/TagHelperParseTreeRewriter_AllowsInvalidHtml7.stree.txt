@@ -4,12 +4,12 @@
             MarkupEndTag - [0..2)::2 - [</] - Gen<Markup>
                 OpenAngle;[<];
                 ForwardSlash;[/];
-                Text;[<Missing>];
-                CloseAngle;[<Missing>];
+                Text;[<Missing>];RZ1047(2:0,2 [0] )
+                CloseAngle;[<Missing>];RZ1024(2:0,2 [0] )
         MarkupElement - [2..3)::1
             MarkupStartTag - [2..3)::1 - [<] - Gen<Markup>
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(3:0,3 [0] )
                 CloseAngle;[<Missing>];
         MarkupTagHelperElement - [3..20)::17 - p[StartTagAndEndTag] - ptaghelper
             MarkupTagHelperStartTag - [3..6)::3 - [<p>] - Gen<Markup>

@@ -17,9 +17,10 @@
                                         Identifier;[DateTime];
                                         Dot;[.];
                                         Identifier;[Now];
-                MarkupMiscAttributeContent - [16..22)::6
-                    MarkupTextLiteral - [16..22)::6 - [="btn"] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Equals;[=];
+                SkippedContent - [16..17)::1
+                    Equals;[=];
+                MarkupMinimizedAttributeBlock - [17..22)::5 - ["btn"]
+                    MarkupTextLiteral - [17..22)::5 - ["btn"] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
                         Text;[btn];
                         DoubleQuote;["];

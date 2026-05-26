@@ -15,9 +15,8 @@
                                 CSharpCodeBlock - [8..12)::4
                                     CSharpExpressionLiteral - [8..12)::4 - [bind] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
                                         Identifier;[bind];
-                MarkupMiscAttributeContent - [12..13)::1
-                    MarkupTextLiteral - [12..13)::1 - [=] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Equals;[=];
+                SkippedContent - [12..13)::1
+                    Equals;[=];
                 CloseAngle;[>];
         MarkupTextLiteral - [14..18)::4 - [LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
             NewLine;[LF];

@@ -26,7 +26,7 @@
                                             MarkupLiteralAttributeValue - [12..13)::1 - [}]
                                                 MarkupTextLiteral - [12..13)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                                     Text;[}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(13:0,13 [0] )
                     RazorMetaCode - [13..13)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(13:0,13 [0] )
     EndOfFile;[];

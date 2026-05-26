@@ -46,6 +46,8 @@
                     LazyIntermediateToken - (264:14,9 [2] IncompleteDirectives.cshtml) - Html - \n
                 MalformedDirective - (266:15,0 [10] IncompleteDirectives.cshtml) - inherits
                     DirectiveToken - (276:15,10 [0] IncompleteDirectives.cshtml) - 
+                    CSharpCode - (276:15,10 [0] IncompleteDirectives.cshtml)
+                        LazyIntermediateToken - (276:15,10 [0] IncompleteDirectives.cshtml) - CSharp - 
                 HtmlContent - (276:15,10 [4] IncompleteDirectives.cshtml)
                     LazyIntermediateToken - (276:15,10 [4] IncompleteDirectives.cshtml) - Html - \n\n
                 MalformedDirective - (280:17,0 [12] IncompleteDirectives.cshtml) - functions
@@ -57,11 +59,15 @@
                     LazyIntermediateToken - (315:20,8 [2] IncompleteDirectives.cshtml) - Html - \n
                 MalformedDirective - (317:21,0 [9] IncompleteDirectives.cshtml) - section
                     DirectiveToken - (326:21,9 [0] IncompleteDirectives.cshtml) - 
+                    CSharpCode - (326:21,9 [0] IncompleteDirectives.cshtml)
+                        LazyIntermediateToken - (326:21,9 [0] IncompleteDirectives.cshtml) - CSharp - 
                 HtmlContent - (326:21,9 [4] IncompleteDirectives.cshtml)
                     LazyIntermediateToken - (326:21,9 [4] IncompleteDirectives.cshtml) - Html - \n\n
-                MalformedDirective - (330:23,0 [9] IncompleteDirectives.cshtml) - section
-                HtmlContent - (339:23,9 [3] IncompleteDirectives.cshtml)
-                    LazyIntermediateToken - (339:23,9 [3] IncompleteDirectives.cshtml) - Html - {\n
+                MalformedDirective - (330:23,0 [10] IncompleteDirectives.cshtml) - section
+                    CSharpCode - (339:23,9 [0] IncompleteDirectives.cshtml)
+                        LazyIntermediateToken - (339:23,9 [0] IncompleteDirectives.cshtml) - CSharp - 
+                HtmlContent - (340:23,10 [2] IncompleteDirectives.cshtml)
+                    LazyIntermediateToken - (340:23,10 [2] IncompleteDirectives.cshtml) - Html - \n
                 MalformedDirective - (342:24,0 [12] IncompleteDirectives.cshtml) - functions
                     CSharpCode - (354:24,12 [0] IncompleteDirectives.cshtml)
                         LazyIntermediateToken - (354:24,12 [0] IncompleteDirectives.cshtml) - CSharp - 

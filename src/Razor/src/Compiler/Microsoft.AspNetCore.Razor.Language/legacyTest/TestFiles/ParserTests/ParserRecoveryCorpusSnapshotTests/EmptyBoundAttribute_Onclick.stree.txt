@@ -75,9 +75,10 @@
                                 CSharpCodeBlock - [92..99)::7
                                     CSharpExpressionLiteral - [92..99)::7 - [onclick] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
                                         Identifier;[onclick];
-                MarkupMiscAttributeContent - [99..102)::3
-                    MarkupTextLiteral - [99..102)::3 - [=""] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Equals;[=];
+                SkippedContent - [99..100)::1
+                    Equals;[=];
+                MarkupMinimizedAttributeBlock - [100..102)::2 - [""]
+                    MarkupTextLiteral - [100..102)::2 - [""] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
                         DoubleQuote;["];
                 CloseAngle;[>];

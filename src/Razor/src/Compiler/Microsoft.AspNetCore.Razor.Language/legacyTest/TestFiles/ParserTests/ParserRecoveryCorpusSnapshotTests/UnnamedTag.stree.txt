@@ -3,14 +3,14 @@
         MarkupElement - [0..8)::8
             MarkupStartTag - [0..2)::2 - [<>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(1:0,1 [0] )
                 CloseAngle;[>];
             MarkupTextLiteral - [2..5)::3 - [foo] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 Text;[foo];
             MarkupEndTag - [5..8)::3 - [</>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 ForwardSlash;[/];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(7:0,7 [0] )
                 CloseAngle;[>];
         MarkupTextLiteral - [8..10)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
             NewLine;[LF];

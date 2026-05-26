@@ -25,9 +25,8 @@
                 MarkupTagHelperStartTag - [30..36)::6 - [<br />] - Gen<Markup> - SpanEditHandler;Accepts:Any
                     OpenAngle;[<];
                     Text;[br];
-                    MarkupMiscAttributeContent - [33..34)::1
-                        MarkupTextLiteral - [33..34)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                            Whitespace;[ ];
+                    MarkupTextLiteral - [33..34)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        Whitespace;[ ];
                     ForwardSlash;[/];
                     CloseAngle;[>];
             MarkupTextLiteral - [36..47)::11 - [  Something] - Gen<Markup> - SpanEditHandler;Accepts:Any

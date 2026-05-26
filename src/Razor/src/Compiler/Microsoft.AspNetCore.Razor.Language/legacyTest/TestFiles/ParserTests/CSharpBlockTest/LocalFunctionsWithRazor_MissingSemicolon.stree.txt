@@ -54,8 +54,6 @@
                             Whitespace;[    ];
                             RightBrace;[}];
                             NewLine;[LF];
-                    RazorMetaCode - [117..118)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [117..118)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [118..118)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

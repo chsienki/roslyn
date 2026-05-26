@@ -36,7 +36,7 @@
                                 NewLine;[LF];
                         CSharpStatementLiteral - [31..31)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [31..32)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [31..32)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupElement - [32..38)::6
             MarkupStartTag - [32..38)::6 - [<html>] - Gen<Markup> - SpanEditHandler;Accepts:Any

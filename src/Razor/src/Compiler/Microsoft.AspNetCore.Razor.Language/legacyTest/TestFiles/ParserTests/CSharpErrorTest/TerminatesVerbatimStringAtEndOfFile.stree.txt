@@ -5,7 +5,7 @@
         CSharpCodeBlock - [0..61)::61
             CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                 Transition;[@];
-            CSharpStatementLiteral - [1..61)::60 - [if(foo) { var foo = @"blah LFblah; LF<p>Foo</p>LFblah LFblah] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+            CSharpStatementLiteral - [1..11)::10 - [if(foo) { ] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 Keyword;[if];
                 LeftParenthesis;[(];
                 Identifier;[foo];
@@ -13,6 +13,7 @@
                 Whitespace;[ ];
                 LeftBrace;[{];
                 Whitespace;[ ];
+            SkippedContent - [11..61)::50
                 Identifier;[var];
                 Whitespace;[ ];
                 Identifier;[foo];

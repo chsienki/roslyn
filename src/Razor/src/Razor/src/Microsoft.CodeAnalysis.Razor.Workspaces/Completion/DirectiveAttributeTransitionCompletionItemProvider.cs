@@ -70,6 +70,17 @@ internal class DirectiveAttributeTransitionCompletionItemProvider(IClientCapabil
             return Completions;
         }
 
+        // Enhanced recovery emits whitespace in the attribute area as a
+        // direct MarkupTextLiteralSyntax child of the start/end tag, rather
+        // than wrapping it in a MarkupMiscAttributeContentSyntax. The two
+        // shapes are equivalent for the purpose of suggesting the directive
+        // transition (@) completion item.
+        if (owner is MarkupTextLiteralSyntax literal && literal.ContainsOnlyWhitespace() &&
+            attribute is BaseMarkupStartTagSyntax or BaseMarkupEndTagSyntax)
+        {
+            return Completions;
+        }
+
         if (!TryGetAttributeInfo(owner, out var prefixLocation, out var attributeName, out var attributeNameLocation, out _, out _))
         {
             return [];

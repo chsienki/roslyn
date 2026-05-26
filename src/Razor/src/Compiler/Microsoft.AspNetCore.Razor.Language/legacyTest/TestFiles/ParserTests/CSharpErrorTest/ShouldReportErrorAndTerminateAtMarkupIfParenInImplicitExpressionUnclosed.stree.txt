@@ -2,22 +2,26 @@
     MarkupBlock - [0..40)::40
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
             Marker;[];
-        CSharpCodeBlock - [0..20)::20
-            CSharpImplicitExpression - [0..20)::20
+        CSharpCodeBlock - [0..13)::13
+            CSharpImplicitExpression - [0..13)::13
                 CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                     Transition;[@];
-                CSharpImplicitExpressionBody - [1..20)::19
-                    CSharpCodeBlock - [1..20)::19
-                        CSharpExpressionLiteral - [1..20)::19 - [Foo(Bar(Baz)LFBizLF] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
+                CSharpImplicitExpressionBody - [1..13)::12
+                    CSharpCodeBlock - [1..13)::12
+                        CSharpExpressionLiteral - [1..5)::4 - [Foo(] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
                             Identifier;[Foo];
                             LeftParenthesis;[(];
+                        SkippedContent - [5..13)::8
                             Identifier;[Bar];
                             LeftParenthesis;[(];
                             Identifier;[Baz];
                             RightParenthesis;[)];
-                            NewLine;[LF];
-                            Identifier;[Biz];
-                            NewLine;[LF];
+                        CSharpExpressionLiteral - [13..13)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightParenthesis;[<Missing>];RZ1027(13:0,13 [0] )
+        MarkupTextLiteral - [13..20)::7 - [LFBizLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+            Text;[Biz];
+            NewLine;[LF];
         MarkupElement - [20..40)::20
             MarkupStartTag - [20..26)::6 - [<html>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];

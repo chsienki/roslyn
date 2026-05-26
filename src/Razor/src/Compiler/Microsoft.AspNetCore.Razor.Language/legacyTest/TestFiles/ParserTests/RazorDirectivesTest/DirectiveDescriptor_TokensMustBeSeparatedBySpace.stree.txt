@@ -2,20 +2,20 @@
     MarkupBlock - [0..26)::26
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
             Marker;[];
-        CSharpCodeBlock - [0..17)::17
-            RazorDirective - [0..17)::17 - Directive:{custom;SingleLine;Unrestricted} [RZ1011(17:0,17 [9] )]
+        CSharpCodeBlock - [0..26)::26
+            RazorDirective - [0..26)::26 - Directive:{custom;SingleLine;Unrestricted} [RZ1011(17:0,17 [9] )]
                 CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                     Transition;[@];
-                RazorDirectiveBody - [1..17)::16
+                RazorDirectiveBody - [1..26)::25
                     RazorMetaCode - [1..7)::6 - Gen<None> - SpanEditHandler;Accepts:None
                         Identifier;[custom];
-                    CSharpCodeBlock - [7..17)::10
+                    CSharpCodeBlock - [7..26)::19
                         MarkupEphemeralTextLiteral - [7..8)::1 - [ ] - Gen<None> - SpanEditHandler;Accepts:Whitespace
                             Whitespace;[ ];
                         CSharpStatementLiteral - [8..17)::9 - ["string1"] - Gen<DirectiveToken {;String;Opt:False}> - DirectiveTokenEditHandler;Accepts:NonWhitespace
                             StringLiteral;["string1"];
-        MarkupTextLiteral - [17..26)::9 - ["string2"] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            DoubleQuote;["];
-            Text;[string2];
-            DoubleQuote;["];
+                        CSharpStatementLiteral - [17..17)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+                            Marker;[];
+                        SkippedContent - [17..26)::9
+                            StringLiteral;["string2"];
     EndOfFile;[];

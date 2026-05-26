@@ -16,12 +16,14 @@
                         RazorMetaCode - [10..11)::1 - Gen<None> - SpanEditHandler;Accepts:None
                             LeftParenthesis;[(];
                         CSharpCodeBlock - [11..18)::7
-                            CSharpExpressionLiteral - [11..18)::7 - [foo.Bar] - Gen<Expr> - SpanEditHandler;Accepts:Any
+                            CSharpExpressionLiteral - [11..11)::0 - [] - Gen<Expr> - SpanEditHandler;Accepts:Any
+                                Marker;[];
+                            SkippedContent - [11..18)::7
                                 Identifier;[foo];
                                 Dot;[.];
                                 Identifier;[Bar];
                         RazorMetaCode - [18..18)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                            RightParenthesis;[<Missing>];
+                            RightParenthesis;[<Missing>];RZ1006(18:0,18 [0] )
             MarkupEndTag - [18..22)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 ForwardSlash;[/];

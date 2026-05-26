@@ -29,6 +29,7 @@ public sealed partial class RazorParserOptions
         Flags result = 0;
 
         result.SetFlag(Flags.AllowCSharpInMarkupAttributeArea);
+        result.SetFlag(Flags.UseEnhancedRecovery);
 
         if (languageVersion >= RazorLanguageVersion.Version_2_1)
         {

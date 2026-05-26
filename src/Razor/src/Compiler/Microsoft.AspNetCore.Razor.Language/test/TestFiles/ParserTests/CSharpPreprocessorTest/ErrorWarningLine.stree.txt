@@ -20,6 +20,4 @@
                             CSharpDirective;[#line (1, 1) - (5, 60) 10 "partial-class.cs"LF];
                     RazorMetaCode - [151..152)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [152..152)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

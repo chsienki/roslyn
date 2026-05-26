@@ -25,4 +25,6 @@
                 Keyword;[when];
                 Whitespace;[ ];
                 LeftParenthesis;[(];
+            CSharpStatementLiteral - [46..46)::0 - [] - Gen<Stmt>
+                Marker;[];
     EndOfFile;[];

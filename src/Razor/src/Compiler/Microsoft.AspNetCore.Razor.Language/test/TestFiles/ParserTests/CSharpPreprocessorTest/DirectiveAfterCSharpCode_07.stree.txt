@@ -10,12 +10,13 @@
                     RazorMetaCode - [1..2)::1 - Gen<None>
                         LeftBrace;[{];
                     CSharpCodeBlock - [2..48)::46
-                        CSharpStatementLiteral - [2..48)::46 - [LF    if (true #if true)LF        var y = 1;LF] - Gen<Stmt>
+                        CSharpStatementLiteral - [2..12)::10 - [LF    if (] - Gen<Stmt>
                             NewLine;[LF];
                             Whitespace;[    ];
                             Keyword;[if];
                             Whitespace;[ ];
                             LeftParenthesis;[(];
+                        SkippedContent - [12..46)::34
                             Keyword;[true];
                             Whitespace;[ ];
                             CSharpComment;[#if true)LF];RZ1043(17:1,13 [11] )
@@ -28,9 +29,8 @@
                             Whitespace;[ ];
                             NumericLiteral;[1];
                             Semicolon;[;];
+                        CSharpStatementLiteral - [46..48)::2 - [LF] - Gen<Stmt>
                             NewLine;[LF];
                     RazorMetaCode - [48..49)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [49..49)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

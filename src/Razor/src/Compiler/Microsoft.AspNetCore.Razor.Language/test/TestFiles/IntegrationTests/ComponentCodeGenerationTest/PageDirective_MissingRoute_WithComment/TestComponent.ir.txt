@@ -8,3 +8,5 @@
         ClassDeclaration -  - public partial - TestComponent - global::Microsoft.AspNetCore.Components.ComponentBase - 
             MethodDeclaration -  - protected override - void - BuildRenderTree
                 MalformedDirective - (0:0,0 [19] x:\dir\subdir\Test\TestComponent.cshtml) - page
+                    CSharpCode - (19:0,19 [0] x:\dir\subdir\Test\TestComponent.cshtml)
+                        LazyIntermediateToken - (19:0,19 [0] x:\dir\subdir\Test\TestComponent.cshtml) - CSharp - 

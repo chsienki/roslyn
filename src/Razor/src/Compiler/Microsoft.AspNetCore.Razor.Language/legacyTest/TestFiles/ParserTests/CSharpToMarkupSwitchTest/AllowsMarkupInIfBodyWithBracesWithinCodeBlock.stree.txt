@@ -89,8 +89,6 @@
                         CSharpStatementLiteral - [72..74)::2 - [} ] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             RightBrace;[}];
                             Whitespace;[ ];
-                    RazorMetaCode - [74..75)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [74..75)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [75..75)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

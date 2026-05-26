@@ -25,5 +25,4 @@ Markup span at (296:9,29 [6] ) (Accepts:None) - Parent: Markup block at (275:9,8
 Code span at (302:10,0 [36] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [382] )
 Code span at (338:11,34 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [382] )
 Code span at (339:11,35 [42] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [382] )
-MetaCode span at (381:12,0 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [382] )
-Markup span at (382:12,1 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [382] )
+MetaCode span at (381:12,0 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [382] )

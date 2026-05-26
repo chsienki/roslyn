@@ -803,25 +803,26 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
                 // position (the missing-close-angle site) rather than the legacy
                 // wide span at start-of-tag emitted via ErrorSink.OnError.
                 //
-                // The follow set is HTML-side per Big Design Decision #4
-                // (`RecoveryFollowSets.HtmlTagRecovery`); see the tag-name site
-                // above for the rationale. The skipped slot is asserted null
-                // because by this point in `ParseStartTag` `ParseAttributes` has
-                // already absorbed everything up to a tag-recovery boundary, so
-                // the current token is always in `HtmlTagRecovery` (or EOF).
-                var (token, skipped) = Required(
-                    SyntaxKind.CloseAngle,
-                    RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName),
-                    RecoveryFollowSets.HtmlTagRecovery,
-                    originatingLanguage: SyntaxKind.MarkupBlock,
-                    outerFollow: _outerFollow);
-                Debug.Assert(skipped is null,
-                    "ParseStartTag's close-angle Required call is invoked at a tag-recovery boundary; sync should have nothing to skip.");
-                closeAngleToken = token;
-                closeAngleConsumed = !token.IsMissing;
-                if (closeAngleConsumed)
+                // Don't synchronize past the current token here: any non-CloseAngle
+                // token at this point (e.g. the `}` that terminates an enclosing
+                // `@{...}` block, or stray content that arrives after a self-close
+                // `/`) is for the outer parser to handle. The Stage 6.1 baseline
+                // bake-off showed that `ParseAttributes`' boundary stop is NOT a
+                // sufficient invariant once a self-close `/` has been consumed in
+                // between (e.g. `@{<br/}`); skipping arbitrary tokens here would
+                // strand source that the outer code-block parser needs to see.
+                if (At(SyntaxKind.CloseAngle))
                 {
+                    closeAngleToken = EatCurrentToken();
+                    closeAngleConsumed = true;
                     isWellFormed = true;
+                }
+                else
+                {
+                    closeAngleToken = SyntaxFactory.MissingToken(
+                        SyntaxKind.CloseAngle,
+                        RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName));
+                    closeAngleConsumed = false;
                 }
             }
             else
@@ -1108,19 +1109,17 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
             // Stage 3.1: emit a narrow, zero-width RZ1024 (Parsing_UnfinishedTag) on the
             // missing `>` token at the precise cursor position. Legacy mode produces a
             // bare `MissingToken(CloseAngle)` with no diagnostic for an end tag missing
-            // its close angle. The recovery sync stops immediately because by this point
-            // the absorb-malformed-end-tags branch (`AcceptUntil(CloseAngle, OpenAngle)`)
-            // above has positioned the cursor at EOF, `<`, or another tag-recovery token.
+            // its close angle.
+            //
+            // Don't synchronize past the current token: the absorb-malformed-end-tags
+            // branch (`AcceptUntil(CloseAngle, OpenAngle)`) above is the right place
+            // to consume garbage; anything still here is for the outer parser
+            // (e.g. a razor comment that the markup tokenizer doesn't recognize,
+            // as in `</text @* razor comment *@>`).
             isWellFormed = false;
-            var (token, skipped) = Required(
+            closeAngleToken = SyntaxFactory.MissingToken(
                 SyntaxKind.CloseAngle,
-                RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName),
-                RecoveryFollowSets.HtmlTagRecovery,
-                originatingLanguage: SyntaxKind.MarkupBlock,
-                outerFollow: _outerFollow);
-            Debug.Assert(skipped is null,
-                "ParseEndTag's close-angle Required call is invoked at a tag-recovery boundary; sync should have nothing to skip.");
-            closeAngleToken = token;
+                RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName));
         }
         else
         {

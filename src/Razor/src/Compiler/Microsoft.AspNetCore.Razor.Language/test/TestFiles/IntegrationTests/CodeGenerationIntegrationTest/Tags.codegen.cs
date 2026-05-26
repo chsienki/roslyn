@@ -31,7 +31,7 @@ namespace AspNetCoreGeneratedDocument
             EndWriteAttribute();
             BeginWriteAttribute("window", " window =", 106, "", 115, 0);
             EndWriteAttribute();
-            WriteLiteral("= null%>\r\n</script>\r\n\r\n<script></script @");
+            WriteLiteral(">\r\n</script>\r\n\r\n<script></script @");
         }
         #pragma warning restore 1998
         #nullable restore

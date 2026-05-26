@@ -60,6 +60,4 @@
                             Whitespace;[ ];
                     RazorMetaCode - [65..66)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [66..66)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

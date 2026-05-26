@@ -3,7 +3,7 @@
         MarkupElement - [0..14)::14
             MarkupStartTag - [0..14)::14 - [< class="foo" ] - Gen<Markup>
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(1:0,1 [0] )
                 MarkupAttributeBlock - [1..13)::12 - [ class="foo"]
                     MarkupTextLiteral - [1..2)::1 - [ ] - Gen<Markup>
                         Whitespace;[ ];
@@ -18,17 +18,15 @@
                                 Text;[foo];
                     MarkupTextLiteral - [12..13)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [13..14)::1
-                    MarkupTextLiteral - [13..14)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [13..14)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 CloseAngle;[<Missing>];
         MarkupTagHelperElement - [14..19)::5 - p[SelfClosing] - ptaghelper
             MarkupTagHelperStartTag - [14..19)::5 - [<p />] - Gen<Markup>
                 OpenAngle;[<];
                 Text;[p];
-                MarkupMiscAttributeContent - [16..17)::1
-                    MarkupTextLiteral - [16..17)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [16..17)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

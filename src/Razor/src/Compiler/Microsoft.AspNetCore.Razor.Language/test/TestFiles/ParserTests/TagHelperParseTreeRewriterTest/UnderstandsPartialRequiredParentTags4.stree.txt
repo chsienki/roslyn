@@ -3,7 +3,7 @@
         MarkupElement - [0..1)::1
             MarkupStartTag - [0..1)::1 - [<] - Gen<Markup>
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(1:0,1 [0] )
                 CloseAngle;[<Missing>];
         MarkupTagHelperElement - [1..36)::35 - p[StartTagAndEndTag] - PTagHelper - CatchALlTagHelper
             MarkupTagHelperStartTag - [1..4)::3 - [<p>] - Gen<Markup>
@@ -13,7 +13,7 @@
             MarkupElement - [4..5)::1
                 MarkupStartTag - [4..5)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(5:0,5 [0] )
                     CloseAngle;[<Missing>];
             MarkupTagHelperElement - [5..23)::18 - strong[StartTagAndEndTag] - StrongTagHelper - CatchALlTagHelper
                 MarkupTagHelperStartTag - [5..13)::8 - [<strong>] - Gen<Markup>
@@ -24,13 +24,13 @@
                     MarkupEndTag - [13..15)::2 - [</] - Gen<Markup>
                         OpenAngle;[<];
                         ForwardSlash;[/];
-                        Text;[<Missing>];
-                        CloseAngle;[<Missing>];
+                        Text;[<Missing>];RZ1047(15:0,15 [0] )
+                        CloseAngle;[<Missing>];RZ1024(15:0,15 [0] )
                 MarkupTagHelperEndTag - [15..23)::8 - [</strong]
                     OpenAngle;[<];
                     ForwardSlash;[/];
                     Text;[strong];
-                    CloseAngle;[<Missing>];
+                    CloseAngle;[<Missing>];RZ1024(23:0,23 [0] )
             MarkupElement - [23..32)::9
                 MarkupEndTag - [23..32)::9 - [</strong>] - Gen<Markup>
                     OpenAngle;[<];

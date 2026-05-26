@@ -19,5 +19,5 @@
                         CSharpStatementLiteral - [7..7)::0 - [] - Gen<Stmt>
                             Marker;[];
                     RazorMetaCode - [7..7)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(7:0,7 [0] )
     EndOfFile;[];

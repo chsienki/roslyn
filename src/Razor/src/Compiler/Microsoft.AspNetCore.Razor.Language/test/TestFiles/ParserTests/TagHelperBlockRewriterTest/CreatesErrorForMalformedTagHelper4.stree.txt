@@ -4,9 +4,8 @@
             MarkupTagHelperStartTag - [0..8)::8 - [<strong ] - Gen<Markup>
                 OpenAngle;[<];
                 Text;[strong];
-                MarkupMiscAttributeContent - [7..8)::1
-                    MarkupTextLiteral - [7..8)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [7..8)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 CloseAngle;[<Missing>];
             MarkupTagHelperElement - [8..11)::3 - p[StartTagAndEndTag] - ptaghelper
                 MarkupTagHelperStartTag - [8..11)::3 - [<p>] - Gen<Markup>

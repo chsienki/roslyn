@@ -41,9 +41,8 @@
                                 Text;[btn];
                     MarkupTextLiteral - [37..38)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [38..39)::1
-                    MarkupTextLiteral - [38..39)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [38..39)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

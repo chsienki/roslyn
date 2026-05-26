@@ -43,5 +43,4 @@ Code span at (104:0,104 [12] ) (Accepts:NonWhitespace) - Parent: Expression bloc
 Markup span at (116:0,116 [1] ) (Accepts:Any) - Parent: Markup block at (95:0,95 [22] )
 Markup span at (117:0,117 [3] ) (Accepts:None) - Parent: Tag block at (2:0,2 [118] )
 Code span at (120:0,120 [0] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [121] )
-MetaCode span at (120:0,120 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [121] )
-Markup span at (121:0,121 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [121] )
+MetaCode span at (120:0,120 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [121] )

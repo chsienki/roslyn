@@ -5,9 +5,10 @@
         CSharpCodeBlock - [0..25)::25
             CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                 Transition;[@];
-            CSharpStatementLiteral - [1..12)::11 - [if(LFelse {] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+            CSharpStatementLiteral - [1..4)::3 - [if(] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 Keyword;[if];
                 LeftParenthesis;[(];
+            CSharpStatementLiteral - [4..12)::8 - [LFelse {] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 NewLine;[LF];
                 Keyword;[else];
                 Whitespace;[ ];

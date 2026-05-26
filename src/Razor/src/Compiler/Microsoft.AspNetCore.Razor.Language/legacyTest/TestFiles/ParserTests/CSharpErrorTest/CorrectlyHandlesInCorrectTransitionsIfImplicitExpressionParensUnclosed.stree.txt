@@ -2,16 +2,19 @@
     MarkupBlock - [0..34)::34
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
             Marker;[];
-        CSharpCodeBlock - [0..8)::8
-            CSharpImplicitExpression - [0..8)::8
+        CSharpCodeBlock - [0..6)::6
+            CSharpImplicitExpression - [0..6)::6
                 CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                     Transition;[@];
-                CSharpImplicitExpressionBody - [1..8)::7
-                    CSharpCodeBlock - [1..8)::7
-                        CSharpExpressionLiteral - [1..8)::7 - [Href(LF] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
+                CSharpImplicitExpressionBody - [1..6)::5
+                    CSharpCodeBlock - [1..6)::5
+                        CSharpExpressionLiteral - [1..6)::5 - [Href(] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
                             Identifier;[Href];
                             LeftParenthesis;[(];
-                            NewLine;[LF];
+                        CSharpExpressionLiteral - [6..6)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightParenthesis;[<Missing>];RZ1027(6:0,6 [0] )
+        MarkupTextLiteral - [6..8)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
         MarkupElement - [8..32)::24
             MarkupStartTag - [8..12)::4 - [<h1>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];

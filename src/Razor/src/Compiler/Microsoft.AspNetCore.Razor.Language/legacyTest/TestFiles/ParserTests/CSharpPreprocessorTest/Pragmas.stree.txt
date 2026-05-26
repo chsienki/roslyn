@@ -41,8 +41,6 @@
                             Whitespace;[ ];
                             StringLiteral;["1234"];
                             NewLine;[LF];
-                    RazorMetaCode - [138..139)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [138..139)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [139..139)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

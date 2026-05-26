@@ -13,5 +13,5 @@
                         CSharpStatementLiteral - [2..2)::0 - [] - Gen<Stmt> - AutoCompleteEditHandler;Accepts:Any,AutoComplete:[}];AtEOL
                             Marker;[];
                     RazorMetaCode - [2..2)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(2:0,2 [0] )
     EndOfFile;[];

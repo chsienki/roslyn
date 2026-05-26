@@ -31,5 +31,5 @@
                             NewLine;[LF];
                             RightBrace;[}];
                     RazorMetaCode - [40..40)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(40:4,1 [0] )
     EndOfFile;[];

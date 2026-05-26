@@ -4,13 +4,12 @@
             MarkupTagHelperStartTag - [0..8)::8 - [<strong ] - Gen<Markup>
                 OpenAngle;[<];
                 Text;[strong];
-                MarkupMiscAttributeContent - [7..8)::1
-                    MarkupTextLiteral - [7..8)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [7..8)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 CloseAngle;[<Missing>];
             MarkupTagHelperEndTag - [8..16)::8 - [</strong]
                 OpenAngle;[<];
                 ForwardSlash;[/];
                 Text;[strong];
-                CloseAngle;[<Missing>];
+                CloseAngle;[<Missing>];RZ1024(16:0,16 [0] )
     EndOfFile;[];

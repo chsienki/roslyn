@@ -2,14 +2,15 @@
     MarkupBlock - [0..39)::39
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup>
             Marker;[];
-        CSharpCodeBlock - [0..39)::39
+        CSharpCodeBlock - [0..30)::30
             CSharpTransition - [0..1)::1 - Gen<None>
                 Transition;[@];
-            CSharpStatementLiteral - [1..39)::38 - [await foreach(var foo in bar { foo(); ] - Gen<Stmt>
+            CSharpStatementLiteral - [1..15)::14 - [await foreach(] - Gen<Stmt>
                 Keyword;[await];
                 Whitespace;[ ];
                 Keyword;[foreach];
                 LeftParenthesis;[(];
+            SkippedContent - [15..30)::15
                 Keyword;[var];
                 Whitespace;[ ];
                 Identifier;[foo];
@@ -18,11 +19,9 @@
                 Whitespace;[ ];
                 Identifier;[bar];
                 Whitespace;[ ];
-                LeftBrace;[{];
-                Whitespace;[ ];
-                Identifier;[foo];
-                LeftParenthesis;[(];
-                RightParenthesis;[)];
-                Semicolon;[;];
-                Whitespace;[ ];
+        MarkupTextLiteral - [30..39)::9 - [{ foo(); ] - Gen<Markup>
+            Text;[{];
+            Whitespace;[ ];
+            Text;[foo();];
+            Whitespace;[ ];
     EndOfFile;[];

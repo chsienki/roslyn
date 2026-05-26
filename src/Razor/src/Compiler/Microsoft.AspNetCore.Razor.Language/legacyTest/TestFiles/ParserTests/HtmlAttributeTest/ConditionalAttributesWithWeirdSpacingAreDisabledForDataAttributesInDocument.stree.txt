@@ -30,9 +30,8 @@
                                                         CSharpCodeBlock - [18..21)::3
                                                             CSharpExpressionLiteral - [18..21)::3 - [foo] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
                                                                 Identifier;[foo];
-                                    MarkupMiscAttributeContent - [21..22)::1
-                                        MarkupTextLiteral - [21..22)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [21..22)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[ ];
                                     CloseAngle;[>];
                                 MarkupEndTag - [23..30)::7 - [</span>] - Gen<Markup> - SpanEditHandler;Accepts:None
                                     OpenAngle;[<];
@@ -41,8 +40,6 @@
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [30..30)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [30..31)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [30..31)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [31..31)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

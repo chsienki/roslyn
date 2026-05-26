@@ -73,9 +73,8 @@
                                                     Identifier;[Now];
                     MarkupTextLiteral - [72..73)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [73..74)::1
-                    MarkupTextLiteral - [73..74)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [73..74)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 CloseAngle;[>];
             MarkupTextLiteral - [75..91)::16 - [words and spaces] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 Text;[words];

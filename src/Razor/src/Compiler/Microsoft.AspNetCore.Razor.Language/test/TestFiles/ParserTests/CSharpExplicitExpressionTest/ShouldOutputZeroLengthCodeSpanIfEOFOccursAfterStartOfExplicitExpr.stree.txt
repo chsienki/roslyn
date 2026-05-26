@@ -13,5 +13,5 @@
                         CSharpExpressionLiteral - [2..2)::0 - [] - Gen<Expr>
                             Marker;[];
                     RazorMetaCode - [2..2)::0 - Gen<None>
-                        RightParenthesis;[<Missing>];
+                        RightParenthesis;[<Missing>];RZ1006(2:0,2 [0] )
     EndOfFile;[];

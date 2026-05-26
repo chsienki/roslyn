@@ -12,7 +12,7 @@
                     CSharpCodeBlock - [2..3)::1
                         CSharpStatementLiteral - [2..3)::1 - [ ] - Gen<Stmt> - AutoCompleteEditHandler;Accepts:Any,AutoComplete:[<null>];AtEOL
                             Whitespace;[ ];
-                    RazorMetaCode - [3..4)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [3..4)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [4..6)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];

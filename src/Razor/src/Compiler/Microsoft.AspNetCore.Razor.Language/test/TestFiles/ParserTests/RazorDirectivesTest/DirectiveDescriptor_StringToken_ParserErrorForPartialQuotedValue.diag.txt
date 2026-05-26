@@ -1,1 +1,2 @@
 ﻿(1,9): Error RZ1016: The 'custom' directive expects a string surrounded by double quotes.
+(1,16): Error RZ1000: Unterminated string literal.  Strings that start with a quotation mark (") must be terminated before the end of the line.  However, strings that start with @ and a quotation mark (@") can span multiple lines.

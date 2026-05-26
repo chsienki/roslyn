@@ -8,7 +8,7 @@
                     Transition;[@];
                 CSharpImplicitExpressionBody - [1..15)::14
                     CSharpCodeBlock - [1..15)::14
-                        CSharpExpressionLiteral - [1..15)::14 - [val![abc]![def] - Gen<Expr>
+                        CSharpExpressionLiteral - [1..12)::11 - [val![abc]![] - Gen<Expr>
                             Identifier;[val];
                             Not;[!];
                             LeftBracket;[[];
@@ -16,5 +16,10 @@
                             RightBracket;[]];
                             Not;[!];
                             LeftBracket;[[];
+                        SkippedContent - [12..15)::3
                             Identifier;[def];
+                        CSharpExpressionLiteral - [15..15)::0 - [] - Gen<Expr>
+                            RightBracket;[<Missing>];RZ1027(15:0,15 [0] )
+        MarkupTextLiteral - [15..15)::0 - [] - Gen<Markup>
+            Marker;[];
     EndOfFile;[];

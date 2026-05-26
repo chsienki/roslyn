@@ -46,9 +46,8 @@
                     Equals;[=];
                     MarkupTagHelperAttributeValue - [43..43)::0
                         MarkupTextLiteral - [43..43)::0 - []
-                MarkupMiscAttributeContent - [43..44)::1
-                    MarkupTextLiteral - [43..44)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [43..44)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];
