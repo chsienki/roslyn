@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.4 complete. Ready for Stage 5.5.
+Stage 5.5 complete. Ready for Stage 5.6.0.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -42,7 +42,7 @@ Stage 5.4 complete. Ready for Stage 5.5.
 - Stage 5.2: complete
 - Stage 5.3: complete
 - Stage 5.4: complete
-- Stage 5.5: not started
+- Stage 5.5: complete
 - Stage 5.6.0: not started
 - Stage 5.6: not started
 - Stage 6.1: not started
@@ -2927,3 +2927,149 @@ behaviour-inert.
        `FindTokenTests.cs`) rather than extending `FindTokenTests`
        because the missing-token semantics are a separable invariant
        worth keeping in its own file.
+- 2026-05-31: Stage 5.5 done. Formatter audit for missing tokens
+  and `SkippedContentSyntax`. **Audit summary: no code changes
+  required; existing defensive guards already cover both shapes.
+  Added regression-guard tests.**
+
+  Anchor files audited under
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Formatting/`:
+
+    * `FormattingVisitor.cs` -- produces `FormattingSpan`s for the
+      indentation passes.
+    * `FormattingUtilities.cs` -- pure indentation-math helpers; no
+      token-stream walk.
+    * `Passes/RazorFormattingPass.cs` -- Razor-level pattern-matched
+      block/directive formatting.
+    * `Passes/CSharpFormattingPass.cs` and its `CSharpDocumentGenerator`
+      partial -- the C# document synthesis pass.
+    * `Passes/HtmlFormattingPass.cs`, `Passes/HtmlOnTypeFormattingPass.cs`,
+      `Passes/CSharpOnTypeFormattingPass.cs`,
+      `Passes/FormattingContentValidationPass.cs`,
+      `Passes/FormattingDiagnosticValidationPass.cs`,
+      `Passes/RoslynWorkspaceHelper.cs`.
+
+  Findings (per the two Stage 5.5 invariants):
+
+  1. **`MissingToken` (zero width) does not influence formatting.**
+     - `FormattingVisitor.AddSpan(SyntaxNode)` and
+       `AddSpan(SyntaxToken)` both early-return on `IsMissing`
+       (`FormattingVisitor.cs:584` / `:594`).
+     - `AddSpan(TextSpan)` also early-returns when
+       `textSpan.IsEmpty` (`FormattingVisitor.cs:604`), which catches
+       the `SpanComputer.ToTextSpan()` case where every accumulated
+       token happened to be missing and zero-width-adjacent (start ==
+       end). `SpanComputer` itself does not special-case `IsMissing`
+       (`src/Compiler/.../Language/SpanComputer.cs`), but missing
+       tokens have valid positions so this fallback is correct.
+     - `SyntaxNode.GetFirstToken`/`GetLastToken`/`GetNextToken`/
+       `GetPreviousToken` all default to `includeZeroWidth: false`
+       (`src/Compiler/.../Syntax/SyntaxNode.cs:199`, `:208`;
+       `.../Syntax/SyntaxToken.cs:124`, `:153`), so the CSharp
+       document generator's many token-stream walks
+       (`CSharpFormattingPass.CSharpDocumentGenerator.cs:481`, `:504`,
+       `:701`, `:824`, `:830`, `:832`, `:859`, `:1225-1232`) all skip
+       missing tokens by default.
+     - `RazorFormattingPass.FormatBlock` adds an explicit
+       `closeBraceNode.Span.Length > 0` guard
+       (`RazorFormattingPass.cs:423`) and uses
+       `GetLastToken(includeZeroWidth: false)`
+       (`RazorFormattingPass.cs:440`) so an unclosed `@{ ... ` does
+       not drive close-brace-relative reformatting off a phantom
+       position.
+
+  2. **`SkippedContentSyntax` is preserved as-is (opaque).**
+     - `FormattingVisitor` has no `VisitSkippedContent` override.
+       The generated visitor's default `VisitSkippedContent` calls
+       `DefaultVisit(node)`
+       (`Syntax/Generated/Syntax.xml.Main.Generated.cs:156`); the
+       Razor `SyntaxWalker.DefaultVisit` iterates child tokens and
+       dispatches each to `VisitToken` (`Syntax/SyntaxWalker.cs:39`).
+       `FormattingVisitor` does not override `VisitToken`, so the
+       skipped tokens hit the base no-op and no `FormattingSpan` is
+       emitted for them. The surrounding pass therefore leaves the
+       skipped source range untouched (no re-indentation, no
+       whitespace edits), which matches the plan's "user will fix
+       it" contract.
+     - `RazorFormattingPass.FormatRazor` uses pattern-matched
+       `DescendantNodes` over specific node shapes
+       (`CSharpCodeBlockSyntax`, `MarkupBlockSyntax`, etc.); it
+       never matches `SkippedContentSyntax`, so the pass walks past
+       it without attempting formatting decisions.
+
+  Net code change: **zero formatter changes**. The audit was
+  defensive and is now pinned by tests.
+
+  New tests in
+  `src/Razor/src/Razor/test/Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests/Formatting/FormattingVisitorRecoveryTest.cs`
+  (added to `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests` -- the
+  test project that already has internals access to the
+  `internal sealed class FormattingVisitor`):
+
+    - `UnclosedCodeBlock_MissingCloseBrace_DoesNotEmitZeroWidthSpan`
+      -- parses the `legacyTest/ParserRecoveryCorpus/UnclosedCodeBlock.razor`
+      content under enhanced recovery; asserts every emitted
+      `FormattingSpan` has positive width (catches any visitor
+      regression that would emit a span at the missing `}`).
+    - `EmptyBoundAttribute_Onclick_MissingValueToken_DoesNotEmitZeroWidthSpan`
+      -- parses the `legacyTest/ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor`
+      content (the motivating bug #10383) under enhanced recovery in
+      Component file-kind; asserts no span is emitted at the BDD #9
+      missing-Identifier position (the empty `""` quote pair) and no
+      zero-width span is emitted anywhere.
+    - `SkippedContent_DoesNotEmitFormattingSpans` -- parses the
+      synthetic `@{ var x = (foo; }` (Stage 2.3's `TryBalanceBlock`
+      enhanced-recovery shape) and asserts no `FormattingSpan` begins
+      inside the `foo;` region the parser wraps in
+      `SkippedContentSyntax`.
+    - `SkippedContent_DescentDoesNotThrow` -- explicit regression
+      guard that the default walker descent over the new
+      `SkippedContentSyntax` node kind does not throw (pins the
+      contract that the visitor must remain happy without a
+      dedicated `VisitSkippedContent` override).
+
+  Test counts after Stage 5.5 (Debug, net10.0):
+    - Legacy
+      (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1346 / 1346 (unchanged from Stage 5.4).
+    - Language
+      (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3610 / 3610 (unchanged from Stage 5.4).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      247 / 247 (unchanged from Stage 5.4).
+    - MVC Extensions
+      (`Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`):
+      140 / 140 (unchanged from Stage 5.4).
+    - Workspaces.UnitTests
+      (`Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests`):
+      735 + 4 new = **739 / 739** passing (2 platform skips
+      unchanged).
+    - Cohost formatter tests via consumer project
+      (`Microsoft.VisualStudio.LanguageServices.Razor.UnitTests`,
+      `FullyQualifiedName~Formatting` filter, net472):
+      531 / 531 passing (3 platform skips unchanged).
+  Razor.slnf builds clean with 0 warnings / 0 errors.
+
+  Deviations from the plan literal:
+    1. Plan suggested looking under
+       `Microsoft.CodeAnalysis.Razor.CohostingShared.UnitTests/Formatting`
+       for the formatter test infrastructure. That suite uses heavy
+       cohost end-to-end machinery (HTML formatter validation against
+       WebTools, OOP services, baseline HTML-formatted text), which
+       is overkill for the audit-style invariants Stage 5.5 needs.
+       Added focused unit tests in
+       `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests/Formatting/`
+       that exercise `FormattingVisitor` directly. The existing cohost
+       formatter suite (531 tests) was run as a regression check and
+       remains green. The "format a file with errors" coverage the
+       plan calls for is provided by the `FormattingVisitor`-level
+       assertions: a missing-close-brace-driven misformat would show
+       up as a zero-width span in the visitor output, and a
+       skipped-content re-indent would show up as a span inside the
+       skipped range -- the two failure modes the audit targets.
+    2. No "format under legacy mode" companion tests were added. The
+       legacy-mode formatter behaviour is already pinned by the
+       hundreds of existing `DocumentFormattingTest` cases; Stage 5.5
+       cares about the new enhanced-recovery shapes, which only
+       exist under `UseEnhancedRecovery = true`.
