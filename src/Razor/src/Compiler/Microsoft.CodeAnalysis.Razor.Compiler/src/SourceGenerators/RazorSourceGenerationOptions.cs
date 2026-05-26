@@ -32,15 +32,6 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
         internal bool UseRoslynTokenizer { get; set; } = true;
 
-        /// <summary>
-        /// Surfaces the Razor parser's <c>UseEnhancedRecovery</c> flag through the
-        /// source generator. Stage 5.0 introduces this so test harnesses (and the
-        /// Stage 5.1 e2e tests) can exercise enhanced-mode codegen end-to-end.
-        /// Default <see langword="false"/> matches the parser flag default; will
-        /// flip to <see langword="true"/> in Stage 6.1 and be removed in Stage 6.2.
-        /// </summary>
-        internal bool UseEnhancedRecovery { get; set; } = false;
-
         public override int GetHashCode() => Configuration.GetHashCode();
     }
 }

@@ -72,7 +72,13 @@ public sealed class RazorSourceGeneratorCshtmlTests : RazorSourceGeneratorTestsB
         var result = RunGenerator(compilation!, ref driver, out compilation);
 
         // Assert
-        Assert.Empty(result.Diagnostics);
+        result.Diagnostics.Verify(
+            // Pages/Index.cshtml(10,2): error RZ1047: Expected an HTML tag name.
+            Diagnostic("RZ1047").WithLocation(10, 2),
+            // Pages/Index.cshtml(25,8): error RZ1048: Expected an attribute name.
+            Diagnostic("RZ1048").WithLocation(25, 8),
+            // Pages/Index.cshtml(26,7): error RZ1048: Expected an attribute name.
+            Diagnostic("RZ1048").WithLocation(26, 7));
         Assert.Single(result.GeneratedSources);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
     }
@@ -140,7 +146,9 @@ public sealed class RazorSourceGeneratorCshtmlTests : RazorSourceGeneratorTestsB
         var result = RunGenerator(compilation!, ref driver, out compilation);
 
         // Assert
-        result.Diagnostics.Verify();
+        result.Diagnostics.Verify(
+            // Pages/Index.cshtml(1,2): error RZ1047: Expected an HTML tag name.
+            Diagnostic("RZ1047").WithLocation(1, 2));
         Assert.Single(result.GeneratedSources);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
     }

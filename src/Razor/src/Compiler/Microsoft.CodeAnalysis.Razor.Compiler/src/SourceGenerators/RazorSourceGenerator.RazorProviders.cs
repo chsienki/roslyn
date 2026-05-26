@@ -48,10 +48,6 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
             // We use the new tokenizer only when requested for now.
             var useRoslynTokenizer = parseOptions.UseRoslynTokenizer();
 
-            // Stage 5.0: surface the parser's enhanced-recovery flag so test
-            // harnesses can exercise it end-to-end through the source generator.
-            var useEnhancedRecovery = parseOptions.UseEnhancedRecovery();
-
             var razorSourceGenerationOptions = new RazorSourceGenerationOptions()
             {
                 Configuration = razorConfiguration,
@@ -61,7 +57,6 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 CSharpParseOptions = (CSharpParseOptions)parseOptions,
                 TestSuppressUniqueIds = _testSuppressUniqueIds,
                 UseRoslynTokenizer = useRoslynTokenizer,
-                UseEnhancedRecovery = useEnhancedRecovery,
             };
 
             return (razorSourceGenerationOptions, diagnostics.ToImmutableAndClear());

@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 6.1 complete. Ready for Stage 6.2.
+Stage 6.2 complete. Ready for Stage 6.3.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -46,7 +46,7 @@ Stage 6.1 complete. Ready for Stage 6.2.
 - Stage 5.6.0: complete
 - Stage 5.6: complete
 - Stage 6.1: complete
-- Stage 6.2: not started
+- Stage 6.2: complete
 - Stage 6.3: not started
 - Stage 6.4: not started
 - Stage 7: not started
@@ -3452,3 +3452,143 @@ mode.
 parse path. Stage 6.2 can proceed with deletion of the legacy `if
 (Context.Options.UseEnhancedRecovery)` branches, the `UseEnhancedRecovery`
 flag itself, and any legacy-only diagnostic factories / panic helpers.
+
+## Stage 6.2 deletion
+
+Removed the `UseEnhancedRecovery` flag entirely, inlining the enhanced
+branch as the only parse path. Net effect: enhanced recovery is no
+longer a feature flag but the canonical Razor parser behavior.
+
+**Parser inlining (22 `if (Context.Options.UseEnhancedRecovery)` sites
+collapsed to the enhanced body, legacy body dropped):**
+- `TokenizerBackedParser.cs` (1 site, in `ParseRazorComment`).
+- `CSharpCodeParser.cs` (12 sites across directive/code-block/transition
+  parsing).
+- `HtmlMarkupParser.cs` (9 sites across tag/attribute parsing, plus the
+  now-orphan helper `IsTagRecoveryStopPoint` deleted).
+- Stripped Stage-X-banner comments and "under UseEnhancedRecovery"
+  suffixes from `RecoveryFollowSets.cs`, `TagHelperBlockRewriter.cs`,
+  and the `_At` factories in `RazorDiagnosticFactory.cs`.
+
+**Flag definition removed from 7 files:**
+- `RazorParserOptions.Flags.cs`: enum member + `SetFlag` call in
+  `GetDefaultFlags`.
+- `RazorParserOptions.cs`: getter + `useEnhancedRecovery` parameter and
+  `UpdateFlag` block in `WithFlags`.
+- `RazorParserOptions.Builder.cs`: property.
+- `ParseOptionsExtensions.cs`: extension method (kept `UseRoslynTokenizer`).
+- `RazorSourceGenerationOptions.cs`: property.
+- `RazorSourceGenerator.Helpers.cs`: both `builder.UseEnhancedRecovery = ...`
+  lines.
+- `RazorSourceGenerator.RazorProviders.cs`: local + property assignment.
+
+The source generator previously overrode the parser default to `false`
+via `razorSourceGeneratorOptions.UseEnhancedRecovery`, which masked the
+Stage 6.1 default flip. Removing that override exposed three test
+expectations that had been calibrated against legacy behavior:
+- `RazorSourceGeneratorCshtmlTests.OpenAngle`: now expects `RZ1047` at
+  `(1,2)`.
+- `RazorSourceGeneratorCshtmlTests.CssScoping`: now expects `RZ1047 (10,2)`
+  plus `RZ1048 (25,8)` and `RZ1048 (26,7)` from the `< div />`,
+  `<div @x="1">`, and `<div@x="1">` cases. HTML baseline regenerated --
+  the `@x="1"` attribute now renders without the `=` (loss is the
+  natural consequence of recovery inserting a synthetic attribute name
+  before the value).
+- `RazorSourceGeneratorTagHelperTests.Suppression`: now expects seven
+  RZ recovery diagnostics across `Pages/Index.cshtml` and
+  `Shared/Component1.razor` for `< email />` / `<@("email") />` style
+  constructs. HTML baseline regenerated -- the `<@("email") />` and
+  `<@("Component2") />` forms now render the C# expression text
+  literally instead of being elided. These output changes already
+  existed under enhanced recovery in Stage 6.1; they were just hidden
+  by the source-generator override.
+- `RazorSourceGeneratorTests.RoslynTokenizerDisabledWithFalseOrNothing`:
+  legacy tokenizer + enhanced recovery now produces a single
+  `CS1525 "Invalid expression term ')'"` at `(1,8)` (zero-width
+  squiggle) and a clean generated page. The old 5-error cascade
+  (`ERR_InvalidExprTerm`, `ERR_NameNotInContext`, `ERR_SemicolonExpected`,
+  `ERR_RbraceExpected`) is gone because enhanced recovery no longer
+  leaks `"""...""")</div>` into the `AddContent` arg list.
+
+**Orphan diagnostic factories deleted (zero remaining callers):**
+- `RazorDiagnosticFactory.CreateParsing_MissingEndTag`
+- `RazorDiagnosticFactory.CreateParsing_UnexpectedEndTag`
+- `RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated`
+
+Kept (still have live callers from non-recovery paths):
+- `CreateParsing_ExpectedEndOfBlockBeforeEOF` (real `EndOfFile` checks
+  in `ParseStatement` / `ParseDirectiveBody`).
+- `CreateParsing_UnfinishedTag` (`</script>` end-tag handling).
+- `CreateParsing_ExpectedCloseBracketBeforeEOF` (`Balance` failure in
+  bracket parsing).
+
+All `_At` variants and their `RazorDiagnosticDescriptor` shared with
+the kept/deleted siblings were preserved -- no resource strings or RZ
+IDs were removed.
+
+**Fate of the 4 Stage 6.1 skipped tests:** all 4 deleted because
+directive bail-out under enhanced recovery emits a zero-width `Marker`
+token (via `AcceptMarkerTokenIfNecessary` +
+`OutputTokensAsStatementLiteral`) instead of the legacy
+`MissingToken(Identifier)`. The Marker is not `IsMissing`, so
+`FindToken`'s Stage 5.4 skip-missing-token logic doesn't fire on it,
+and the scenarios these tests were guarding are no longer reproducible
+from the parse tree.
+- `SyntaxNavigatorTests.EmptyInheritsDirective_ProducesMissingIdentifier`:
+  deleted; assertion `Identifier;[<Missing>];` no longer holds.
+- `SyntaxNavigatorTests.FindToken_AtMissingTokenStart_SkipsMissingAndReturnsAdjacentReal`:
+  deleted; same root cause.
+- `SyntaxNavigatorTests.FindToken_InsideNewlineAdjacentToMissingToken_SkipsMissing`:
+  deleted; same root cause.
+- `FindTokenIntegrationTest.EmptyDirective`: entire file + data
+  (`TestFiles/IntegrationTests/FindTokenIntegrationTest/EmptyDirective.cshtml`)
+  + now-empty parent directory deleted; FindToken returns
+  `Marker;[];` instead of `Identifier;[inherits];`. Updating FindToken
+  to skip Markers would be scope creep beyond Stage 6.2.
+
+**`_EnhancedRecovery` test consolidations:**
+- `RazorSourceGeneratorComponentTests.Spike_EmptyOnclickAttribute_DumpsGeneratedSource`
+  (investigation-only) removed entirely along with its
+  `ProcessSingleComponent` helper.
+- `RazorSourceGeneratorComponentTests.EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping`
+  collapsed from `[Theory]` with 3 `[InlineData]` to `[Fact]` (all
+  values now produce identical output).
+- `ParserRecoveryCorpus_CodegenSafetyTests`: enhanced+legacy duplicate
+  collapsed into the single `EmptyBoundAttribute_Onclick_NoCascadingCSharpDiagnostics`
+  test.
+- `MissingValueMarkerLoweringTests`: `LegacyMode_` prefix dropped from
+  `BoundNonStringAttributeWithEmptyValue_TagsSyntheticToken`; the
+  Enhanced sibling renamed to drop its `_EnhancedMode_` suffix.
+- `CSharpRazorCommentsTest.ParseRazorComment_Unterminated_EnhancedRecovery`
+  simplified (legacy/enhanced comparison branch removed).
+- `RazorParserOptionsTest`: three `UseEnhancedRecovery_*` tests
+  deleted; the property no longer exists.
+
+**Test-harness churn:** removed `configureParserOptions: builder =>
+builder.UseEnhancedRecovery = true` from ~25 sites in
+`ParserRecoveryCorpusSnapshotTests.cs`, plus the four Workspaces
+`*RecoveryTest.cs` files dropped `configure:` args from
+`RazorParserOptions.Create` calls. `RoslynCSharpTokenizerRecoveryTests.cs`
+and `TagHelperRewriter_EnhancedRecoveryTests.cs` also lost the flag
+plumbing; the latter's `useEnhancedRecovery` parameter on
+`ParseAndRewrite` was removed.
+
+**Final test counts (vs Stage 6.1 baseline):**
+
+| Test suite | Total | Failed | Skipped | Delta |
+|------------|-------|--------|---------|-------|
+| `Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests` | 1346 | 0 | 0 | 0 |
+| `Microsoft.AspNetCore.Razor.Language.UnitTests` | 3603 | 0 | 0 | -7 (3 SyntaxNavigator + 1 FindTokenIntegration + 3 RazorParserOptions_UseEnhancedRecovery) |
+| `Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests` | 243 | 0 | 0 | -4 (Spike test + 2 of 3 Theory rows folded into Fact + 1 Codegen-safety duplicate) |
+| `Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests` | 140 | 0 | 0 | 0 |
+| `Microsoft.AspNetCore.Mvc.Razor.Extensions.Version1_X.UnitTests` | 63 | 0 | 0 | 0 |
+| `Microsoft.AspNetCore.Mvc.Razor.Extensions.Version2_X.UnitTests` | 149 | 0 | 0 | 0 |
+| `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests` | 743 | 0 | 2 (pre-existing) | 0 |
+
+**Verification:** `Get-ChildItem -Path src\Razor -Recurse -Include *.cs |
+Select-String "UseEnhancedRecovery" -SimpleMatch` returns zero hits.
+`dotnet build Razor.slnf` succeeds with 0 warnings, 0 errors.
+
+**Stage 6.2 complete.** The Razor parser no longer carries a recovery
+feature flag; the enhanced path is the only path. Stage 6.3 can
+proceed.

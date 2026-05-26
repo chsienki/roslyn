@@ -20,8 +20,7 @@ public sealed partial class RazorParserOptions
         AllowUsingVariableDeclarations = 1 << 8,
         AllowConditionalDataDashAttributes = 1 << 9,
         AllowCSharpInMarkupAttributeArea = 1 << 10,
-        AllowNullableForgivenessOperator = 1 << 11,
-        UseEnhancedRecovery = 1 << 12
+        AllowNullableForgivenessOperator = 1 << 11
     }
 
     private static Flags GetDefaultFlags(RazorLanguageVersion languageVersion, RazorFileKind fileKind)
@@ -29,7 +28,6 @@ public sealed partial class RazorParserOptions
         Flags result = 0;
 
         result.SetFlag(Flags.AllowCSharpInMarkupAttributeArea);
-        result.SetFlag(Flags.UseEnhancedRecovery);
 
         if (languageVersion >= RazorLanguageVersion.Version_2_1)
         {

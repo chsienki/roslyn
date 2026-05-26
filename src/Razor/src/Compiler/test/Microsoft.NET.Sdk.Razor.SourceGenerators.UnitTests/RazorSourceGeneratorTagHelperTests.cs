@@ -1649,7 +1649,21 @@ public sealed class RazorSourceGeneratorTagHelperTests : RazorSourceGeneratorTes
         var result = RunGenerator(compilation!, ref driver, out compilation);
 
         // Assert
-        result.Diagnostics.Verify();
+        result.Diagnostics.Verify(
+            // Pages/Index.cshtml(5,2): error RZ1047: Expected an HTML tag name.
+            Diagnostic("RZ1047").WithLocation(5, 2),
+            // Shared/Component1.razor(5,2): error RZ1047: Expected an HTML tag name.
+            Diagnostic("RZ1047").WithLocation(5, 2),
+            // Shared/Component1.razor(6,1): error RZ9980: Unclosed tag '' with no matching end tag.
+            Diagnostic("RZ9980").WithLocation(6, 1),
+            // Pages/Index.cshtml(6,2): error RZ1048: Expected an attribute name.
+            Diagnostic("RZ1048").WithLocation(6, 2),
+            // Pages/Index.cshtml(6,2): error RZ1047: Expected an HTML tag name.
+            Diagnostic("RZ1047").WithLocation(6, 2),
+            // Shared/Component1.razor(6,2): error RZ1048: Expected an attribute name.
+            Diagnostic("RZ1048").WithLocation(6, 2),
+            // Shared/Component1.razor(6,2): error RZ1047: Expected an HTML tag name.
+            Diagnostic("RZ1047").WithLocation(6, 2));
         Assert.Equal(3, result.GeneratedSources.Length);
         await VerifyRazorPageMatchesBaselineAsync(compilation, "Pages_Index");
     }

@@ -94,12 +94,6 @@ public sealed partial class RazorParserOptions
             set => _flags.UpdateFlag(Flags.AllowNullableForgivenessOperator, value);
         }
 
-        internal bool UseEnhancedRecovery
-        {
-            get => _flags.IsFlagSet(Flags.UseEnhancedRecovery);
-            set => _flags.UpdateFlag(Flags.UseEnhancedRecovery, value);
-        }
-
         public RazorParserOptions ToOptions()
             => new(LanguageVersion, FileKind, Directives, CSharpParseOptions, _flags);
     }

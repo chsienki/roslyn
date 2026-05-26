@@ -162,14 +162,14 @@ internal static class TagHelperBlockRewriter
             }
             else if (child is SkippedContentSyntax skippedContent)
             {
-                // Stage 5.2: With UseEnhancedRecovery, ParseMiscAttribute can emit a
-                // SkippedContentSyntax sibling into MarkupStartTag.Attributes when a
-                // malformed token is absorbed between attributes. Treat it as a no-op
-                // for tag-helper-attribute binding: preserve the node so positions and
-                // source content survive into downstream stages, and continue parsing
-                // subsequent attributes (do NOT abort the loop -- skipped content
-                // between two well-formed attributes must not cause us to drop
-                // tag-helper rewriting on the trailing attributes).
+                // `ParseMiscAttribute` can emit a `SkippedContentSyntax` sibling into
+                // `MarkupStartTag.Attributes` when a malformed token is absorbed between
+                // attributes. Treat it as a no-op for tag-helper-attribute binding:
+                // preserve the node so positions and source content survive into
+                // downstream stages, and continue parsing subsequent attributes (do NOT
+                // abort the loop -- skipped content between two well-formed attributes
+                // must not cause us to drop tag-helper rewriting on the trailing
+                // attributes).
                 attributeBuilder.Add(skippedContent);
                 continue;
             }

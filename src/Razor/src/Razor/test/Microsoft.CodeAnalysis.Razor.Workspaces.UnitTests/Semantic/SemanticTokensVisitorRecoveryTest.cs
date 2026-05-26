@@ -77,8 +77,7 @@ public class SemanticTokensVisitorRecoveryTest
             RazorSourceDocumentProperties.Default);
         var options = RazorParserOptions.Create(
             RazorLanguageVersion.Latest,
-            RazorFileKind.Legacy,
-            configure: builder => builder.UseEnhancedRecovery = true);
+            RazorFileKind.Legacy);
 
         var syntaxTree = RazorSyntaxTree.Parse(sourceDocument, options);
 
