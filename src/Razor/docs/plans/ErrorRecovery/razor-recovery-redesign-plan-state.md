@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 4.2 complete. Ready for Stage 4.3.
+Stage 4.3 complete. Ready for Stage 4.4.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -34,7 +34,7 @@ Stage 4.2 complete. Ready for Stage 4.3.
 - Stage 3.4: complete
 - Stage 4.1: complete
 - Stage 4.2: complete
-- Stage 4.3: not started
+- Stage 4.3: complete
 - Stage 4.4: not started
 - Stage 5.0.0: not started
 - Stage 5.0: not started
@@ -1868,3 +1868,97 @@ behaviour-inert.
   whenever the parser was entered via the parameterless `ParseBlock`
   wrapper, and `FollowSet.Empty` is the identity for both the `|`
   operator and `ForCSharpCallee` / `ForHtmlCallee` translation.
+- 2026-05-28: Stage 4.3 done. Validation-only: the canonical implicit-
+  expression / markup boundary case `@foo.<p>after</p>` already
+  parses cleanly under both legacy AND enhanced mode without any
+  parser change beyond Stage 4.2's outer-follow wiring. No source
+  changes were needed in `ParseImplicitExpression` or
+  `ParseMethodCallOrArrayIndex`; no new RZ ID was allocated.
+
+  **Why no change was needed**: the input `@foo.<p>` does not invoke
+  the Stage 2.6 `Balance` failure path at all. The grammar drives the
+  parser as follows:
+    1. `@` -> transition; `foo` accepted in the outer
+       `ParseImplicitExpression` loop.
+    2. First `ParseMethodCallOrArrayIndex` call: sees `.`, accepts it,
+       calls `NextToken()`, sees `<` (`LessThan`) -- not an
+       `Identifier` / `Keyword`, so the existing legacy logic does
+       `PutCurrentBack()` (pushes `<` back) and -- because `!IsNested`
+       at the top-level implicit-expression site -- does `PutBack(dot)`,
+       returning the cursor to the `.` and returning `false`.
+    3. Outer loop exits. `OutputTokensAsExpressionLiteral()` emits
+       `foo` (3 chars) as the expression body. The `.` is put back
+       into the lexer stream and becomes a `MarkupTextLiteral` consumed
+       by the HTML parser; `<p>after</p>` parses as a real
+       `MarkupElement`.
+  `Balance` is never invoked (there is no `(` or `[`), so the Stage
+  2.6 enhanced sync branch is unreached and `_outerFollow` is never
+  consulted. Enhanced mode produces a tree identical to legacy mode
+  for this input.
+
+  **Why the plan's "narrow diagnostic on the `.`" criterion is not
+  triggered**: the trailing-dot put-back is not treated as an error
+  by the parser -- it is a legitimate boundary in the implicit-
+  expression grammar (a trailing `.` that is not followed by a member
+  name simply isn't part of the expression). Neither the legacy
+  baseline nor the enhanced run emits any diagnostic. The plan's
+  exit-criterion wording leaves room for this: "with a narrow
+  diagnostic on the `.` (if appropriate) -- or no diagnostic if the
+  parser successfully recovers without one". The enhanced parser
+  recovers without one.
+
+  **Corpus addition**: `ImplicitExpressionHittingMarkup.razor`
+  (`@foo.<p>after</p>\r\n`). Legacy baselines
+  (`.stree.txt` / `.cspans.txt`; no `.diag.txt` because there are
+  zero legacy diagnostics) pin the trailing-dot put-back behaviour.
+  Enhanced-recovery test
+  `ImplicitExpressionHittingMarkup_EnhancedRecovery` asserts:
+    - Zero diagnostics on the tree.
+    - The `CSharpImplicitExpression` is the 4-char span `[0..4)` =
+      `@foo` -- the trailing `.` is NOT part of the implicit
+      expression.
+    - No `SkippedContentSyntax` anywhere (Stage 2.6 sync branch
+      unreached).
+    - No missing `RightParenthesis` / `RightBracket` (the
+      `Required(right, ...)` site is unreached).
+    - The trailing `<p>after</p>` is a real `MarkupElement` starting
+      at offset 5, with content exactly `<p>after</p>`.
+    - No `MarkupMiscAttributeContent` (Stage 2 exit criterion #4).
+
+  This test is essentially a regression guard: any future change to
+  `ParseMethodCallOrArrayIndex` (or the dot-handling branch) that
+  accidentally absorbs the `<` into a fat literal -- or that emits a
+  spurious diagnostic on the trailing dot under enhanced mode --
+  will fail this test.
+
+  **Second-case decision**: the plan's "Possibly add a second case for
+  the trickier `@foo.bar()<p>` or `@foo.!<p>` patterns" was evaluated
+  and skipped. Tracing both:
+    - `@foo.bar()<p>` exercises a successful `Balance` for `()` followed
+      by `<` hitting the post-`Balance` recursion's final
+      `!At(Whitespace) && !At(NewLine)` `PutCurrentBack` branch. Same
+      family as the `@foo.<p>` test (no `Balance` failure, no
+      diagnostic).
+    - `@foo.!<p>` (without `AllowNullableForgivenessOperator`) goes
+      through the `Dot` branch's `NextToken()` -> `!` not identifier ->
+      `PutCurrentBack` + `PutBack(dot)` exit. Same outcome as
+      `@foo.<p>`.
+  Neither case exercises the Stage 2.6 sync branch, so neither would
+  meaningfully add coverage beyond what the canonical case already
+  pins. The existing `UnclosedMethodCallInImplicit` corpus case
+  (`<p>@foo.Bar(baz</p>...`) already covers the `Balance`-failure
+  path -- including the `LessThan` outer-follow stop -- under Stage
+  2.6's enhanced-recovery test.
+
+  **Stage 4.3 verdict**: validation-only. The Stage 4.2 outer-follow
+  wiring is correct for the implicit-expression case and the canonical
+  exit-criterion input (`@foo.<p>after</p>`) is now regression-pinned
+  under enhanced mode.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1339 / 1339 (1337 baseline + 2 new -- legacy
+  `ImplicitExpressionHittingMarkup` pins the trailing-dot put-back
+  behaviour via standard `.stree.txt` / `.cspans.txt` baselines,
+  enhanced `_EnhancedRecovery` test asserts identical shape under
+  enhanced mode); language tests 3600 / 3600 unchanged. Both TFMs
+  (net10.0 and net472).

@@ -103,6 +103,10 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     public void MalformedCSharpWithSurroundingMarkup()
         => ParseCorpusFile("MalformedCSharpWithSurroundingMarkup.razor");
 
+    [Fact]
+    public void ImplicitExpressionHittingMarkup()
+        => ParseCorpusFile("ImplicitExpressionHittingMarkup.razor");
+
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
     //
@@ -917,6 +921,106 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
             .OfType<MarkupElementSyntax>()
             .Single(e => e.GetContent().Contains("<div>"));
         Assert.Equal("<div>after</div>", divElement.GetContent());
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 4.3: Implicit expression hitting markup -- validation test.
+    //
+    // The implicit-expression production (`ParseImplicitExpression` ->
+    // `ParseMethodCallOrArrayIndex`) is special because its natural
+    // terminator is "anything not in the implicit grammar". The trailing
+    // `.` is the most interesting boundary: in `@foo.<p>`, the parser
+    // sees `.` followed by `<` (not an identifier / keyword), so it
+    // legitimately ends the implicit expression by `PutBack`-ing the
+    // dot (see the `At(SyntaxKind.Dot)` branch in
+    // `ParseMethodCallOrArrayIndex`). The dot then becomes part of the
+    // surrounding markup; no recovery is needed and no diagnostic is
+    // emitted.
+    //
+    // This test is the Stage 4.3 validation case: the enhanced-mode tree
+    // must be the same shape as the legacy one (no `Balance` failure to
+    // trigger the Stage 2.6 sync, no `Required` to introduce missing
+    // tokens). It pins the behaviour so any future change to
+    // `ParseMethodCallOrArrayIndex` that accidentally absorbs the `<`
+    // into a fat literal -- or attaches a spurious diagnostic to the
+    // trailing dot -- is caught here.
+    //
+    // Stage 4.3 exit criteria asserted under enhanced mode:
+    //   - The implicit expression is `@foo` only (the trailing `.`
+    //     is not part of the `CSharpImplicitExpression` span).
+    //   - No diagnostics on the trailing `.`, and no diagnostics on the
+    //     implicit expression overall.
+    //   - The `<p>after</p>` markup is a real `MarkupElement` (not
+    //     `MarkupMiscAttributeContent`, not absorbed into a
+    //     `CSharpExpressionLiteral`, not wrapped in `SkippedContentSyntax`).
+    //   - No `Balance`-driven recovery artifacts: no `SkippedContentSyntax`
+    //     anywhere, no missing `RightParenthesis` / `RightBracket`.
+    //   - The outer-follow threading from Stage 4.2 is correctly a no-op
+    //     here -- since `Balance` is never invoked, `_outerFollow` is
+    //     never consulted, but the test confirms the happy path is not
+    //     regressed by the additional plumbing.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void ImplicitExpressionHittingMarkup_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/ImplicitExpressionHittingMarkup.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Position layout for the corpus input `@foo.<p>after</p>\r\n`:
+        //   0      `@`
+        //   1..3   `foo`
+        //   4      `.`   (trailing dot, becomes markup -- not part of implicit expression)
+        //   5      `<`   (start of `<p>`)
+        //   6      `p`
+        //   7      `>`
+        //   8..12  `after`
+        //   13     `<`   (start of `</p>`)
+        //   14     `/`
+        //   15     `p`
+        //   16     `>`
+        //   17..18 `\r\n`
+
+        // No diagnostics at all: the implicit expression terminates
+        // legitimately at the trailing-dot put-back and the markup
+        // parser cleanly takes over.
+        Assert.Empty(tree.Diagnostics);
+
+        // The implicit expression is `@foo` only: spans [0..4), with
+        // `foo` (length 3) inside the body. The trailing `.` at offset 4
+        // is NOT part of the implicit expression.
+        var implicitExpression = tree.Root
+            .DescendantNodes()
+            .OfType<CSharpImplicitExpressionSyntax>()
+            .Single();
+        Assert.Equal(0, implicitExpression.SpanStart);
+        Assert.Equal(4, implicitExpression.Span.End);
+        Assert.Equal("@foo", implicitExpression.GetContent());
+
+        // No `Balance`-driven recovery artifacts anywhere: no skipped
+        // content, no missing brackets (the Stage 2.6 sync branch is
+        // not reached because `Balance` was never invoked -- there is
+        // no `(` or `[` to balance).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
+        Assert.DoesNotContain(
+            tree.Root.DescendantTokens(),
+            t => t.IsMissing && (t.Kind == SyntaxKind.RightParenthesis || t.Kind == SyntaxKind.RightBracket));
+
+        // The trailing `<p>after</p>` parses as a real `MarkupElement`,
+        // not as `MarkupMiscAttributeContent` (Stage 2 exit criterion #4
+        // -- no leaked-C# absorption).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        var pElement = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupElementSyntax>()
+            .Single();
+        Assert.Equal("<p>after</p>", pElement.GetContent());
+        Assert.Equal(5, pElement.SpanStart);
     }
 
     // ----------------------------------------------------------------
