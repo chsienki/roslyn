@@ -1357,6 +1357,205 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         }
     }
 
+    // ----------------------------------------------------------------
+    // Stage 3.4 -- `ParseMiscAttribute` migration.
+    //
+    // Replaces the legacy "absorb everything into a fat
+    // `MarkupMiscAttributeContent`" loop with a single
+    // `Synchronize(HtmlEndOfTagFollowSet, originatingLanguage: MarkupBlock)`
+    // call. Stops at the first HTML tag boundary (`<`, `>`, `/`, `"`,
+    // `'`) and emits a narrow zero-width RZ1048
+    // (`Parsing_UnexpectedAttributeName`) at the cursor where an
+    // attribute name was expected. Absorbed tokens become
+    // `SkippedContentSyntax` tagged with `MarkupBlock`.
+    //
+    // No-op when the cursor is already at a follow-set boundary:
+    // `ParseAttributes` calls `ParseMiscAttribute` for the well-formed
+    // `<p>` shape too (no whitespace before `>`), so the enhanced
+    // branch must match the legacy no-op behaviour to avoid
+    // contaminating clean markup with a spurious RZ1048.
+    //
+    // Test layout:
+    //   - Corpus parse of `MalformedTagAttribute.razor` covers the
+    //     `ParseAttribute.AttributeNameParsingResult.Other` call site
+    //     (current is `=` after `<input @bind`).
+    //   - In-memory `<input!garbage>` covers the
+    //     `ParseAttributes` immediate-call site (no whitespace
+    //     between tag name and the next token).
+    //   - In-memory `<p>` (well-formed minimal tag) verifies the
+    //     no-op-at-boundary guard (no spurious RZ1048).
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void MalformedTagAttribute_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/MalformedTagAttribute.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Position layout for `<input @bind=>\r\n\r\n<p>after the malformed bind</p>\r\n`:
+        //   0      `<`
+        //   1..5   `input`
+        //   6      ` ` (whitespace)
+        //   7      `@`
+        //   8..11  `bind`
+        //   12     `=`
+        //   13     `>`
+        //   14..17 `\r\n\r\n`
+        //   18     `<`
+        //   19     `p`
+        //   20     `>`
+        //   21..44 `after the malformed bind`
+        //   45..48 `</p>`
+        //   49..50 `\r\n`
+
+        // The `<input ...>` start tag fires ParseMiscAttribute from the
+        // `Other` branch of `ParseAttribute` with the cursor at `=`
+        // (position 12). The enhanced branch emits a zero-width RZ1048
+        // there and synchronizes to the close angle (`>` at position 13).
+        // Legacy mode emits no diagnostic at this site; RZ1048 is the
+        // net-new narrow diagnostic introduced in Stage 3.4.
+        var rz1048 = tree.Diagnostics.Where(d => d.Id == "RZ1048").ToArray();
+        var unexpectedAttributeNameDiagnostic = Assert.Single(rz1048);
+        Assert.Equal(12, unexpectedAttributeNameDiagnostic.Span.AbsoluteIndex);
+        Assert.Equal(0, unexpectedAttributeNameDiagnostic.Span.Length);
+
+        // The `=` is absorbed into a `SkippedContentSyntax` tagged with
+        // `MarkupBlock` (legacy mode wrapped it in a
+        // `MarkupMiscAttributeContent` with a `MarkupTextLiteral`
+        // child). The skipped span starts at `=` and stops at `>`.
+        //
+        // The `@bind` CSharp implicit expression produces its own
+        // `SkippedContentSyntax` tagged with `CSharpCodeBlock` under
+        // Stage 2.1's enhanced recovery; we filter to the markup-side
+        // skipped node here.
+        var startTag = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupStartTagSyntax>()
+            .First();
+        var skipped = startTag
+            .DescendantNodes()
+            .OfType<SkippedContentSyntax>()
+            .Single(s => s.OriginatingLanguage == SyntaxKind.MarkupBlock);
+        Assert.Equal(12, skipped.SpanStart);
+        Assert.Equal("=", skipped.GetContent());
+
+        // The remaining `MarkupMiscAttributeContent` (wrapping the
+        // ` @bind` CSharp expression in attribute-name position) comes
+        // from `ParseAttribute`'s `AttributeNameParsingResult.CSharp`
+        // branch -- NOT from `ParseMiscAttribute`. That wrapping is
+        // not part of Stage 3.4's migration scope and is unchanged
+        // under enhanced mode.
+        var miscAttributeContents = startTag
+            .DescendantNodes()
+            .OfType<MarkupMiscAttributeContentSyntax>()
+            .ToArray();
+        var miscAttributeContent = Assert.Single(miscAttributeContents);
+        Assert.Equal(6, miscAttributeContent.SpanStart);
+        Assert.Equal(" @bind", miscAttributeContent.GetContent());
+
+        // Stage 3.4 exit criterion: the `=` is no longer wrapped in a
+        // `MarkupMiscAttributeContent`. The legacy baseline had two
+        // MarkupMiscAttributeContent nodes inside the start tag (the
+        // ` @bind` one above and a separate one for `=`); enhanced
+        // mode replaces the `=` wrapper with a single
+        // `SkippedContentSyntax` and emits the narrow RZ1048.
+
+        // The trailing `<p>after the malformed bind</p>` parses as a
+        // real, well-formed `MarkupElement` (no recovery contamination
+        // leaks into trailing markup).
+        var elements = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupElementSyntax>()
+            .ToArray();
+        Assert.Equal(2, elements.Length);
+        var pElement = elements[1];
+        Assert.NotNull(pElement.MarkupStartTag);
+        Assert.Equal("p", pElement.MarkupStartTag.Name.Content);
+        Assert.False(pElement.MarkupStartTag.Name.IsMissing);
+        Assert.NotNull(pElement.MarkupEndTag);
+        Assert.Equal("p", pElement.MarkupEndTag.Name.Content);
+
+        // ----------------------------------------------------------------
+        // In-memory verification of the other ParseMiscAttribute call
+        // site (the `ParseAttributes` immediate-when-no-whitespace path)
+        // and of the no-op-at-boundary guard.
+        // ----------------------------------------------------------------
+
+        // Site #1 -- `ParseAttributes` immediate call. When there is
+        // no whitespace between the tag name and the next token,
+        // `ParseAttributes` invokes `ParseMiscAttribute` directly with
+        // the cursor at the unexpected token. For `<input!garbage>`
+        // the cursor is at `!` (position 6).
+        {
+            var immediateSource = "<input!garbage>";
+            var immediateTree = ParseDocument(
+                immediateSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var immediateRz1048 = immediateTree.Diagnostics
+                .Where(d => d.Id == "RZ1048")
+                .ToArray();
+            var immediateDiagnostic = Assert.Single(immediateRz1048);
+            Assert.Equal(6, immediateDiagnostic.Span.AbsoluteIndex);
+            Assert.Equal(0, immediateDiagnostic.Span.Length);
+
+            // `!garbage` is wrapped in a `SkippedContentSyntax` tagged
+            // with `MarkupBlock`. Synchronize stops at `>` (position 14).
+            var immediateSkipped = immediateTree.Root
+                .DescendantNodes()
+                .OfType<SkippedContentSyntax>()
+                .Single();
+            Assert.Equal(SyntaxKind.MarkupBlock, immediateSkipped.OriginatingLanguage);
+            Assert.Equal(6, immediateSkipped.SpanStart);
+            Assert.Equal("!garbage", immediateSkipped.GetContent());
+
+            // No `MarkupMiscAttributeContent` for this start tag --
+            // there is no CSharp expression in attribute-name position
+            // here, only absorbed garbage.
+            var immediateStartTag = immediateTree.Root
+                .DescendantNodes()
+                .OfType<MarkupStartTagSyntax>()
+                .Single();
+            Assert.Empty(immediateStartTag.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+            // The start tag still has a real close angle.
+            Assert.NotNull(immediateStartTag.CloseAngle);
+            Assert.False(immediateStartTag.CloseAngle!.IsMissing);
+            Assert.Equal(14, immediateStartTag.CloseAngle.SpanStart);
+        }
+
+        // No-op-at-boundary guard -- the well-formed `<p>` shape goes
+        // through `ParseMiscAttribute` (the `ParseAttributes`
+        // immediate-when-no-whitespace path: no whitespace between `p`
+        // and `>`). The enhanced branch must NOT emit RZ1048 here.
+        {
+            var wellFormedSource = "<p></p>";
+            var wellFormedTree = ParseDocument(
+                wellFormedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            // No RZ1048 and no SkippedContentSyntax: cursor was already
+            // at the follow-set boundary (`>`), so the enhanced branch
+            // returned without absorbing or diagnosing.
+            Assert.Empty(wellFormedTree.Diagnostics.Where(d => d.Id == "RZ1048"));
+            Assert.Empty(wellFormedTree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
+
+            // And the element parses cleanly.
+            var wellFormedElement = wellFormedTree.Root
+                .DescendantNodes()
+                .OfType<MarkupElementSyntax>()
+                .Single();
+            Assert.NotNull(wellFormedElement.MarkupStartTag);
+            Assert.Equal("p", wellFormedElement.MarkupStartTag.Name.Content);
+            Assert.NotNull(wellFormedElement.MarkupEndTag);
+            Assert.Equal("p", wellFormedElement.MarkupEndTag.Name.Content);
+        }
+    }
+
     private void ParseCorpusFile(string corpusFileName)
     {
         var testFile = TestFile.Create("ParserRecoveryCorpus/" + corpusFileName, typeof(ParserRecoveryCorpusSnapshotTests));

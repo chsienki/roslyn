@@ -1198,6 +1198,68 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
 
     private void ParseMiscAttribute(in SyntaxListBuilder<RazorSyntaxNode> builder)
     {
+        if (Context.Options.UseEnhancedRecovery)
+        {
+            // Stage 3.4: replace the legacy "absorb everything into a fat
+            // MarkupMiscAttributeContent" loop with a single Synchronize call.
+            // Any pending accepted tokens (e.g. the attribute-prefix whitespace
+            // pushed by ParseAttribute's `AttributeNameParsingResult.Other`
+            // branch just before calling us) is flushed as a normal
+            // MarkupTextLiteral so positions are preserved without
+            // contaminating the recovered range. The cursor is at a position
+            // where an attribute name was expected; emit a narrow zero-width
+            // RZ1048 (Parsing_UnexpectedAttributeName) there and absorb tokens
+            // up to the next HTML tag boundary (`<`, `>`, `/`, `"`, `'`) as a
+            // SkippedContentSyntax.
+            //
+            // Diagnostic attachment is via `ErrorSink`, not a missing token.
+            // RZ1048 fires for an *unexpected* token (not a *missing* one), so
+            // there is no `MissingToken(kind)` to attach to. This mirrors
+            // Stage 2.3's RZ1046 (`Parsing_UnexpectedTokenInStatement`).
+            //
+            // Quote kinds are part of `HtmlEndOfTagFollowSet`: stopping at a
+            // quote lets the surrounding `ParseAttributes` loop continue with
+            // normal attribute parsing rather than swallowing a well-formed
+            // quoted segment. Quote tokens are valid attribute-name tokens
+            // (`IsValidAttributeNameToken` does not exclude them), so the
+            // outer loop makes progress and cannot infinite-loop.
+            //
+            // No-op when the cursor is already at a follow-set boundary: the
+            // legacy code in this position is also a no-op (the inner loop
+            // immediately hits the `CloseAngle / OpenAngle / ForwardSlash`
+            // switch case and returns with an empty `MarkupMiscAttributeContent`
+            // that gets dropped via the `Count > 0` guard). This matters for
+            // the very common `<p>` case: `ParseAttributes` calls
+            // `ParseMiscAttribute` whenever there's no whitespace between the
+            // tag name and the next token, including the well-formed
+            // `<tag>` shape where the next token is `>`.
+            //
+            // Stage 3.4 uses the convenience overload of `Synchronize`;
+            // Stage 4.2 will mechanically upgrade these calls to thread the
+            // caller's outer follow set per Big Design Decision #4.
+            builder.Add(OutputAsMarkupLiteral());
+
+            if (!EnsureCurrent() || EndOfFile ||
+                RecoveryFollowSets.HtmlEndOfTagFollowSet.Contains(CurrentToken.Kind))
+            {
+                return;
+            }
+
+            Context.ErrorSink.OnError(
+                RazorDiagnosticFactory.CreateParsing_UnexpectedAttributeName_At(CurrentStart));
+
+            var sync = Synchronize(
+                RecoveryFollowSets.HtmlEndOfTagFollowSet,
+                originatingLanguage: SyntaxKind.MarkupBlock);
+
+            if (sync.Skipped is not null)
+            {
+                builder.Add(sync.Skipped);
+            }
+
+            return;
+        }
+
         using (var pooledResult = Pool.Allocate<RazorSyntaxNode>())
         {
             var miscAttributeContentBuilder = pooledResult.Builder;

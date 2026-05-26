@@ -454,6 +454,17 @@ internal static class RazorDiagnosticFactory
     public static RazorDiagnostic CreateParsing_TagNameExpected_At(SourceLocation location)
         => RazorDiagnostic.Create(Parsing_TagNameExpected, new SourceSpan(location, contentLength: 0));
 
+    internal static readonly RazorDiagnosticDescriptor Parsing_UnexpectedAttributeName =
+        new($"{DiagnosticPrefix}1048",
+            Resources.ParseError_UnexpectedAttributeName,
+            RazorDiagnosticSeverity.Error);
+
+    // Zero-width span at the unexpected-attribute cursor position (per the _At convention from Stage 1.3).
+    // There is no non-_At pair for this descriptor: the diagnostic was introduced new in Stage 3.4
+    // (HtmlMarkupParser ParseMiscAttribute enhanced recovery) and only ever has the narrow span.
+    public static RazorDiagnostic CreateParsing_UnexpectedAttributeName_At(SourceLocation location)
+        => RazorDiagnostic.Create(Parsing_UnexpectedAttributeName, new SourceSpan(location, contentLength: 0));
+
     #endregion
 
     #region Semantic Errors

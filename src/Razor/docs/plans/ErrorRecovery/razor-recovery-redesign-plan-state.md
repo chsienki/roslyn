@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 3.3 complete. Ready for Stage 3.4 (`ParseMiscAttribute` -> recovery rather than absorb-all).
+Stage 3.4 complete. **Stage 3 complete.** Ready for Stage 4.1 (cross-parser handoff: `OtherParserBlock` migration).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -31,7 +31,7 @@ Stage 3.3 complete. Ready for Stage 3.4 (`ParseMiscAttribute` -> recovery rather
 - Stage 3.1: complete
 - Stage 3.2: complete
 - Stage 3.3: complete
-- Stage 3.4: not started
+- Stage 3.4: complete
 - Stage 4.1: not started
 - Stage 4.2: not started
 - Stage 4.3: not started
@@ -63,13 +63,16 @@ appear.
 
 - **RZ0xxx** (general / infrastructure) -- max in use: **RZ0000**
   (`Directive_BlockDirectiveCannotBeImported`).
-- **RZ1xxx** (parser diagnostics) -- max in use: **RZ1047**. Next free
-  parser-recovery ID: **RZ1048**. (Stage 2.3 allocated RZ1046 for
+- **RZ1xxx** (parser diagnostics) -- max in use: **RZ1048**. Next free
+  parser-recovery ID: **RZ1049**. (Stage 2.3 allocated RZ1046 for
   `Parsing_UnexpectedTokenInStatement`, a new diagnostic emitted at
   zero width when the panic-else of `ParseStandardStatement` fires;
   Stage 3.1 allocated RZ1047 for `Parsing_TagNameExpected`, a new
   diagnostic emitted at zero width when the HTML tag-name slot is
   empty in `ParseStartTag` / `ParseEndTag` (e.g. `<>`, `</>`).
+  Stage 3.4 allocated RZ1048 for `Parsing_UnexpectedAttributeName`,
+  a new diagnostic emitted at zero width when `ParseMiscAttribute`
+  encounters a token that cannot start an attribute name.
   See notes below for empirical observations on reachability.)
 - **RZ2xxx** (tag-helper / binding diagnostics) -- max in use:
   **RZ2012**. Next free: **RZ2013**.
@@ -1490,7 +1493,8 @@ commit `f445deb5f8c`):
 
   **No new RZ IDs**: Stage 3.3 reuses the existing RZ1025 /
   RZ1026 descriptors via the `_At` pairings allocated by Stage
-  1.3. Next free parser-recovery ID is still **RZ1048**.
+  1.3. Next free parser-recovery ID after Stage 3.3 was **RZ1048**
+  (subsequently consumed by Stage 3.4).
 
   **Tag-stack recovery silent-success path NOT changed**:
   `TryRecoverStartTag`'s success path (where it finds a matching
@@ -1544,3 +1548,123 @@ commit `f445deb5f8c`):
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1334 / 1334 (1333 baseline + 1 new enhanced); language tests
   3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+- **Stage 3.4 (HtmlMarkupParser `ParseMiscAttribute` migration --
+  complete)**: Replaces the legacy "absorb everything into a fat
+  `MarkupMiscAttributeContent`" loop with a single
+  `Synchronize(HtmlEndOfTagFollowSet, originatingLanguage: MarkupBlock)`
+  call gated under `Context.Options.UseEnhancedRecovery`. Stops at
+  the first HTML tag boundary (`<`, `>`, `/`, `"`, `'`) and emits a
+  narrow zero-width RZ1048 (`Parsing_UnexpectedAttributeName`) at
+  the cursor where an attribute name was expected. Absorbed tokens
+  become `SkippedContentSyntax` tagged with `MarkupBlock`.
+
+  Migrated site (in `HtmlMarkupParser.cs`):
+
+  - `ParseMiscAttribute` (~line 1199): legacy code loops through
+    `ParseMarkupNodes(ParseMode.Text, IsTagRecoveryStopPoint)` and
+    a switch on quote / open-angle / forward-slash / close-angle,
+    wrapping everything in `MarkupMiscAttributeContent`. Enhanced
+    code flushes any pending accepted tokens via
+    `OutputAsMarkupLiteral()` (the `attributePrefixWhitespace`
+    that `ParseAttribute`'s `Other` branch accepted just before
+    calling us), then either no-ops at a follow-set boundary or
+    emits RZ1048 and synchronizes. The resulting
+    `SkippedContentSyntax` is appended to the caller's builder.
+
+  Two call sites both use the enhanced branch:
+  1. `ParseAttributes` immediate-when-no-whitespace path
+     (~line 1167): triggered when `<tag>` is followed by any token
+     other than whitespace / newline / a follow-set boundary.
+     Example: `<input!garbage>` -> cursor at `!`, RZ1048 at
+     position 6, `SkippedContent("!garbage")` stopping at `>`.
+     For the very common well-formed `<p>` shape (no whitespace
+     before `>`), the cursor is already at the follow-set boundary
+     and the enhanced branch no-ops -- matching legacy's no-op
+     behaviour (where the inner switch hits the
+     `CloseAngle / OpenAngle / ForwardSlash` case immediately and
+     returns with an empty `MarkupMiscAttributeContent` that gets
+     dropped via the `Count > 0` guard).
+  2. `ParseAttribute`'s `AttributeNameParsingResult.Other` branch
+     (~line 1367): triggered when the attribute-name slot is
+     occupied by a non-name token (e.g. `=`, `!`).
+     Example: `<input @bind=>` -> cursor at `=` (position 12),
+     RZ1048 at 12, `SkippedContent("=")` stopping at `>`.
+
+  **New RZ IDs allocated** in Stage 3.4: **RZ1048**
+  (`Parsing_UnexpectedAttributeName`). Next free parser-recovery
+  ID: **RZ1049**.
+
+  **New follow set**: `RecoveryFollowSets.HtmlEndOfTagFollowSet`
+  = `(OpenAngle, CloseAngle, ForwardSlash, DoubleQuote, SingleQuote)`.
+  Quote kinds are part of the set so the surrounding
+  `ParseAttributes` loop can resume normal attribute parsing of a
+  well-formed quoted segment rather than swallowing it as garbage.
+  Quote tokens are valid attribute-name tokens
+  (`IsValidAttributeNameToken` does not exclude them), so the
+  outer loop makes progress and cannot infinite-loop.
+
+  **Diagnostic attachment via `ErrorSink`** (not on a missing
+  token): RZ1048 fires for an *unexpected* token (not a *missing*
+  one), so there is no `MissingToken(kind)` to attach the
+  diagnostic to. This mirrors Stage 2.3's RZ1046
+  (`Parsing_UnexpectedTokenInStatement`).
+
+  **Stage 3 panic-recovery exit criterion**: the four
+  fat-`MarkupMiscAttributeContent`-emitting recovery sites in
+  `HtmlMarkupParser` are now migrated (3.1 tag name / close angle,
+  3.2 attribute parsing, 3.3 tag-stack recovery, 3.4 misc
+  attribute). Remaining `AcceptUntil` usages in
+  `HtmlMarkupParser.cs` are in non-Stage-3 functions:
+
+  - `RecoverTextTag` (~line 958): `<text>`-tag specific.
+  - `ParseEndTag` malformed-end-tag absorber (~line 1055): in
+    `MarkupInCodeBlock` mode; the absorbed content is positioned
+    immediately before the close-angle `Required` call migrated by
+    Stage 3.1. Whether this absorber is itself replaced by a
+    `Synchronize` is a Stage 4 / 6 decision (the close-angle
+    diagnostic position has already narrowed).
+  - Script-tag parsing (~line 1819).
+
+  None of these are part of Stage 3's enumerated migration scope.
+
+  **Corpus assertion (`MalformedTagAttribute_EnhancedRecovery`)**:
+  uses the existing `MalformedTagAttribute.razor` corpus
+  (`<input @bind=>\r\n\r\n<p>after the malformed bind</p>\r\n`),
+  which directly exercises the `ParseAttribute.Other` call site
+  via the unexpected `=` after `@bind`. The test asserts:
+  - One RZ1048 at position 12, length 0.
+  - One `SkippedContentSyntax` inside the `<input>` start tag
+    tagged with `MarkupBlock`, containing `=`, at span [12..13).
+    (The `@bind` implicit expression produces its own
+    `SkippedContentSyntax` tagged with `CSharpCodeBlock` under
+    Stage 2.1; the assertion filters by `OriginatingLanguage`.)
+  - One residual `MarkupMiscAttributeContent` for ` @bind` -- this
+    wrapping is created by `ParseAttribute`'s `CSharp` branch (NOT
+    by `ParseMiscAttribute`) and is out of scope for Stage 3.4.
+  - The trailing `<p>after the malformed bind</p>` parses cleanly
+    (no recovery contamination).
+
+  The test additionally exercises two in-memory sources:
+
+  - `<input!garbage>` -- `ParseAttributes` immediate-call site.
+    RZ1048 at position 6, `SkippedContent("!garbage")` at [6..14)
+    tagged with `MarkupBlock`, no `MarkupMiscAttributeContent`
+    inside the start tag, real `CloseAngle` at position 14.
+  - `<p></p>` -- no-op-at-boundary guard. No RZ1048, no
+    `SkippedContentSyntax`, and a clean `MarkupElement` with real
+    start / end tag names. This is the critical regression
+    backstop: a spurious diagnostic here would fire on most
+    well-formed minimal-attribute markup.
+
+  **Corpus baselines unchanged**: `MalformedTagAttribute.razor`'s
+  legacy `.stree.txt` / `.diag.txt` / `.cspans.txt` / `.tspans.txt`
+  baselines are unmodified -- legacy mode still wraps `=` in
+  `MarkupMiscAttributeContent` with no diagnostic. No corpus
+  files were added.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1335 / 1335 (1334 baseline + 1 new enhanced); language tests
+  3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+
+  **Stage 3 (HtmlMarkupParser migration) complete.** Ready for
+  Stage 4.1 (cross-parser handoff `OtherParserBlock` migration).
