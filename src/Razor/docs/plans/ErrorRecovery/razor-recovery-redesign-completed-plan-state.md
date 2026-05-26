@@ -1,3 +1,14 @@
+> **Historical document.** This is the per-stage execution record of the
+> now-completed plan. See `razor-recovery-redesign-completed-plan.md`
+> in this directory for the contract that drove the execution. The live
+> contract is [`src/Razor/docs/parser-recovery.md`](../../parser-recovery.md).
+> Tag: `razor-recovery-redesign-complete` (commit `15da146f66a`).
+>
+> If you are starting a NEW parser-recovery improvement, do not edit this
+> file -- author a new plan and a new state file.
+
+---
+
 # Razor recovery plan -- state
 
 Sidecar state file for `razor-recovery-redesign-plan.md` (in the same
@@ -6,7 +17,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 6.4 complete. Ready for Stage 7.
+All stages complete -- redesign shipped.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -49,7 +60,7 @@ Stage 6.4 complete. Ready for Stage 7.
 - Stage 6.2: complete
 - Stage 6.3: complete
 - Stage 6.4: complete
-- Stage 7: not started
+- Stage 7: complete
 
 ## Diagnostic IDs allocated
 
@@ -3860,3 +3871,55 @@ contract. Stage 6.4 (performance pass) can proceed.
 **Stage 6.4 complete.** Performance baseline established; the parser
 no longer has a pre-redesign comparison available in-tree, but the
 benchmark file is the forward regression guard. Stage 7 can proceed.
+
+
+## Stage 7 persist and hand off
+
+- **Pre-flight remote verification.** Ran `git remote get-url origin`
+  and confirmed the URL is `https://github.com/chsienki/roslyn` --
+  the user's fork. Origin contains `chsienki`; does **not** contain
+  `dotnet/roslyn`. Safe to push the tag.
+- **Tag.** Created `razor-recovery-redesign-complete` on commit
+  `15da146f66a9308897fb3697da1349fe35d5f237` (head of
+  `razor-recovery-stage-6-4`, i.e. the final Stage 6 commit -- the
+  Stage 6.4 performance-baseline benchmark). The tag marks the
+  redesign's completion; this Stage 7 commit is post-completion
+  housekeeping and is intentionally **not** tagged.
+- **Tag pushed.** `git push origin razor-recovery-redesign-complete`
+  -- pushed to the verified remote `origin`
+  (`https://github.com/chsienki/roslyn`). **Not** pushed to
+  `upstream` (`dotnet/roslyn`) -- the user owns that decision.
+- **File renames.**
+    - `razor-recovery-redesign-plan.md` was untracked at the start of
+      Stage 7 (the plan file lived as untracked across every stage
+      branch by design, per the plan's "About this document" header).
+      Renamed on disk with `Rename-Item` to
+      `razor-recovery-redesign-completed-plan.md` and then
+      `git add`ed. This first-time-tracked file will therefore show
+      as a plain `A` in `git log --name-status` rather than as a
+      rename (R) -- git has nothing to rename from.
+    - `razor-recovery-redesign-plan-state.md` was tracked. Renamed
+      with `git mv` to
+      `razor-recovery-redesign-completed-plan-state.md` so git
+      records it as `R`.
+- **Historical headers.** Both renamed files have a historical-marker
+  block prepended at line 1, pointing at the live contract
+  (`src/Razor/docs/parser-recovery.md`) and recording the tag and
+  SHA.
+- **Cross-link update.** `src/Razor/docs/parser-recovery.md` "How
+  we got here" section had two links to the old plan / state filenames
+  (lines around 370--371 and an inline reference around line 361).
+  All three references updated to the `-completed-` form. Verified
+  via grep that no reference to the old names remains in that file.
+- **Architectural deep-dive added.** `razor-parser-analysis.md` was
+  untracked across every stage branch (it is a static reference doc,
+  not a per-stage artifact). Stage 7 commits it for the first time.
+  No rename -- the filename is correct as-is and is referenced from
+  `parser-recovery.md` under that exact name.
+
+**Stage 7 complete.** Redesign shipped. The Razor parser recovery
+redesign is now persisted as a tagged commit, the staged plan and
+its execution record live alongside the live contract documentation
+as historical reference, and a fresh agent landing on
+`src/Razor/docs/parser-recovery.md` can follow "How we got here"
+to the full background.

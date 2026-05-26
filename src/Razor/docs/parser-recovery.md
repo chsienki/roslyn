@@ -358,7 +358,7 @@ When to use which:
 - **Use the `_At` variant** from a `Required` call site, or any other recovery code path that attaches a diagnostic to a `MissingToken` (or otherwise wants a zero-width span at the current cursor).
 - **Use the non-`_At` variant** from a legacy code path that genuinely needs a wider span (e.g. underlining a malformed token that was actually consumed), or from a non-recovery call site that already has a `SourceSpan` to hand.
 
-Adding a new `_At` variant: copy the original factory's signature, change the `SourceSpan` parameter to `SourceLocation`, and pass `new SourceSpan(location, contentLength: 0)` into `RazorDiagnostic.Create`. Add a brief comment noting which factory it pairs with and that it shares the descriptor (and therefore the RZ ID). If you instead want a genuinely new diagnostic (different message), allocate the next free RZ ID following the procedure in the historical plan -- the current per-range maxima are tracked in `docs/plans/ErrorRecovery/razor-recovery-redesign-plan-state.md` under "Diagnostic IDs allocated".
+Adding a new `_At` variant: copy the original factory's signature, change the `SourceSpan` parameter to `SourceLocation`, and pass `new SourceSpan(location, contentLength: 0)` into `RazorDiagnostic.Create`. Add a brief comment noting which factory it pairs with and that it shares the descriptor (and therefore the RZ ID). If you instead want a genuinely new diagnostic (different message), allocate the next free RZ ID following the procedure in the historical plan -- the current per-range maxima are tracked in `docs/plans/ErrorRecovery/razor-recovery-redesign-completed-plan-state.md` under "Diagnostic IDs allocated".
 
 ## How we got here
 
@@ -367,7 +367,7 @@ This recovery model replaced an older "absorb everything to the next `<` or newl
 The complete record lives under [`plans/ErrorRecovery/`](plans/ErrorRecovery/):
 
 - `razor-parser-analysis.md` -- the pre-redesign architectural deep-dive describing the two-parser co-routine architecture and the specific reasons recovery was poor.
-- `razor-recovery-redesign-plan.md` -- the staged execution plan, including the "Big Design Decisions" section that pre-resolves the architectural choices (skipped content as a tree node rather than trivia; missing-token invariant via `Required`; follow sets per parser function per language; cross-language translation at the handoff; etc.).
-- `razor-recovery-redesign-plan-state.md` -- the per-stage execution record, including diagnostic IDs allocated, baseline triages, and notes on each stage's exit criteria.
+- `razor-recovery-redesign-completed-plan.md` -- the staged execution plan, including the "Big Design Decisions" section that pre-resolves the architectural choices (skipped content as a tree node rather than trivia; missing-token invariant via `Required`; follow sets per parser function per language; cross-language translation at the handoff; etc.).
+- `razor-recovery-redesign-completed-plan-state.md` -- the per-stage execution record, including diagnostic IDs allocated, baseline triages, and notes on each stage's exit criteria.
 
 Those files are historical: they document the design rationale and the migration steps, but the contract this document describes is the live one. If you find a discrepancy between this doc and the plan files, this doc is correct (the plan files are not updated post-execution); please update this doc to track reality.
