@@ -91,7 +91,9 @@ public class IntermediateNodeWriter
         // - Common case: there is only a single C# node, so it maps correctly.
         // - Error cases: there are no C# children, so no pragma is emitted.
         var firstCSharpChild = node.Children.OfType<CSharpIntermediateToken>().FirstOrDefault();
-        using (context.BuildEnhancedLinePragma(firstCSharpChild?.Source, characterOffset))
+        using (firstCSharpChild is null
+            ? context.BuildEnhancedLinePragma(span: null, characterOffset)
+            : context.BuildEnhancedLinePragmaForToken(firstCSharpChild, characterOffset))
         {
             context.CodeWriter.WriteStartMethodInvocation(WriteCSharpExpressionMethod);
 
@@ -112,7 +114,7 @@ public class IntermediateNodeWriter
 
             if (child is CSharpIntermediateToken csharpToken)
             {
-                using (context.BuildEnhancedLinePragma(csharpToken.Source))
+                using (context.BuildEnhancedLinePragmaForToken(csharpToken))
                 {
                     context.CodeWriter.Write(csharpToken.Content);
                 }
@@ -155,7 +157,7 @@ public class IntermediateNodeWriter
         {
             if (children[i] is CSharpIntermediateToken token)
             {
-                using (context.BuildEnhancedLinePragma(token.Source))
+                using (context.BuildEnhancedLinePragmaForToken(token))
                 {
                     context.CodeWriter.Write(token.Content);
                 }
@@ -436,7 +438,14 @@ public class IntermediateNodeWriter
         {
             if (child is CSharpIntermediateToken token)
             {
-                context.AddSourceMappingFor(token);
+                // Stage 5.3 / design decision #6: missing-value placeholder tokens
+                // are synthetic and must not anchor a source mapping. Without this
+                // guard the mapping would widen across the placeholder text and
+                // swallow neighbouring user-authored tokens.
+                if (!token.IsMissingValue)
+                {
+                    context.AddSourceMappingFor(token);
+                }
                 writer.Write(token.Content);
             }
             else

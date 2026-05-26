@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.2 complete. Ready for Stage 5.3.
+Stage 5.3 complete. Ready for Stage 5.4.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -40,7 +40,7 @@ Stage 5.2 complete. Ready for Stage 5.3.
 - Stage 5.0: complete
 - Stage 5.1: complete
 - Stage 5.2: complete
-- Stage 5.3: not started
+- Stage 5.3: complete
 - Stage 5.4: not started
 - Stage 5.5: not started
 - Stage 5.6.0: not started
@@ -2705,3 +2705,118 @@ behaviour-inert.
        that SkippedContent CAN appear between well-formed
        attributes naturally.
 
+
+- 2026-05-30: Stage 5.3 done. Source-mapping precision audit + writer
+  tightening so `SourceMapping` ranges never cross missing-token /
+  skipped-content boundaries.
+
+  **Helper authored.** Added `BuildEnhancedLinePragmaForToken(this
+  CodeRenderingContext, IntermediateToken)` in
+  `CodeRenderingContextExtensions.cs`. Returns `LinePragmaScope.None`
+  when the token is null or `IsMissingValue=true` (dispose-safe -- the
+  default-valued ref struct's `Dispose()` no-ops when `_context is
+  null`), otherwise delegates to `BuildEnhancedLinePragma(token.Source)`.
+  Mirrors the Stage 5.1 `ComponentNodeWriter.WriteCSharpToken` guard
+  pattern.
+
+  **Writers tightened.** Three sites in
+  `IntermediateNodeWriter.cs`:
+    - `WriteCSharpExpression` first-child site and the
+      remaining-children loop now route through
+      `BuildEnhancedLinePragmaForToken(token)`.
+    - `WriteCSharpChildren` does the same.
+    - `RenderCSharpCode` wraps `context.AddSourceMappingFor(token)` in
+      an `if (!token.IsMissingValue)` guard.
+
+  **Deliberate non-change.**
+  `DefaultTagHelperTargetExtension.RenderTagHelperAttributeInline` was
+  initially tightened, but reverted: it broke
+  `CodeGenerationIntegrationTest.EmptyAttributeTagHelpers` because the
+  legacy MVC tag-helper baseline locks in the old behavior of emitting
+  zero-width `#line` pragmas over empty C# attribute values
+  (`EmptyAttributeTagHelpers.codegen.cs` lines 64-71, 95-102, 117-124).
+  Per Stage 5.3 plan text ("one mapping per literal behaviour is
+  preserved for legacy-mode parses so existing tests still match
+  baselines"), the MVC tag-helper writer keeps the legacy
+  noisy-pragma behavior. User-authored C# tokens never carry
+  `IsMissingValue=true`, so the writer-level guards in
+  `IntermediateNodeWriter` only fire on synthesized placeholder tokens
+  -- existing baselines are unaffected.
+
+  **E2E harness.** Added new test file
+  `ParserRecoveryCorpus_SourceMappingPrecisionTests.cs` in the
+  source-gen UnitTests project with the
+  `MeasureMappingWidths(RazorCSharpDocument)` static helper from
+  Stage 5.1's plan, returning `(max, total, count)` measured against
+  `SourceMappingsSortedByOriginal`. (The literal helper signature in
+  the plan -- `csharpDoc.SourceMappings.Select(...)` -- doesn't match
+  the actual API; `RazorCSharpDocument.SourceMappings` exposes
+  `SortedByGenerated`/`SortedByOriginal` views.) Theory runs over all
+  17 corpus `.razor` files with `UseEnhancedRecovery=true`, asserts
+  widest mapping <= 200 chars (investigation threshold), and emits
+  per-corpus widths via `ITestOutputHelper`.
+
+  **Per-corpus mapping widths under enhanced mode:**
+
+  | Corpus | max | total | count |
+  | --- | --- | --- | --- |
+  | BareAtFollowedByGarbage | 0 | 0 | 2 |
+  | EmptyBoundAttribute_Onclick | 113 | 166 | 3 |
+  | EmptyExplicitExpression | 0 | 0 | 1 |
+  | ImplicitExpressionHittingMarkup | 3 | 3 | 1 |
+  | MalformedCSharpWithSurroundingMarkup | 3 | 3 | 1 |
+  | MalformedTagAttribute | 0 | 0 | 0 |
+  | MalformedUsing | 9 | 9 | 1 |
+  | MidStatementGarbage | 23 | 23 | 2 |
+  | UnclosedCodeBlock | 15 | 15 | 2 |
+  | UnclosedExplicitExpression | 0 | 0 | 1 |
+  | UnclosedForeach | 8 | 11 | 3 |
+  | UnclosedIfParen | 3 | 5 | 2 |
+  | UnclosedMethodCallInImplicit | 8 | 8 | 1 |
+  | UnclosedString | 49 | 49 | 2 |
+  | UnclosedSwitch | 7 | 9 | 2 |
+  | UnclosedTag | 0 | 0 | 0 |
+  | UnnamedTag | 0 | 0 | 0 |
+
+  All widths under the 200-char investigation threshold. Only
+  `EmptyBoundAttribute_Onclick` exceeds the 50-char target, and the
+  widest mapping there is the user-authored `@code { private int
+  currentCount = 0; ... IncrementCount() ... }` block -- a single
+  valid C# region intentionally mapped 1:1, not a recovery-widening
+  symptom.
+
+  **Test counts after Stage 5.3 (Debug, net10.0):**
+    - Legacy
+      (`Microsoft.AspNetCore.Razor.Language.LegacyTest`):
+      1346 / 1346 (unchanged from Stage 5.2 measurements re-run).
+    - Language
+      (`Microsoft.AspNetCore.Razor.Language.Test`):
+      3604 / 3604 (unchanged).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      247 / 247 (was 230, +17 new corpus theory rows).
+    - MVC Extensions
+      (`Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`):
+      140 / 140 (unchanged; verified after the
+      `DefaultTagHelperTargetExtension` revert).
+  Razor.slnf builds clean with 0 warnings / 0 errors.
+
+  **Plan vs. implementation gap, called out.** Big Design Decision #6
+  in the plan body specifies a *zero-width mapping at the insertion
+  point* for missing-value tokens. Stage 5.1 instead chose the
+  stricter "no mapping at all" behavior in
+  `ComponentNodeWriter.WriteCSharpToken` (skips
+  `BuildEnhancedLinePragma` entirely when `IsMissingValue`). Stage 5.3
+  extends Stage 5.1's stricter behavior to the symmetric writers, NOT
+  the literal plan text. Consistent with Stage 5.1's plan-state
+  notes. If a later stage wants debugger-stop positions over empty
+  placeholder text, `BuildEnhancedLinePragmaForToken` is the single
+  surface to switch to a zero-width pragma instead of
+  `LinePragmaScope.None`.
+
+  Deviations carried into Stage 5.4:
+    1. `DefaultTagHelperTargetExtension.RenderTagHelperAttributeInline`
+       is intentionally not tightened (see above). If a future stage
+       refreshes MVC tag-helper baselines (e.g. as part of a
+       legacy-codegen cleanup), this writer can be migrated to the
+       helper at that time.
