@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.6.0 complete. Ready for Stage 5.6.
+Stage 5 complete. Ready for Stage 6.1.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -44,7 +44,7 @@ Stage 5.6.0 complete. Ready for Stage 5.6.
 - Stage 5.4: complete
 - Stage 5.5: complete
 - Stage 5.6.0: complete
-- Stage 5.6: not started
+- Stage 5.6: complete
 - Stage 6.1: not started
 - Stage 6.2: not started
 - Stage 6.3: not started
@@ -3205,3 +3205,93 @@ behaviour-inert.
        hundreds of existing `DocumentFormattingTest` cases; Stage 5.5
        cares about the new enhanced-recovery shapes, which only
        exist under `UseEnhancedRecovery = true`.
+
+- 2026-05-29: Stage 5.6 done. LSP anchor classes adapted to the new
+  `SkippedContentSyntax` / `MissingToken` shapes (per Stage 5.6.0's
+  anchor list -- see lines 321-455 of this file). Three production
+  files touched, three test files added, four baseline test suites
+  remain green plus 8 new `[Fact]` cases.
+
+  Production changes (all gated on the same enhanced-recovery shapes
+  the parser already produces -- no public API additions):
+    1. `SemanticTokens/SemanticTokensVisitor.cs` -- added
+       `VisitSkippedContent(SkippedContentSyntax)` that calls
+       `AddSemanticRange(node, _semanticTokensLegend.TokenTypes.RazorComment)`.
+       Chosen kind: `RazorComment` (Razor-level recovery metadata,
+       visually distinct from real markup). Placement: in the `#region Razor`
+       block, after `VisitMarkupTransition`.
+    2. `Completion/RazorCompletionContext.cs` -- appended optional
+       positional record field `RazorLanguageKind LanguageKind = RazorLanguageKind.Razor`
+       so any future caller can read which language the cursor is in
+       when inside `SkippedContent`. Default `Razor` preserves source
+       compatibility with the many existing constructor call sites.
+    3. `Completion/RazorCompletionListProvider.cs` -- `CreateCompletionContext`
+       populates the new field via new `internal static DetermineLanguageKind(RazorSyntaxNode?)`
+       helper. The helper walks `FirstAncestorOrSelf<SkippedContentSyntax>`
+       and maps `OriginatingLanguage` (`CSharpCodeBlock` -> `CSharp`,
+       `MarkupBlock` -> `Html`, `None` -> ancestor walk fallback via
+       `InferLanguageFromAncestors`).
+    4. `Hover/HoverFactory.cs` -- after `FindInnermostNode(absoluteIndex)`,
+       added early-return `if (HasMissingTokenAt(owner, absoluteIndex)) return null;`.
+       Helper iterates `owner.ChildNodesAndTokens()` directly (rather
+       than calling `FindToken`) because Stage 5.4 made `FindToken`
+       skip zero-width missing tokens. The RZ diagnostic at the same
+       position remains the user-facing signal.
+
+  Test changes (all under `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests`):
+    - `Semantic/SemanticTokensVisitorRecoveryTest.cs` --
+      `Classification_SkippedContent_AppearsAsComment`: parses
+      `"@{ var x = (foo; }"` (same shape as
+      `UnclosedParenInsideCodeBlock_EnhancedRecovery`), runs
+      `SemanticTokensVisitor.AddSemanticRanges`, asserts a range of
+      kind `RazorComment` overlaps the `SkippedContentSyntax` span.
+    - `Completion/RazorCompletionListProviderRecoveryTest.cs` --
+      `Completion_InsideCSharpSkippedContent_OffersCSharpCompletions`
+      (CSharpCodeBlock origin, `"@{ var x = (foo; }"`),
+      `Completion_InsideHtmlSkippedContent_OffersHtmlCompletions`
+      (MarkupBlock origin, `"<input!garbage>"` -- same source pinned
+      by `ParserRecoveryCorpusSnapshotTests` line ~1602), and negative
+      `Completion_OutsideSkippedContent_StaysRazor` (default `Razor`).
+    - `Hover/HoverFactoryRecoveryTest.cs` --
+      `Hover_OnMissingToken_FallsBackToDiagnostic`: parses
+      `<button @onclick="">` under enhanced recovery, finds the
+      zero-width `MissingToken`, calls `HoverFactory.GetHoverAsync`
+      at its `SpanStart`, asserts `Assert.Null(hover)`.
+      `HasMissingTokenAt_ReturnsTrueForMissingTokenAtPosition` is a
+      direct unit test for the helper (positive + negative case).
+
+  Build state: `Razor.slnf` clean (0 warnings, 0 errors).
+  Test runs (post-commit):
+    - `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests`: 741 / 741
+      passing (+2 vs 739 baseline; 8 new `[Fact]`s land in
+      previously-empty discovered-test count rather than +8).
+    - `Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`:
+      1346 / 1346 (unchanged).
+    - `Microsoft.AspNetCore.Razor.Language.UnitTests`: 3610 / 3610
+      (unchanged).
+    - `Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`: 247 / 247
+      (unchanged).
+    - `Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`: 140 / 140
+      (unchanged).
+
+  Deviations from the plan literal:
+    1. The plan describes Stage 5.6 as "dispatch to C# completion provider"
+       / "dispatch to HTML completion provider". In the actual Razor LSP
+       architecture, host-level dispatch to delegated C# / HTML language
+       servers lives **above** `RazorCompletionListProvider`. The
+       minimal-blast-radius implementation chosen: expose
+       `RazorLanguageKind LanguageKind` on `RazorCompletionContext` so
+       any future caller (host dispatch, cohost dispatch) can read which
+       language the cursor is in when inside `SkippedContent`. The
+       `DetermineLanguageKind` helper is verified directly by the
+       three completion tests.
+    2. Test files placed per-feature under existing
+       `Semantic/` / `Completion/` / `Hover/` subdirectories (matching
+       the `FormattingVisitorRecoveryTest` pattern from Stage 5.5)
+       rather than a single combined `RazorRecoveryLspTests.cs`.
+
+  **Stage 5 complete.** Motivating bug `dotnet/razor#10383` (`@onclick="">`)
+  remains pinned end-to-end by
+  `MissingValueMarkerLoweringTests.EmptyOnclickAttribute_EnhancedMode_TagsCSharpTokenAsMissingValue`
+  (Stage 4.2) plus the new `Hover_OnMissingToken_FallsBackToDiagnostic`.
+  Ready for handoff to Stage 6.1.
