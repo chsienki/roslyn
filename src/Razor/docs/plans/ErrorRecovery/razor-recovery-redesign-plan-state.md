@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.3 complete. Ready for Stage 5.4.
+Stage 5.4 complete. Ready for Stage 5.5.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -41,7 +41,7 @@ Stage 5.3 complete. Ready for Stage 5.4.
 - Stage 5.1: complete
 - Stage 5.2: complete
 - Stage 5.3: complete
-- Stage 5.4: not started
+- Stage 5.4: complete
 - Stage 5.5: not started
 - Stage 5.6.0: not started
 - Stage 5.6: not started
@@ -2820,3 +2820,110 @@ behaviour-inert.
        refreshes MVC tag-helper baselines (e.g. as part of a
        legacy-codegen cleanup), this writer can be migrated to the
        helper at that time.
+- 2026-05-30: Stage 5.4 done. `SyntaxNavigator` / `FindToken` audit
+  for zero-width missing tokens. **Audit summary: divergence found
+  and fixed.**
+
+  `SyntaxNavigator.cs` (the navigator that exposes `GetFirstToken`,
+  `GetLastToken`, `GetNextToken`, `GetPreviousToken`) does not own
+  position-based search; the equivalent entry point is `SyntaxNode.FindToken`
+  in `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Syntax/SyntaxNode.cs`.
+  The "or equivalent" wording in the plan covers this path-drift.
+
+  The descent via `ChildSyntaxList.ChildThatContainsPosition` already
+  skips zero-width children correctly (the loop uses
+  `targetPosition < endPosition`, which is false for any zero-width
+  child). The bug surface was the whitespace trivia walk: when the
+  initial descent landed on a `Whitespace` or `NewLine` token,
+  `FindToken`'s local `tryWalkBackwards` / `walkForward` helpers
+  stepped one token at a time with `includeZeroWidth: true`, and the
+  termination conditions only filtered `Whitespace` / `NewLine` /
+  `None`. A zero-width missing token sitting between the prior real
+  token and the newline (the common `@inherits\r\n<p>` shape, where
+  the directive parser emits a Missing identifier for the absent
+  type-name argument at the position immediately preceding the `\r\n`)
+  was therefore returned as-is. This contradicts the Roslyn convention.
+
+  Fix: extended both `do/while` loops to additionally skip any token
+  where `IsMissing` is true. `IsMissing` is preferred over `Width == 0`
+  because the synthesised `RazorDocumentSyntax.EndOfFile` token is
+  also zero-width but **not** `IsMissing`; using `Width == 0` would
+  cause the forward walk to silently step over EOF and either loop
+  to `Kind == None` or run off the end of the document. Updated the
+  `<remarks>` doc-comment on `FindToken` to call out the new
+  invariant.
+
+  Existing `FindTokenIntegrationTest.EmptyDirective` asserted the
+  buggy `Identifier;[<Missing>];` shape (the test was originally a
+  regression fence for issue 9177 before the Roslyn convention was
+  understood). Updated to the post-fix expectation
+  `Identifier;[inherits];` (the whitespace walk-back's natural
+  outcome once the missing identifier is skipped) and added a
+  comment explaining why.
+
+  New tests in
+  `src/Razor/src/Compiler/Microsoft.AspNetCore.Razor.Language/test/Syntax/SyntaxNavigatorTests.cs`:
+    - `EmptyInheritsDirective_ProducesMissingIdentifier` -- sanity
+      check that the structural precondition (an `@inherits` with no
+      type-name argument produces a Missing identifier in the parse
+      tree) still holds; if this regresses, the position math in the
+      other tests becomes meaningless.
+    - `FindToken_AtMissingTokenStart_SkipsMissingAndReturnsAdjacentReal`
+      -- position at the missing token's start (= start of the
+      following newline) returns the prior `inherits` identifier.
+    - `FindToken_InsideNewlineAdjacentToMissingToken_SkipsMissing` --
+      position one past the missing-token start (still inside the
+      `\r\n`) returns the same prior identifier.
+    - `FindToken_ImmediatelyAfterMissingToken_LandsOnNextRealToken`
+      -- regression guard ensuring the direct-descent path still
+      returns the OpenAngle when position is on a real token.
+    - `FindToken_MissingTokenAtEndOfFile_ReturnsEndOfFile` -- the
+      `position == EndPosition` early return wins over the whitespace
+      walk; EOF is returned, not the missing identifier.
+    - `FindToken_MultipleNewlinesAfterMissingToken_StillSkipsMissing`
+      -- position on a later newline (where walk-back fails and
+      walk-forward is used) still avoids returning the missing
+      identifier. Probing confirmed this case was already correct
+      pre-fix because the missing token sits behind the walker, but
+      the test is a useful regression guard against future
+      symmetric-walk regressions.
+
+  Probe results (preserved here for future stages): missing tokens
+  in Razor are produced at many sites (~23 `SyntaxFactory.MissingToken`
+  calls across `CSharpCodeParser`, `HtmlMarkupParser`,
+  `TokenizerBackedParser`, `TagHelperBlockRewriter`) but most are
+  reached only via configured directive descriptors or specific
+  token-stream shapes. Plain `RazorSyntaxTree.Parse` with default
+  options for inputs like `<`, `<>`, `</`, `@`, `<div attr=` did
+  *not* produce a structure where the FindToken whitespace walk
+  encounters a missing token, because in those cases the missing
+  tokens are positioned ahead of EOF and the descent's early
+  `position == EndPosition` branch short-circuits. The directive
+  parser path is the reliable reproducer; hence the tests register
+  `InheritsDirective.Directive` via `RazorParserOptions.Builder.Directives`.
+
+  **Test counts after Stage 5.4 (Debug, net10.0):**
+    - Legacy
+      (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1346 / 1346 (unchanged from Stage 5.3).
+    - Language
+      (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3610 / 3610 (was 3604, +6 new `SyntaxNavigatorTests`).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      247 / 247 (unchanged).
+    - MVC Extensions
+      (`Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`):
+      140 / 140 (unchanged).
+  Razor.slnf builds clean with 0 warnings / 0 errors.
+
+  Deviations from the plan literal:
+    1. Plan specifies modifying `SyntaxNavigator.cs`. The actual
+       behaviour lives in `SyntaxNode.FindToken`; `SyntaxNavigator`
+       does not implement position-based search at all. Followed the
+       plan's "or equivalent" guidance.
+    2. Plan suggests test class name `SyntaxNavigatorTests`. Created
+       under `test/Syntax/` (sibling to the existing
+       `FindTokenTests.cs`) rather than extending `FindTokenTests`
+       because the missing-token semantics are a separable invariant
+       worth keeping in its own file.

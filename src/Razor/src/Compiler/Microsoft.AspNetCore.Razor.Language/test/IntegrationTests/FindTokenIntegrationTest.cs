@@ -19,6 +19,10 @@ public class FindTokenIntegrationTest() : IntegrationTestBase(layer: TestProject
 
         var root = codeDocument.GetRequiredSyntaxTree().Root;
         var token = root.FindToken(27);
-        AssertEx.Equal("Identifier;[<Missing>];", TestSyntaxSerializer.Serialize(token).Trim());
+        // Position 27 is the start of the '\r\n' following an '@inherits'
+        // directive that is missing its type-name argument. FindToken
+        // skips the zero-width missing identifier (Roslyn-style) and the
+        // whitespace walk-back returns the preceding 'inherits' keyword.
+        AssertEx.Equal("Identifier;[inherits];", TestSyntaxSerializer.Serialize(token).Trim());
     }
 }
