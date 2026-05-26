@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 4 complete (all 4 sub-stages). Ready for Stage 5.0.0.
+Stage 5.0.0 complete. Ready for Stage 5.0.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -36,7 +36,7 @@ Stage 4 complete (all 4 sub-stages). Ready for Stage 5.0.0.
 - Stage 4.2: complete
 - Stage 4.3: complete
 - Stage 4.4: complete
-- Stage 5.0.0: not started
+- Stage 5.0.0: complete
 - Stage 5.0: not started
 - Stage 5.1: not started
 - Stage 5.2: not started
@@ -87,8 +87,236 @@ appear.
   free: **RZ10025**.
 
 ## Stage 5.0.0 spike report
-(not yet run -- to be populated with: malformed expression, writer
-file:line, IR node type, placeholder shape)
+
+Investigation-only test added at
+`src/Razor/src/Compiler/test/Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests/RazorSourceGeneratorComponentTests.cs`,
+method `Spike_EmptyOnclickAttribute_DumpsGeneratedSource` (around
+line 1879). The test exercises three configurations and dumps the
+generated C# plus Razor diagnostics under `artifacts/razor-recovery-spike/`
+(gitignored):
+
+1. Source-generator pipeline (legacy parser, real tag-helper discovery
+   from the test compilation -- the user-visible path).
+2. Direct `RazorProjectEngine` with `UseEnhancedRecovery = false`.
+3. Direct `RazorProjectEngine` with `UseEnhancedRecovery = true`
+   (BDD #9 tree shape -- Stage 3.2's `GenericBlock([CSharpExpressionLiteral
+   ([MissingToken(Identifier)])])`).
+
+Reproducer (the canonical corpus content from
+`legacyTest/ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor`,
+with `@using Microsoft.AspNetCore.Components.Web` prepended so
+`EventHandlerTagHelperProducer` actually discovers `onclick` as a
+bound event-handler attribute):
+
+```razor
+@using Microsoft.AspNetCore.Components.Web
+
+<h1>Counter</h1>
+
+<p>Current count: @currentCount</p>
+
+<button class="btn btn-primary" @onclick="">Click me</button>
+
+@code {
+    private int currentCount = 0;
+
+    private void IncrementCount()
+    {
+        currentCount++;
+    }
+}
+```
+
+### Findings per configuration
+
+**Configuration 1 (source generator, legacy mode -- user-visible
+path).** With the `@using Microsoft.AspNetCore.Components.Web` import
+the tag-helper discovery fires and `@onclick` is recognized. IR
+lowering then dispatches to
+`ComponentEventHandlerLoweringPass.RewriteUsage`
+(`src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Components/ComponentEventHandlerLoweringPass.cs:161`),
+where the **early bail-out at lines 164-169** fires because
+`GetAttributeContent` returns `ImmutableArray<IntermediateToken>.Empty`
+(the legacy parser produced no value node for `@onclick=""`):
+```csharp
+if (original.Length == 0)
+{
+    // This can happen in error cases, the parser will already have
+    // flagged this as an error, so ignore it.
+    return node;
+}
+```
+**The entire `@onclick` attribute is silently dropped** from the
+generated render-tree calls. The artifact
+`artifacts/razor-recovery-spike/empty-onclick.sourcegen.razor.g.cs`
+contains:
+```csharp
+__builder.OpenElement(5, "button");
+__builder.AddAttribute(6, "class", "btn btn-primary");
+__builder.AddContent(7, "Click me");
+__builder.CloseElement();
+```
+Note: no `AddAttribute` for `onclick` at all. **No CS1525 is emitted
+in the current legacy source-generator output for the BDD #9
+reproducer.** This was the first surprise of the spike: the plan's
+motivating "wall of red CS1525" for `<button @onclick="">` is
+**already** mitigated for the plain-HTML-element case by the
+`original.Length == 0` bail-out. The remaining CS1525 risk lives
+elsewhere -- see "Codegen sites at risk" below.
+
+**Configuration 2 (direct engine, legacy mode).** No tag-helper
+discovery (the direct path does not wire up
+`StaticCompilationTagHelperFeature`), so `@onclick` falls through to
+plain markup. Artifact `empty-onclick.legacy.razor.g.cs` produces a
+single `AddMarkupContent` with the raw HTML, no separate attribute
+emit, no CS1525. This configuration is **not informative** for the
+codegen question (the lowering pass that owns the bug is never
+reached); it's retained as a control showing that direct-engine
+output is parser-shape-driven only.
+
+**Configuration 3 (direct engine, enhanced mode -- BDD #9).** Same
+absence of tag-helper discovery, so the `@onclick` attribute is again
+treated as plain HTML. With the BDD #9 tree shape on the parser side,
+codegen emits `__builder.AddAttribute(7, "@onclick");` (the
+two-argument `AddAttribute` overload, no value) -- valid C#, no
+CS1525. Artifact: `empty-onclick.enhanced.razor.g.cs`. Again the
+lowering pass is not reached, so this configuration cannot directly
+exhibit the bug; its purpose is to confirm that the BDD #9 tree shape
+does not introduce a regression on the *non-component* HTML attribute
+codegen path.
+
+Razor parser diagnostics for configurations 2 and 3 are both empty
+(`empty-onclick.razor-diagnostics.txt`), confirming the direct-engine
+path produces no parser errors for `@onclick=""` in either parser
+mode -- so any CS1525 the user sees comes from C# codegen, not from
+the Razor parser.
+
+### Codegen sites at risk (the real bug surface for Stage 5.0 / 5.1)
+
+Two sites emit `EventCallback.Factory.Create<T>(this, <code>)`:
+
+1. **`ComponentEventHandlerLoweringPass.cs:181-186`** -- assembles
+   IR tokens of the form
+   `global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<T>(this, ` + `original` + `)`.
+   Used for `@onclick`-style event-handler directive attributes on
+   **plain HTML elements** (Razor synthesises an `EventCallback`
+   wrapper). **Gated by the `original.Length == 0` bail-out at
+   line 164-169.** In legacy mode the bail-out fires for `@onclick=""`
+   and the attribute is dropped (Configuration 1 above). **In
+   enhanced mode the BDD #9 tree shape surfaces a single
+   `MissingToken`-bearing `CSharpIntermediateToken`** through
+   `CSharpExpressionLiteral` lowering. If that token reaches
+   `GetAttributeContent` (`ComponentEventHandlerLoweringPass.cs:232`),
+   `original.Length` is **1, not 0**, the bail-out skips, and codegen
+   emits `EventCallback.Factory.Create<MouseEventArgs>(this, )`
+   (single missing-content token sandwiched between `, ` and `)`).
+   That is the CS1525 site. The bug only manifests once both
+   (a) BDD #9 is **on** (Stage 3.2 lights this up under the
+   `UseEnhancedRecovery` flag), and (b) the missing-content token
+   survives lowering as a length-1 array.
+
+2. **`ComponentNodeWriter.cs:1335-1376`** -- emits
+   `EventCallback.Factory.Create<T>(this, <tokens>)` directly during
+   codegen for `ComponentAttributeIntermediateNode` whose bound
+   attribute satisfies `BoundAttribute.IsEventCallbackProperty()`
+   (i.e. `<MyComponent OnClick="..."/>` where the parameter is
+   declared `EventCallback<T>`). **This site is NOT guarded by any
+   length check** -- `WriteCSharpTokens(context, tokens)` at line
+   1374 emits whatever tokens it receives. If the value is empty
+   (or a single empty-content missing token), the emitted text is
+   `EventCallback.Factory.Create<T>(this, )` -- CS1525, today, in
+   legacy mode, for *component* event-handler attributes
+   `OnXxx=""`. The motivating bug `dotnet/razor#10383` very likely
+   originates here for the *component-attribute* variant; the
+   plain-HTML-element variant happens to be mitigated by the
+   `RewriteUsage` bail-out.
+
+### Spike-required four bullets
+
+- **Malformed C# expression emitted today**: the literal text
+  `EventCallback.Factory.Create<{eventArgsType}>(this, )` --
+  closing paren immediately follows the second comma with no
+  expression. Produces Roslyn CS1525 ("Invalid expression term ')'")
+  at the position of the closing paren.
+- **Writer file:line(s)**:
+  - `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Components/ComponentEventHandlerLoweringPass.cs:181-186`
+    (lowering-time IR-token assembly; gated by line 164-169
+    bail-out). Path: plain-HTML element + directive attribute
+    `@onclick=""`. Currently safe in legacy mode (bail-out fires).
+    **Will break in enhanced mode** unless Stage 5.0 hardens the
+    bail-out or the placeholder.
+  - `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Components/ComponentNodeWriter.cs:1351-1376`
+    (codegen-time direct emit; **unguarded**). Path: component
+    attribute bound to an `EventCallback<T>` parameter, written with
+    an empty value (`OnClick=""`). **Already breaks today** in
+    legacy mode; #10383's "wall of red" most plausibly originates
+    here.
+- **IR node type(s) flowing in**:
+  - For the lowering-pass site:
+    `TagHelperDirectiveAttributeIntermediateNode` (input) ->
+    `HtmlAttributeIntermediateNode` containing a
+    `CSharpExpressionAttributeValueIntermediateNode` (output for
+    `MarkupElementIntermediateNode` parent at line 190-213) OR
+    `ComponentAttributeIntermediateNode` containing a
+    `CSharpExpressionIntermediateNode` (output for component-parent
+    at line 214-229). The content-bearing leaves are
+    `IntermediateToken` (specifically `CSharpIntermediateToken`).
+  - For the node-writer site:
+    `ComponentAttributeIntermediateNode` with
+    `BoundAttribute.IsEventCallbackProperty() == true`. Tokens come
+    from a child `CSharpExpressionIntermediateNode`.
+- **Recommended placeholder shape (for Stage 5.0 / 5.1)**: when
+  the original token stream is "effectively empty" (length 0, OR
+  length >= 1 with every token having `string.IsNullOrEmpty(Content)`),
+  substitute a single token containing `default!`. Concretely the
+  emitted call becomes
+  `EventCallback.Factory.Create<{eventArgsType}>(this, default!)`.
+  Rationale: (a) parses cleanly under Roslyn; (b) `default!` resolves
+  unambiguously to `EventCallback<T>` (or any `Delegate`-typed
+  overload `Create<T>` chooses) without producing CS8625 because of
+  the suppression; (c) the synthetic-vs-user position information is
+  preserved (codegen still emits `#line` markers around the
+  placeholder so IDE tooling like signature help / completion
+  re-targets to the original `""` span); (d) does not introduce
+  runtime divergence -- a `default` EventCallback is a no-op handler,
+  which is the same observable behaviour as the current bail-out's
+  "attribute silently dropped".
+
+  The placeholder logic must be added to **both** writer sites for
+  full coverage. The lowering-pass site (`RewriteUsage`) should
+  replace the line-164 bail-out with the placeholder substitution
+  (so it works in both legacy and enhanced mode and on both HTML
+  and component parents); the `ComponentNodeWriter` site needs the
+  same emptiness probe over `tokens` before the `WriteCSharpTokens`
+  call at line 1374.
+
+### Deviations from the plan procedure
+
+- **The plan envisioned the spike empirically dumping CS1525 from
+  the source-generator output for `<button @onclick="">`.** Empirical
+  finding: the source-generator output for that exact reproducer
+  has **no** CS1525 today because of the `RewriteUsage`
+  `original.Length == 0` bail-out. The motivating bug therefore lives
+  on the **component-attribute** branch
+  (`ComponentNodeWriter.cs:1351-1376`), not the plain-HTML-element
+  branch. The spike report documents both sites; Stage 5.0 / 5.1
+  must cover both.
+- **The `UseEnhancedRecovery` flag is not surfaced through the
+  source generator** (it is internal compiler scaffolding -- per
+  Stage 0.3's downstream audit it is deliberately not added to
+  `RazorConfiguration` / `RazorSourceGenerationOptions`). The spike
+  reaches the flag via `InternalsVisibleTo
+  "Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests"`, and only
+  through the direct `RazorProjectEngine` path -- which does **not**
+  do tag-helper discovery. Consequently the spike cannot directly
+  exhibit `EventCallback.Factory.Create<T>(this, )` under enhanced
+  mode in this harness; the inference about enhanced-mode behaviour
+  is based on reading `GetAttributeContent`
+  (`ComponentEventHandlerLoweringPass.cs:232-254`) and the BDD #9
+  parse-tree shape from Stage 3.2. Stage 5.0's first action will be
+  to wire tag-helper discovery into the spike's direct path (or
+  flip the source generator's options surface) so the enhanced-mode
+  emission can be observed directly before the codegen fix lands.
 
 ## Stage 5.6.0 LSP anchor classes
 (not yet identified -- to be populated with classification /
@@ -2070,3 +2298,58 @@ behaviour-inert.
   set in all enhanced-mode paths (Stage 4.2), implicit-expression /
   markup boundary validated (Stage 4.3), and tokenizer state hooks
   fire correctly across `Synchronize` bail-out (Stage 4.4).
+- 2026-05-30: Stage 5.0.0 done. Investigation-only spike test
+  `Spike_EmptyOnclickAttribute_DumpsGeneratedSource` added to
+  `src/Razor/src/Compiler/test/Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests/RazorSourceGeneratorComponentTests.cs`
+  (around line 1879) plus a `ProcessSingleComponent` helper that
+  mirrors `RazorSourceGenerator.Helpers.GetGenerationProjectEngine`
+  with a `useEnhancedRecovery` knob (the internal `UseEnhancedRecovery`
+  flag is reachable through `InternalsVisibleTo`). The test dumps
+  four artifacts to `artifacts/razor-recovery-spike/` (gitignored
+  via the pre-existing `[Aa]rtifacts/` rule): the source-generator
+  output (user-visible legacy), direct-engine legacy, direct-engine
+  enhanced, and a parser-diagnostics summary.
+
+  Key empirical findings (full detail in the "Stage 5.0.0 spike
+  report" section above):
+    - Source-generator output for `<button @onclick="">` under the
+      legacy parser **silently drops** the `@onclick` attribute --
+      no `AddAttribute` call is emitted at all -- because
+      `ComponentEventHandlerLoweringPass.RewriteUsage`'s `original.Length == 0`
+      bail-out at lines 164-169 fires. No CS1525 in current
+      legacy source-generator output for the BDD #9 reproducer.
+    - The motivating "wall of red" in dotnet/razor#10383 therefore
+      most plausibly originates from the second writer site --
+      `ComponentNodeWriter.cs:1351-1376` -- which emits
+      `EventCallback.Factory.Create<T>(this, <tokens>)` directly for
+      component attributes bound to an `EventCallback<T>` parameter
+      (e.g. `<MyComponent OnClick="">`) and is **NOT guarded** by any
+      length / emptiness check. Stage 5.0 / 5.1 must cover both
+      writer sites.
+    - The recommended placeholder shape (`default!` substituted for
+      the empty token stream) is recorded in the report so Stage 5.0
+      can pick it up without re-running the spike.
+
+  Test runs green (~2s) on net10.0; full source-generator unit-test
+  suite still green: 214 / 214 passing on net10.0
+  (the spike adds 1 test, baseline 213 -> 214). No baseline
+  changes elsewhere. Razor.slnf builds clean.
+
+  Deviations recorded for Stage 5.0:
+    1. The source generator does not surface `UseEnhancedRecovery`
+       (deliberate per Stage 0.3's downstream audit), and the direct
+       `RazorProjectEngine` path used by the spike does **not** wire
+       tag-helper discovery. Consequently the spike cannot directly
+       observe enhanced-mode `EventCallback.Factory.Create<T>(this, )`
+       emission in this harness; the enhanced-mode behavioural
+       prediction relies on reading `GetAttributeContent`
+       (`ComponentEventHandlerLoweringPass.cs:232-254`) plus the
+       Stage 3.2 BDD #9 parse-tree shape. **Stage 5.0's first
+       action** must be to wire tag-helper discovery into the spike's
+       direct path (or surface a parser-options override on the
+       source generator) so the enhanced-mode emission can be
+       observed before the codegen fix lands.
+    2. The `Spike_EmptyOnclickAttribute_DumpsGeneratedSource` test is
+       deliberately investigation-only (asserts `Assert.True(true)`
+       after writing the artifacts). Stage 5.1 will replace it with
+       an assertion-driven corpus harness.
