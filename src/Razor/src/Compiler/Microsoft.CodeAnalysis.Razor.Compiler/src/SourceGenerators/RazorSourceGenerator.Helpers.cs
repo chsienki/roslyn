@@ -73,6 +73,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 b.ConfigureParserOptions(builder =>
                 {
                     builder.UseRoslynTokenizer = razorSourceGeneratorOptions.UseRoslynTokenizer;
+                    builder.UseEnhancedRecovery = razorSourceGeneratorOptions.UseEnhancedRecovery;
                     builder.CSharpParseOptions = razorSourceGeneratorOptions.CSharpParseOptions;
                 });
 
@@ -131,6 +132,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 b.ConfigureParserOptions(builder =>
                 {
                     builder.UseRoslynTokenizer = razorSourceGeneratorOptions.UseRoslynTokenizer;
+                    builder.UseEnhancedRecovery = razorSourceGeneratorOptions.UseEnhancedRecovery;
                     builder.CSharpParseOptions = razorSourceGeneratorOptions.CSharpParseOptions;
                 });
 

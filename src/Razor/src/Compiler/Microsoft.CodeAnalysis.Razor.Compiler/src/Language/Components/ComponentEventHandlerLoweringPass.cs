@@ -161,11 +161,22 @@ internal sealed class ComponentEventHandlerLoweringPass : ComponentIntermediateN
     private static IntermediateNode RewriteUsage(IntermediateNode parent, TagHelperDirectiveAttributeIntermediateNode node)
     {
         var original = GetAttributeContent(node);
-        if (original.Length == 0)
+
+        // Stage 5.0: detect "effectively empty" value streams (length 0, or all
+        // tokens are missing-value markers / empty content). Under the legacy
+        // parser the value of @onclick="" arrives as an empty array (length 0);
+        // under the enhanced parser (BDD #9) it arrives as a single
+        // missing-identifier-bearing CSharpIntermediateToken tagged via
+        // IntermediateToken.IsMissingValue. Both shapes are treated as
+        // "missing value" so a safe placeholder flows into codegen instead of
+        // the attribute being silently dropped (legacy) or producing CS1525
+        // (enhanced, today). The exact placeholder content is finalized by
+        // Stage 5.1's codegen; Stage 5.0 supplies an empty tagged token that
+        // codegen interprets as "emit default!" (or similar) based on the bound
+        // type. See razor-recovery-redesign-plan.md Stages 5.0 / 5.1.
+        if (MissingValueMarker.IsMissingValueMarker(original))
         {
-            // This can happen in error cases, the parser will already have flagged this
-            // as an error, so ignore it.
-            return node;
+            original = SubstituteMissingValuePlaceholder(node, original);
         }
 
         // Now rewrite the content of the value node to look like:
@@ -227,6 +238,25 @@ internal sealed class ComponentEventHandlerLoweringPass : ComponentIntermediateN
 
             return result;
         }
+    }
+
+    private static ImmutableArray<IntermediateToken> SubstituteMissingValuePlaceholder(
+        TagHelperDirectiveAttributeIntermediateNode node,
+        ImmutableArray<IntermediateToken> original)
+    {
+        // Stage 5.0: produce a single tagged token that stands in for the missing
+        // user value. The token's IsMissingValue flag tells Stage 5.1's codegen to
+        // emit the appropriate placeholder (e.g. "default!") in the surrounding
+        // C# context (see the placeholder matrix in razor-recovery-redesign-plan.md).
+        // The placeholder is wired in here -- rather than left for codegen to
+        // synthesize from scratch -- so the lowering-pass site
+        // (ComponentEventHandlerLoweringPass) and any future codegen-site fix can
+        // share the same detection target (an IntermediateToken with
+        // IsMissingValue == true). The token's Source preserves the original
+        // missing-value span so signature help / diagnostics map back to the
+        // user's "" position.
+        SourceSpan? source = original.Length > 0 ? original[0].Source : node.Source;
+        return [MissingValueMarker.CreateMissingCSharpToken(source)];
     }
 
     private static ImmutableArray<IntermediateToken> GetAttributeContent(IntermediateNode node)

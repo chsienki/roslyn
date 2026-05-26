@@ -7,6 +7,17 @@ public abstract class IntermediateToken : IntermediateNode
 {
     public bool IsLazy { get; }
 
+    /// <summary>
+    /// True when this token was synthesized to represent a missing C# value (e.g.,
+    /// the empty value of <c>@onclick=""</c>) rather than user-written content. Stage
+    /// 5.0 introduces the marker so downstream codegen (Stage 5.1) can emit a safe
+    /// placeholder (e.g., <c>default!</c>) instead of leaving a hole that produces
+    /// CS1525 in the generated C#. See
+    /// <c>src/Razor/docs/plans/ErrorRecovery/razor-recovery-redesign-plan.md</c>
+    /// Stage 5.0 / 5.1 and the spike report in <c>plan-state.md</c>.
+    /// </summary>
+    internal bool IsMissingValue { get; set; }
+
     private object _content;
 
     public string Content

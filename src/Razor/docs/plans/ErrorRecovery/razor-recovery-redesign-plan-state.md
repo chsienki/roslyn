@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.0.0 complete. Ready for Stage 5.0.
+Stage 5.0 complete. Ready for Stage 5.1.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -37,7 +37,7 @@ Stage 5.0.0 complete. Ready for Stage 5.0.
 - Stage 4.3: complete
 - Stage 4.4: complete
 - Stage 5.0.0: complete
-- Stage 5.0: not started
+- Stage 5.0: complete
 - Stage 5.1: not started
 - Stage 5.2: not started
 - Stage 5.3: not started
@@ -2353,3 +2353,112 @@ behaviour-inert.
        deliberately investigation-only (asserts `Assert.True(true)`
        after writing the artifacts). Stage 5.1 will replace it with
        an assertion-driven corpus harness.
+- 2026-05-26: Stage 5.0 done. Two deliverables landed:
+
+  **Deliverable A - source-generator `UseEnhancedRecovery` plumbing.**
+  Mirrored the existing `use-roslyn-tokenizer` ParseOption feature
+  pattern. New `ParseOptions.UseEnhancedRecovery()` extension reads
+  the `use-enhanced-recovery` feature key
+  (`CSharp/ParseOptionsExtensions.cs`). New internal
+  `RazorSourceGenerationOptions.UseEnhancedRecovery` property
+  (`SourceGenerators/RazorSourceGenerationOptions.cs`). Wired through
+  `ComputeRazorSourceGeneratorOptions` (RazorProviders) and both
+  `GetDeclarationProjectEngine` / `GetGenerationProjectEngine` (Helpers).
+  This addresses the Stage 5.0.0 spike deviation #1 by giving the
+  source generator a way to turn on enhanced parsing, which Stage 5.0's
+  Deliverable B then exercises end-to-end via a feature-flagged
+  source-gen test.
+
+  **Deliverable B - IR missing-value marker pipeline.**
+    - New internal `IntermediateToken.IsMissingValue` boolean property
+      on the abstract base (`Intermediate/IntermediateToken.cs`).
+    - New `Intermediate/MissingValueMarker.cs` helper class providing
+      `IsMissingValueMarker(IReadOnlyList<IntermediateToken>)`,
+      `IsMissingValueMarker(ImmutableArray<IntermediateToken>)`, and
+      `CreateMissingCSharpToken(SourceSpan?)`. The detection helper
+      classifies a stream as a missing-value marker when the stream
+      length is zero, all tokens carry `IsMissingValue == true`, or
+      all tokens have `string.IsNullOrEmpty(Content)`. This handles
+      the three observed shapes for empty C# attribute values
+      (legacy = empty array; enhanced / BDD #9 = single
+      MissingToken-bearing token; resolver-synthesized = single
+      empty-content token).
+    - `DefaultRazorIntermediateNodeLoweringPhase.LoweringVisitor.VisitCSharpExpressionLiteral`
+      tags the IR token when all `LiteralTokens` have
+      `GreenNode.IsMissing == true`. New private helper
+      `IsAllMissing(SyntaxTokenList)` (the literal node's
+      `IsMissing` aggregate is NOT used because `GreenNode.IsMissing`
+      is the flag-only check, never aggregated from children).
+    - `DefaultTagHelperResolutionPhase` adds `CreateMissingValueCSharpToken`
+      next to the existing `CreateEmptyCSharpToken`. The
+      `LegacyTagHelperResolver` synthetic-empty-token call sites in
+      `LowerBoundLegacyAttributeValue` and `ConvertValueChildren` now
+      route through it / `MissingValueMarker.CreateMissingCSharpToken`
+      so resolver-synthesised empty tokens are tagged.
+    - `ComponentEventHandlerLoweringPass.RewriteUsage` bail-out
+      (`if (original.Length == 0) return node;`) replaced with
+      `if (MissingValueMarker.IsMissingValueMarker(original))
+       original = SubstituteMissingValuePlaceholder(node, original);`.
+      New private helper `SubstituteMissingValuePlaceholder` returns
+      `[MissingValueMarker.CreateMissingCSharpToken(source)]` (single
+      tagged token; Stage 5.1 will refine the content to a safe
+      placeholder such as `default!`). The `SourceSpan` is carried
+      from the original first token (or `node.Source` when the
+      stream was empty) so signature help still maps back to the
+      user's `""` span.
+
+  **Behavioural impact verified via spike artifacts.** Before
+  Stage 5.0 the source-gen path emitted
+  `__builder.AddMarkupContent(5, "<button ... @onclick>...</button>")`
+  for `<button @onclick="">`, silently dropping the directive.
+  After Stage 5.0 the same input produces
+  `__builder.AddAttribute(7, "onclick",
+   global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<
+   global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this, )); `
+  with an empty argument placeholder. The empty argument still
+  produces CS1525 in C# compilation; Stage 5.1 will finalize the
+  placeholder content (e.g. `default!`) to remove the diagnostic.
+
+  **Tests added (7 new):**
+    - 4 new `MissingValueMarkerLoweringTests` in the Language
+      UnitTests project: enhanced-mode tagging assertion via direct
+      `RazorProjectEngine` (sufficient because tag-helper discovery
+      is not required at this lower-level boundary),
+      `LegacyMode_BoundNonStringAttributeWithEmptyValue_TagsSyntheticToken`,
+      `IsMissingValueMarker_DetectsEffectivelyEmptyStreams`, and
+      `SkippedContentSyntax_IsNotProjectedToIR`.
+    - 3 new theory rows on
+      `RazorSourceGeneratorComponentTests.EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping`
+      (`null`, `"false"`, `"true"` for the `use-enhanced-recovery`
+      feature value). Each asserts the generated code no longer
+      contains the silent-drop `@onclick>Click me` markup blob and
+      DOES contain `EventCallback.Factory.Create` and
+      `AddAttribute(7, "onclick"`.
+
+  **Test counts after Stage 5.0:**
+    - Legacy: 1342 / 1342 (unchanged).
+    - Language: 3604 / 3604 (was 3600, +4 new).
+    - Source-gen: 217 / 217 (was 214, +3 new theory rows).
+  Razor.slnf builds clean. No baseline changes elsewhere.
+
+  Deviations carried into Stage 5.1:
+    1. `ComponentNodeWriter.cs:1335-1376` (the unguarded second
+       writer site noted in the Stage 5.0.0 spike report) was not
+       touched by Stage 5.0; it remains the codegen site that
+       Stage 5.1 must refine to emit the actual placeholder
+       content (`default!`) instead of the empty token Stage 5.0
+       hands it.
+    2. The enhanced-mode IR-shape behaviour for `@onclick=""` cannot
+       be observed end-to-end in the bare component engine harness
+       used by `MissingValueMarkerLoweringTests` because tag-helper
+       discovery is not wired up there; the `EmptyOnclickAttribute_*`
+       tests therefore assert at the lower-level
+       `HtmlAttributeIntermediateNode` boundary and the
+       `EventCallback.Factory.Create` wrapping is asserted by the
+       source-generator theory which DOES have tag-helper discovery.
+    3. Stage 5.0 unifies the legacy `original.Length == 0` bail-out
+       with the enhanced single-missing-token path, so the legacy
+       parser now also produces an `EventCallback.Factory.Create<T>(this, )`
+       call (empty argument) for `@onclick=""` instead of silently
+       dropping the attribute. This is the intended unification: it
+       gives Stage 5.1 a single codegen site to fix.

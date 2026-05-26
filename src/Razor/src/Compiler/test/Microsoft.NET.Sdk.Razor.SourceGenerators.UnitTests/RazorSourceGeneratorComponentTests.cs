@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Razor.Extensions;
 using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Razor;
 using Microsoft.CodeAnalysis.Text;
 using Roslyn.Test.Utilities;
@@ -1971,6 +1972,75 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         // Investigation-only -- always passes. Stage 5.1 will replace this
         // with a proper assertion-driven harness.
         Assert.True(true);
+    }
+
+    // Stage 5.0 assertion-driven coverage: with `use-enhanced-recovery=true`
+    // surfaced through the source generator's ParseOptions and the
+    // ComponentEventHandlerLoweringPass bail-out replaced by missing-value
+    // placeholder substitution, the codegen for `<button @onclick="">`
+    // must reach the EventCallback.Factory.Create<TEventArgs>(this, ...)
+    // wrapping instead of silently dropping the directive into
+    // AddMarkupContent. Stage 5.1 will refine the empty argument into a
+    // safe default (e.g. `default!`) so the CS1525 produced by the empty
+    // placeholder goes away. See razor-recovery-redesign-plan.md.
+    [Theory, WorkItem("https://github.com/dotnet/razor/issues/10383")]
+    [InlineData(null)]
+    [InlineData("false")]
+    [InlineData("true")]
+    public async Task EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping(string useEnhancedRecovery)
+    {
+        var parseOptions = CSharpParseOptions.Default;
+        if (useEnhancedRecovery is not null)
+        {
+            parseOptions = parseOptions.WithFeatures([new("use-enhanced-recovery", useEnhancedRecovery)]);
+        }
+
+        const string ComponentSource = """
+            @using Microsoft.AspNetCore.Components.Web
+
+            <h1>Counter</h1>
+
+            <p>Current count: @currentCount</p>
+
+            <button class="btn btn-primary" @onclick="">Click me</button>
+
+            @code {
+                private int currentCount = 0;
+
+                private void IncrementCount()
+                {
+                    currentCount++;
+                }
+            }
+            """;
+
+        var project = CreateTestProject(new()
+        {
+            ["Shared/Component1.razor"] = ComponentSource,
+        }, cSharpParseOptions: parseOptions);
+
+        var compilation = await project.GetCompilationAsync();
+        var driver = await GetDriverAsync(project);
+
+        // Suppress C# diagnostic verification: Stage 5.0's substitution still
+        // emits an empty placeholder argument inside the EventCallback.Factory.Create
+        // call, which currently produces CS1525. Stage 5.1 will fix the codegen.
+        var result = RunGenerator(compilation!, ref driver, out _, verify: static _ => { });
+
+        var generated = Assert.Single(result.GeneratedSources);
+        var source = generated.SourceText.ToString();
+
+        // Sanity check: the directive must not be silently dropped into an
+        // HTML markup blob. Before Stage 5.0 the empty @onclick attribute
+        // fell through to `AddMarkupContent(..., "...<button ... @onclick>...</button>")`.
+        Assert.DoesNotContain("@onclick>Click me", source);
+
+        // Stage 5.0 guarantee: the EventCallback wrapping is now applied
+        // uniformly for both empty-array (legacy) and single-missing-token
+        // (enhanced) input shapes. The presence of the wrapping call
+        // proves the bail-out has been replaced with placeholder substitution.
+        Assert.Contains("EventCallback.Factory.Create", source);
+        Assert.Contains("AddAttribute(7, \"onclick\"", source);
     }
 
     private static RazorCSharpDocument ProcessSingleComponent(string componentSource, bool useEnhancedRecovery)
