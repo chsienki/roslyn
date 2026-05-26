@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.5 complete. Ready for Stage 5.6.0.
+Stage 5.6.0 complete. Ready for Stage 5.6.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -43,7 +43,7 @@ Stage 5.5 complete. Ready for Stage 5.6.0.
 - Stage 5.3: complete
 - Stage 5.4: complete
 - Stage 5.5: complete
-- Stage 5.6.0: not started
+- Stage 5.6.0: complete
 - Stage 5.6: not started
 - Stage 6.1: not started
 - Stage 6.2: not started
@@ -319,8 +319,140 @@ Two sites emit `EventCallback.Factory.Create<T>(this, <code>)`:
   emission can be observed directly before the codegen fix lands.
 
 ## Stage 5.6.0 LSP anchor classes
-(not yet identified -- to be populated with classification /
-completion / hover provider class names)
+
+Investigation performed on branch `razor-recovery-stage-5-6-0` (base
+commit `a17749a1370` -- Stage 5.5 complete). Discovery used
+`Get-ChildItem -Recurse -Path "src\Razor\src\Razor\src" -Filter "*.cs"
+| Select-String -Pattern "..."` per the Stage 5.6.0 procedure, then
+each surviving candidate was opened and read to confirm it walks the
+Razor syntax tree (rather than being a DTO, a routing shim, or an
+OOP-marshalling wrapper).
+
+**Architectural shape observed.** The LSP surface fans out into three
+host flavours -- the in-proc VS LanguageServices layer, the OOP
+`Microsoft.CodeAnalysis.Remote.Razor` layer (called from VS via
+ServiceHub), and the VS Code / Cohost layer (`CohostHoverEndpoint`,
+`CohostDocumentCompletionEndpoint`, `CohostSemanticTokensRangeEndpoint`).
+All three flavours funnel into the same syntax-tree-walking code that
+lives in `Microsoft.CodeAnalysis.Razor.Workspaces`. Cohost endpoints
+delegate to `IRemote*Service` (verified: `CohostHoverEndpoint.cs:60`,
+`CohostDocumentCompletionEndpoint.cs:109/139/255`), and the OOP
+`Remote*Service` implementations in turn call the shared Workspaces
+classes listed below. So the anchors that Stage 5.6 needs are all in
+`Microsoft.CodeAnalysis.Razor.Workspaces` -- changes there are picked
+up by every host.
+
+### Classification (semantic tokens)
+
+- **Primary anchor: `SemanticTokensVisitor`** at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/SemanticTokens/SemanticTokensVisitor.cs:14`.
+  Derives from `SyntaxWalker`; entry point `AddSemanticRanges` calls
+  `visitor.Visit(razorCodeDocument.GetRequiredSyntaxRoot())`
+  (line 37) and the class overrides per-kind visitors such as
+  `VisitMarkupTextLiteral`, `VisitMarkupLiteralAttributeValue`,
+  `VisitMarkupAttributeBlock`, etc. It is invoked from
+  `AbstractRazorSemanticTokensInfoService.cs:78`, which is the single
+  service consumed by all three host flavours
+  (`RazorSemanticTokensInfoService` in OOP, the VS/Cohost equivalents).
+  Stage 5.6 adds a `VisitSkippedContent` (or equivalent) override here
+  to classify `SkippedContentSyntax` as "comment" / "unknown" so the
+  user sees a visible marker.
+- Confidence: **high**. This is the only `SyntaxWalker` in the Razor
+  LSP tree dedicated to semantic-token emission; the only competing
+  walker (`ClassifiedSpanVisitor` in
+  `Extensions/RazorCodeDocumentExtensions_ClassifiedSpans.cs:24`) is
+  used for IR / source-mapping classification, not LSP semantic
+  tokens, and has a different `SpanKind` enum (`Transition`,
+  `MetaCode`, `Comment`, `Code`, `Markup`, `None`) consumed by
+  source generation rather than the editor.
+
+### Completion
+
+- **Primary anchor: `RazorCompletionListProvider.CreateCompletionContext`**
+  at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Completion/RazorCompletionListProvider.cs:78`.
+  This is where the syntax-tree owner is resolved:
+  `syntaxTree.Root.FindInnermostNode(absoluteIndex,
+  includeWhitespace: true, walkMarkersBack: true)` (line 95), followed
+  by `AbstractRazorCompletionFactsService.AdjustSyntaxNodeForWordBoundary`
+  (line 96). The `RazorCompletionContext` it builds is the input to
+  every `IRazorCompletionItemProvider`. This is the natural insertion
+  point for the `OriginatingLanguage`-based dispatch described in
+  Stage 5.6 / BDD #10: once the `owner` node is known, walk up to the
+  nearest `SkippedContentSyntax`, read its `OriginatingLanguage`
+  field, and route to the C# vs HTML provider set accordingly
+  (falling back to the ancestor-chain rule when
+  `OriginatingLanguage == None`).
+- **Supporting anchor: `AbstractRazorCompletionFactsService.AdjustSyntaxNodeForWordBoundary`**
+  at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Completion/AbstractRazorCompletionFactsService.cs:70`.
+  The tree-walking helper that already adjusts owner-node selection
+  for word boundaries / EOF / `MarkupAttributeBlockSyntax` /
+  `MarkupTagHelperDirectiveAttributeSyntax`. Stage 5.6 may need a
+  parallel adjustment that treats a missing/zero-width token landing
+  inside `SkippedContentSyntax` as "use the parent skipped region for
+  language classification".
+- All other Completion classes in
+  `Microsoft.CodeAnalysis.Razor.Workspaces/Completion/` are either
+  individual `IRazorCompletionItemProvider` implementations (which
+  receive the already-resolved `RazorCompletionContext` and do not
+  themselves walk to a new node), DTOs (`CompletionContext`,
+  `RazorCompletionItem`), or cache/optimisation helpers. The
+  `OOPRazorCompletionListProvider` /
+  `OOPRazorCompletionFactsService` / `RemoteCompletionService`
+  classes in `Microsoft.CodeAnalysis.Remote.Razor/Completion/` are
+  marshalling shims that ultimately invoke the Workspaces classes
+  above.
+- Confidence: **high**. `RazorCompletionListProvider` is the single
+  funnel that every flavour of host (in-proc VS, Cohost, OOP) reaches
+  before per-provider dispatch.
+
+### Hover
+
+- **Primary anchor: `HoverFactory.GetHoverAsync`** at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Hover/HoverFactory.cs:24`.
+  Static method that calls
+  `codeDocument.GetRequiredSyntaxRoot()` and
+  `root.FindInnermostNode(absoluteIndex)` (lines 33-35), then walks
+  parents and consults `HtmlFacts` / `TagHelperFacts`. It is the
+  single shared implementation: `RemoteHoverService.cs:134` calls
+  `HoverFactory.GetHoverAsync(...)` for the OOP / Cohost path, and
+  the in-proc VS hover service does the same. Stage 5.6 adds the
+  "missing token -> no hover, fall back to diagnostic" rule here at
+  the `owner` resolution point (zero-width `MissingToken` produces
+  no hover content; the existing diagnostic surfaces the
+  information).
+- Confidence: **high**. The only competing classes returned by the
+  discovery search (`CohostHoverEndpoint`, `RemoteHoverService`) are
+  pure delegation shims and do not walk the syntax tree themselves.
+
+### Notes
+
+- The LSP code has *not* shifted to a single endpoint-per-feature
+  pattern since the plan was written. The three-flavour fan-out (VS
+  in-proc / VS OOP / Cohost) is still in place, but the convergence
+  on `Microsoft.CodeAnalysis.Razor.Workspaces` for the actual
+  tree-walking work means Stage 5.6 still has a single anchor per
+  category, which is what the plan assumes.
+- For semantic tokens, `SemanticTokensVisitor.Visit(SyntaxNode? node)`
+  at line 53 currently early-exits on `node == null` and only visits
+  nodes that overlap `_range`; the `SkippedContentSyntax` override
+  Stage 5.6 adds should slot in beside the existing
+  `Visit*Literal` / `Visit*Block` overrides without any structural
+  change.
+- For completion, the existing pattern of having
+  `CreateCompletionContext` resolve the owner and then immediately
+  delegate to the providers means Stage 5.6's
+  `OriginatingLanguage` dispatch can be inserted between lines 96
+  and 98 (between `AdjustSyntaxNodeForWordBoundary` and the
+  `RazorCompletionContext` constructor), so the constructed context
+  carries the language identification.
+- Build and smoke check on this branch:
+  `dotnet build Razor.slnf` -- succeeded, 0 warnings, 0 errors.
+  `dotnet test Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests.csproj
+  --no-build --framework net10.0 --filter "FullyQualifiedName~Completion
+  | FullyQualifiedName~Hover"` -- 258 / 258 passed (0 source code
+  changes; this is investigation only).
 
 ## Stage 2 verification
 (parser-recovery branch counts; populate during Stage 2 gate check)
