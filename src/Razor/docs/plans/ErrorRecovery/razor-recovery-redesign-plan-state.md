@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 5.1 complete. Ready for Stage 5.2.
+Stage 5.2 complete. Ready for Stage 5.3.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -39,7 +39,7 @@ Stage 5.1 complete. Ready for Stage 5.2.
 - Stage 5.0.0: complete
 - Stage 5.0: complete
 - Stage 5.1: complete
-- Stage 5.2: not started
+- Stage 5.2: complete
 - Stage 5.3: not started
 - Stage 5.4: not started
 - Stage 5.5: not started
@@ -2628,3 +2628,80 @@ behaviour-inert.
        markers through their writers (see deviation #2), but if
        Stage 5.4 unifies the writers, the same suppression must
        propagate.
+
+- 2026-05-29: Stage 5.2 done. Audited TagHelperParseTreeRewriter
+  and TagHelperBlockRewriter against the new tree shapes the
+  enhanced-recovery parser produces. Two findings:
+
+  1. TagHelperParseTreeRewriter.GetAttributeNameValuePairs
+     already silently continues for any non-MarkupAttributeBlock
+     child (existing fallthrough), so SkippedContentSyntax is a
+     no-op here. No code change needed.
+  2. TagHelperBlockRewriter.Rewrite's attribute switch had no
+     SkippedContentSyntax arm. A SkippedContent child fell
+     into the catch-all `else { result = null; }` branch, which
+     then aborted via `if (result == null)`: the loop copied
+     all remaining attributes verbatim into `attributeBuilder`
+     and broke, meaning any trailing well-formed tag-helper
+     attribute (e.g. the trailing `@onclick=""`) would NOT
+     be rewritten. Fix: added a dedicated `SkippedContentSyntax`
+     case that preserves the node in `attributeBuilder` and
+     `continue`s -- semantics per the Stage 0.5 audit
+     checklist's "must ignore" disposition for skipped content
+     in attribute lists.
+
+  Coverage. Added a new test class
+  `TagHelperRewriter_EnhancedRecoveryTests` (in the legacy
+  unit-test project) with four `[Fact]` tests under
+  `UseEnhancedRecovery = true`:
+
+  1. `DirectiveAttribute_EmptyValue_..._PreservesBdd9MissingValueShape`
+     -- the motivating `@onclick=""` from dotnet/razor#10383. The
+     rewriter must produce a `MarkupTagHelperDirectiveAttribute`
+     whose `Value` is the BDD #9 shape
+     `MarkupTagHelperAttributeValue([CSharpExpressionLiteral([
+     MissingToken(Identifier)])])` with the missing-Identifier
+     token preserved zero-width.
+  2. `MinimizedDirectiveAttribute_..._IsUnchanged` -- minimized
+     directive attributes (`@onclick` with no value) still
+     rewrite to `MarkupMinimizedTagHelperDirectiveAttribute`
+     under the new parser, distinct from the empty-value case.
+  3. `MinimizedBoundAttribute_..._IsUnchanged` -- same for
+     non-directive minimized attributes.
+  4. `SkippedContentBetweenAttributes_..._RewriterTreatsAsNoOp`
+     -- splices a `SkippedContentSyntax` between two parsed
+     `MarkupAttributeBlock` children in `MarkupStartTag.Attributes`
+     (parser-driven generation is impractical today because
+     `ParseMiscAttribute`'s `HtmlEndOfTagFollowSet` synchronize
+     is greedy enough to absorb the trailing attribute), then
+     drives `TagHelperParseTreeRewriter.Rewrite` end-to-end.
+     Asserts: SkippedContent survives the rewriter and BOTH
+     directive attributes (`@attr` and `@onclick`) bind. Verified
+     by reverting the `TagHelperBlockRewriter` fix that this test
+     fails (Expected: 2 directives, Actual: 1) before the fix
+     and passes after -- so the test genuinely guards the fix.
+
+  Test counts after Stage 5.2 (Debug):
+    - Legacy parser (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1346 / 1346 on net10.0 and net472 (up from 1342 -- 4 new
+      tests in `TagHelperRewriter_EnhancedRecoveryTests`).
+    - Language (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3604 / 3604 on net10.0 and net472 (unchanged from
+      Stage 5.1).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      230 / 230 on net10.0 (unchanged from Stage 5.1; project
+      does not target net472).
+
+  Deviations carried into Stage 5.3:
+    1. The parser does not currently emit `SkippedContentSyntax`
+       between two well-formed attributes -- `ParseMiscAttribute`
+       synchronizes through `HtmlEndOfTagFollowSet` (`<`, `>`,
+       `/`, `"`, `'`) which is greedy enough to absorb a
+       subsequent attribute name into the skipped span. The
+       Stage 5.2 splice test ensures the rewriter is
+       forward-compatible if a later stage (e.g. Stage 7
+       parser tightening) ever narrows the synchronize set so
+       that SkippedContent CAN appear between well-formed
+       attributes naturally.
+
