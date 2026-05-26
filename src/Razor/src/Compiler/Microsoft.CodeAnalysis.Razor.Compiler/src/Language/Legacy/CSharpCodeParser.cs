@@ -521,6 +521,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                             new FollowSet(SyntaxKind.RightParenthesis, SyntaxKind.LessThan, SyntaxKind.Transition),
                             _outerFollow,
                             originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        EndingBlockIfStoppedOnOuter(sync);
                         enhancedSkipped = sync.Skipped;
                         balanceFailedInEnhancedMode = true;
                     }
@@ -715,6 +716,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                             RecoveryFollowSets.CSharpImplicitExpressionTrailing,
                             _outerFollow,
                             originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        EndingBlockIfStoppedOnOuter(sync);
                         AcceptMarkerTokenIfNecessary();
                         var pending = OutputTokensAsExpressionLiteral();
                         if (pending is not null)
@@ -1424,6 +1426,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                         new FollowSet(SyntaxKind.Semicolon, SyntaxKind.RightBrace, SyntaxKind.Transition, SyntaxKind.LessThan),
                         _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     builder.Add(OutputTokensAsStatementLiteral());
                     if (sync.Skipped is not null)
@@ -1476,6 +1479,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                         new FollowSet(SyntaxKind.LessThan, SyntaxKind.RightBrace),
                         _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     builder.Add(OutputTokensAsStatementLiteral());
                     if (sync.Skipped is not null)
@@ -2207,6 +2211,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     RecoveryFollowSets.CSharpDirectiveTrailing,
                                     _outerFollow,
                                     originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                                EndingBlockIfStoppedOnOuter(sync);
                                 AcceptMarkerTokenIfNecessary();
                                 var pending = OutputTokensAsStatementLiteral();
                                 if (pending is not null)
@@ -2347,6 +2352,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                         RecoveryFollowSets.CSharpDirectiveTrailing,
                         _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     var pending = OutputTokensAsStatementLiteral();
                     if (pending is not null)
@@ -2666,6 +2672,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                         new FollowSet(SyntaxKind.NewLine, SyntaxKind.RightBrace, SyntaxKind.LeftBrace),
                         _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     builder.Add(OutputTokensAsStatementLiteral());
                     if (sync.Skipped is not null)
@@ -3149,6 +3156,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                     RecoveryFollowSets.CSharpDirectiveTrailing,
                     _outerFollow,
                     originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                EndingBlockIfStoppedOnOuter(sync);
                 if (sync.Skipped is not null)
                 {
                     builder.Add(sync.Skipped);

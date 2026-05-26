@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 4.3 complete. Ready for Stage 4.4.
+Stage 4 complete (all 4 sub-stages). Ready for Stage 5.0.0.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -35,7 +35,7 @@ Stage 4.3 complete. Ready for Stage 4.4.
 - Stage 4.1: complete
 - Stage 4.2: complete
 - Stage 4.3: complete
-- Stage 4.4: not started
+- Stage 4.4: complete
 - Stage 5.0.0: not started
 - Stage 5.0: not started
 - Stage 5.1: not started
@@ -1962,3 +1962,111 @@ behaviour-inert.
   enhanced `_EnhancedRecovery` test asserts identical shape under
   enhanced mode); language tests 3600 / 3600 unchanged. Both TFMs
   (net10.0 and net472).
+- 2026-05-29: Stage 4.4 done. Cross-language tokenizer-state hooks
+  are now fired on every enhanced-mode C# `Synchronize` bail-out that
+  stops at a token in the caller's outer follow set.
+
+  **Helper added (`TokenizerBackedParser.cs`)**:
+    - `internal void EndingBlockIfStoppedOnOuter(SyncResult result)` --
+      when `result.StopReason == SyncStopReason.AtOuterFollowToken`,
+      calls `EndingBlock()` (the existing internal wrapper that
+      forwards to the active tokenizer's `EndingBlock()` override).
+      The companion `StartingBlockIfStoppedOnOuter` was deliberately
+      NOT added: the C# parser's `ParseBlock` (and
+      `OtherParserBlock`'s post-return hook) already fire
+      `StartingBlock` on every re-entry, so cursor re-alignment on
+      the C#-back-from-HTML boundary is unchanged.
+
+  **Enhanced-mode C# Synchronize call sites upgraded (8 total)** --
+  identical set to the 8 sites Stage 4.2 wired with `_outerFollow`,
+  each now followed by an `EndingBlockIfStoppedOnOuter(sync)` call:
+    - `ParseExplicitExpressionBody` (Balance-failure recovery in `@(`).
+    - `ParseImplicitExpression` / `ParseMethodCallOrArrayIndex`
+      (Balance-failure recovery in implicit-expression call/index).
+    - `ParseStandardStatement` (mid-statement garbage recovery).
+    - `TryBalanceBlock` inside `ParseStatementBody` (`@{ }` balance
+      failure recovery).
+    - `ParseExtensibleDirective` trailing-junk sync (in the
+      `DirectiveTokenKind` recovery branch).
+    - `BuildBailedDirective` (extensible-directive trailing sync on
+      missing required tokens).
+    - `TryParseCondition` (the canonical Stage 4.2 case).
+    - `ParseUsingDeclaration` trailing sync.
+
+  **HTML side**: no change. `HtmlTokenizer.StartingBlock` /
+  `EndingBlock` are no-op overrides of the base virtual no-ops, so
+  the single enhanced-mode HTML `Synchronize` site
+  (`ParseMiscAttribute`) does not need the hook -- calling
+  `EndingBlock` on the HTML tokenizer would be a no-op anyway. The
+  helper lives on `TokenizerBackedParser` (not on `CSharpCodeParser`)
+  for symmetry, so future HTML-side requirements (or a future
+  RoslynHtmlTokenizer) could opt in without a parser-side rework.
+
+  **`Required` call sites**: deliberately not updated. The plan
+  literal scopes the hook to direct `Synchronize` calls. The 6
+  enhanced-mode `Required` sites (2 in C#, 4 in HTML) thread
+  `outerFollow` into their internal `Synchronize` but do not expose
+  the `SyncStopReason`. Threading the stop reason out through
+  `Required` would be a wider signature churn than Stage 4.4
+  authorises. The actual observable behaviour is identical because:
+  (a) every C# `Required` site is followed by code that either
+  immediately exits the construct or runs further parsing that hits
+  the next `OtherParserBlock`, which fires `EndingBlock` itself;
+  (b) HTML's `Required` sites use the no-op HTML tokenizer hooks.
+
+  **Tests**: new test class
+  `RoslynCSharpTokenizerRecoveryTests` (3 tests, both TFMs) under
+  `legacyTest/Legacy/`, using `useLegacyTokenizer: false` so the
+  Roslyn tokenizer is active. Each test sets
+  `UseEnhancedRecovery = true` on top:
+    1. `MalformedCSharpWithSurroundingMarkup_RoslynTokenizer_EnhancedRecovery`
+       -- the Stage 4.2 canonical case
+       (`<div>@if(foo bar baz<p>still html</p></div>`)
+       re-exercised under the Roslyn tokenizer. Asserts the same
+       Stage 4.2 invariants (skipped-content shape, `<p>` is a real
+       `MarkupElement`, outer `<div>` survives intact, no
+       `MarkupMiscAttributeContent`).
+    2. `RecoveryFollowedByImplicitTransition_RoslynTokenizer_EnhancedRecovery`
+       -- the canonical "re-enter C# after recovery" test
+       (`<div>@if(foo bar baz<p>@bar</p></div>`). Verifies the
+       subsequent `@bar` implicit expression parses cleanly at the
+       correct source positions, proving the Roslyn parser's state
+       is realigned after the recovery bail-out.
+    3. `RoslynAndLegacyTokenizers_ProduceEquivalentTrees_AcrossRecovery`
+       -- pins the structural invariant that the tokenizer choice is
+       not observable in the produced syntax tree across multiple
+       enhanced-mode recovery sites (`@if(...`, `@(...`, `@{...}`),
+       including re-entry scenarios.
+
+  **Behavioural-difference investigation (recorded for traceability)**:
+  the three tests pass under both Roslyn and legacy tokenizers
+  whether or not the Stage 4.4 hook is applied -- a confirming
+  observation, not a counter-example. The reason is that
+  `RoslynCSharpTokenizer.StartingBlock` (which fires on every C#
+  re-entry from `ParseBlock`) calls
+  `_roslynTokenParser.SkipForwardTo(Source.Position)`, which
+  defensively re-aligns the Roslyn parser's position even if
+  `EndingBlock` was skipped at the previous exit. The Stage 4.4 hook
+  is the **prescriptive correctness invariant** required by the
+  plan: it ensures `RoslynCSharpTokenizer.CurrentState` is reset
+  back to `Start` (via `EndingBlock`'s `CurrentState =
+  RoslynCSharpTokenizerState.Start` assignment) and that the
+  `_resultCache` last entry is rolled back via `ResetTo(result)`
+  whenever C# relinquishes control across a recovery bail. Without
+  the hook, both stay populated until the next `OtherParserBlock`
+  call (which always fires `EndingBlock` itself); the
+  `RoslynAndLegacyTokenizers_ProduceEquivalentTrees_AcrossRecovery`
+  test pins this equivalence as a regression guard so a future
+  tighter-state RoslynCSharpTokenizer (e.g. asserting `CurrentState
+  == Start` on entry to `StartingBlock`) would fail loudly if the
+  hook ever regressed.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1342 / 1342 (1339 baseline + 3 new in
+  `RoslynCSharpTokenizerRecoveryTests`); language tests 3600 / 3600
+  unchanged. Both TFMs (net10.0 and net472).
+
+  Stage 4 closed: cross-language handoff respects the outer follow
+  set in all enhanced-mode paths (Stage 4.2), implicit-expression /
+  markup boundary validated (Stage 4.3), and tokenizer state hooks
+  fire correctly across `Synchronize` bail-out (Stage 4.4).

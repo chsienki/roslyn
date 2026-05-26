@@ -797,6 +797,37 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
     }
 
     /// <summary>
+    /// Cross-language tokenizer-state hook for the enhanced-recovery
+    /// <c>Synchronize</c> bail-out path (Stage 4.4 of the recovery plan).
+    /// </summary>
+    /// <remarks>
+    /// When a recovery <c>Synchronize</c> stops at a token in the caller's
+    /// outer follow set (<see cref="SyncStopReason.AtOuterFollowToken"/>),
+    /// the parser is about to relinquish control to its outer parser
+    /// (typically across a C# / HTML language boundary). Tokenizers that
+    /// maintain wrapped-parser state -- specifically
+    /// <c>RoslynCSharpTokenizer</c>, which wraps a Roslyn
+    /// <see cref="Microsoft.CodeAnalysis.CSharp.SyntaxTokenParser"/> -- need
+    /// <see cref="EndingBlock"/> to fire at the relinquish point so the
+    /// wrapped parser's position stays aligned with the cursor the outer
+    /// parser will resume from. The legacy <c>HtmlTokenizer</c> and
+    /// <c>NativeCSharpTokenizer</c> are no-ops here so this call is free
+    /// when those tokenizers are active.
+    ///
+    /// The matching <see cref="StartingBlock"/> call already fires
+    /// automatically when the C# parser re-enters via <c>ParseBlock</c>
+    /// (or via <c>OtherParserBlock</c>'s post-return hook), so no
+    /// <c>StartingBlockIfStoppedOnOuter</c> companion is needed.
+    /// </remarks>
+    internal void EndingBlockIfStoppedOnOuter(SyncResult result)
+    {
+        if (result.StopReason == SyncStopReason.AtOuterFollowToken)
+        {
+            EndingBlock();
+        }
+    }
+
+    /// <summary>
     /// Advances the tokenizer past unexpected tokens until the current token
     /// is in <paramref name="localFollow"/>, in <paramref name="outerFollow"/>,
     /// at end-of-file, or matches a stop condition in <paramref name="options"/>.
