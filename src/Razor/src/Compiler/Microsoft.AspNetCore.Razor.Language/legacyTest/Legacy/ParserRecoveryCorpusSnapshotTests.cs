@@ -1045,6 +1045,113 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         Assert.Empty(tree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
     }
 
+    // ----------------------------------------------------------------
+    // Stage 3.2: ParseRemainingAttribute enhanced-recovery test for the
+    // motivating bug (`<button @onclick="">`, dotnet/razor#10383).
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branch added in Stage 3.2 to `HtmlMarkupParser.ParseRemainingAttribute`,
+    // which detects an empty C#-bound attribute value (i.e. the attribute
+    // name starts with `@` and the value parse produced nothing) and
+    // synthesises the "missing C# expression" tree shape mandated by
+    // Big Design Decision #9:
+    //
+    //     GenericBlock([ CSharpExpressionLiteral([ MissingToken(Identifier) ]) ])
+    //
+    // The corpus file is parsed under `RazorFileKind.Component`: in
+    // Component mode `AllowCSharpInMarkupAttributeArea` is cleared, so
+    // `@onclick` is parsed as a regular markup attribute name (with `@`
+    // as the first character of the name) and flows through
+    // `ParseRemainingAttribute`. Under `RazorFileKind.Legacy` (the
+    // default the corpus snapshot uses) the same input splits into two
+    // separate `MarkupMiscAttributeContent` nodes -- the Stage 5.2
+    // tag-helper rewriter glues those back together. Stage 3.2 only
+    // covers the Component-direct-parse path; the legacy snapshot is
+    // unchanged.
+    //
+    // Stage 3.2 exit criteria asserted under enhanced mode:
+    //   - The `@onclick` attribute is a real `MarkupAttributeBlockSyntax`
+    //     (not split into `MarkupMiscAttributeContent` like the legacy
+    //     snapshot shows).
+    //   - Its `Value` is exactly the BDD #9 shape: one `GenericBlockSyntax`
+    //     containing one `CSharpExpressionLiteralSyntax` containing one
+    //     `MissingToken(Identifier)`.
+    //   - The whole `Value` subtree is zero-width (no source characters
+    //     were absorbed into the missing-expression placeholder).
+    //   - Sibling attribute `class="btn btn-primary"` is unaffected --
+    //     the fix is gated on the name starting with `@`.
+    //   - No new parser diagnostics are introduced by the enhanced
+    //     branch (RZ2008 is emitted later by tag-helper resolution, not
+    //     by the parser; this assertion guards against the enhanced
+    //     branch accidentally widening the diagnostic set).
+    // ----------------------------------------------------------------
+
+    // Motivating bug: dotnet/razor#10383 (https://github.com/dotnet/razor/issues/10383).
+    [Fact]
+    public void EmptyBoundAttribute_Onclick_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            fileKind: RazorFileKind.Component,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Locate the `@onclick=""` attribute. In Component mode the
+        // attribute name is parsed as `@onclick` (the `@` is just the
+        // first character of the name), so this is a real
+        // `MarkupAttributeBlockSyntax` with `name.Content == "@onclick"`.
+        var attributeBlock = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupAttributeBlockSyntax>()
+            .Single(a => GetAttributeNameContent(a) == "@onclick");
+
+        // Sanity check: the corpus has `@onclick=""` so an equals token
+        // is present and not missing.
+        Assert.False(attributeBlock.EqualsToken.IsMissing);
+        Assert.Equal(SyntaxKind.Equals, attributeBlock.EqualsToken.Kind);
+
+        // BDD #9 shape: GenericBlock([ CSharpExpressionLiteral([ MissingToken(Identifier) ]) ]).
+        // Stage 5.1 codegen detects this exact shape (single-child
+        // GenericBlock containing a single-token CSharpExpressionLiteral
+        // whose only token is a missing Identifier) and emits a safe
+        // placeholder. Any deviation here breaks that contract.
+        var value = Assert.IsType<GenericBlockSyntax>(attributeBlock.Value);
+        var expressionLiteral = Assert.IsType<CSharpExpressionLiteralSyntax>(Assert.Single(value.Children));
+        var missingToken = Assert.Single(expressionLiteral.LiteralTokens);
+        Assert.True(missingToken.IsMissing);
+        Assert.Equal(SyntaxKind.Identifier, missingToken.Kind);
+
+        // The whole synthesised value subtree is zero-width: the parser
+        // did not absorb any source characters into the placeholder.
+        Assert.Equal(0, value.Width);
+        Assert.Equal(0, expressionLiteral.Width);
+        Assert.Equal(0, missingToken.Span.Length);
+
+        // The sibling `class="btn btn-primary"` attribute is unaffected;
+        // it has a non-null `Value` with real content (BDD #9 only
+        // applies to names starting with `@`).
+        var classAttribute = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupAttributeBlockSyntax>()
+            .Single(a => GetAttributeNameContent(a) == "class");
+        Assert.NotNull(classAttribute.Value);
+        Assert.Contains("btn", classAttribute.Value!.GetContent());
+
+        // The enhanced branch must not emit any parser diagnostics --
+        // RZ2008 (empty bound attribute) is emitted later in tag-helper
+        // resolution (DefaultTagHelperResolutionPhase.LegacyTagHelperResolver),
+        // not in the parser. This assertion guards against the enhanced
+        // branch accidentally widening the diagnostic set.
+        Assert.Empty(tree.Diagnostics);
+
+        static string GetAttributeNameContent(MarkupAttributeBlockSyntax attribute)
+        {
+            return attribute.Name is { } name ? name.GetContent() : string.Empty;
+        }
+    }
+
     private void ParseCorpusFile(string corpusFileName)
     {
         var testFile = TestFile.Create("ParserRecoveryCorpus/" + corpusFileName, typeof(ParserRecoveryCorpusSnapshotTests));

@@ -1450,7 +1450,68 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
             // There is no quote and there is whitespace after equals. There is no attribute value.
         }
 
+        if (Context.Options.UseEnhancedRecovery
+            && attributeValue is null
+            && IsConditionalAttributeName(nameContent)
+            && IsCSharpBoundAttributeName(nameContent))
+        {
+            // Stage 3.2: a C#-bound attribute (name starts with `@`, e.g. `@onclick`) whose
+            // value parse produced nothing -- either an empty quoted value (`@onclick=""`),
+            // an unquoted no-value-with-whitespace form (`@onclick= ...`), or any other path
+            // that left `attributeValue` null. Component-file parsing routes `@onclick`
+            // through `ParseRemainingAttribute` (in Component mode `AllowCSharpInMarkupAttributeArea`
+            // is cleared, so `@` is just the first character of the attribute name); the
+            // motivating bug `dotnet/razor#10383` exercises exactly this path.
+            //
+            // The replacement shape is the "missing C# expression" contract from Big
+            // Design Decision #9:
+            //
+            //     GenericBlock([ CSharpExpressionLiteral([ MissingToken(Identifier) ]) ])
+            //
+            // The `Value` slot of `MarkupAttributeBlockSyntax` is typed `RazorBlockSyntax`,
+            // and the `Value` slot of `MarkupTagHelperAttributeSyntax` /
+            // `MarkupTagHelperDirectiveAttributeSyntax` (after Stage 5.2's tag-helper
+            // rewriter runs) is typed `MarkupTagHelperAttributeValueSyntax`, itself a
+            // `RazorBlockSyntax`. Both accept a `GenericBlockSyntax`, so the same shape
+            // survives the rewrite. Stage 5.1 codegen detects this exact shape (a
+            // single-child `GenericBlock` whose only child is a `CSharpExpressionLiteral`
+            // whose only token is a missing `Identifier`) and emits a safe placeholder
+            // instead of empty C# text, which is what kills the cascading CS1525 in the
+            // generated file.
+            //
+            // Restricted to `IsCSharpBoundAttributeName` (name starts with `@`) so that
+            // plain HTML attributes with empty quoted values (e.g. `<input value="">`)
+            // are unaffected -- those are syntactically valid HTML and must continue to
+            // produce a null `Value`. `IsConditionalAttributeName` is also required to
+            // mirror the original branch's gating (so `data-` attributes are excluded).
+            attributeValue = CreateMissingCSharpExpressionValueBlock();
+        }
+
         return SyntaxFactory.MarkupAttributeBlock(namePrefix, name, nameSuffix, equalsToken, valuePrefix, attributeValue, valueSuffix);
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> if <paramref name="name"/> looks like a C#-bound
+    /// Razor attribute name (i.e. it starts with the Razor transition character <c>@</c>).
+    /// In Component file kinds <c>AllowCSharpInMarkupAttributeArea</c> is cleared, so a
+    /// name like <c>@onclick</c> is parsed as a regular markup attribute name whose
+    /// first character is the transition. This is the signal the parser uses to decide
+    /// whether an empty value should be reshaped per Big Design Decision #9.
+    /// </summary>
+    private static bool IsCSharpBoundAttributeName(string name)
+        => name.Length > 0 && name[0] == '@';
+
+    /// <summary>
+    /// Builds the "missing C# expression" tree shape for an empty C#-bound attribute
+    /// value, per Big Design Decision #9:
+    /// <c>GenericBlock([ CSharpExpressionLiteral([ MissingToken(Identifier) ]) ])</c>.
+    /// Stage 5.1 codegen detects this exact shape and substitutes a safe placeholder.
+    /// </summary>
+    private static RazorBlockSyntax CreateMissingCSharpExpressionValueBlock()
+    {
+        var missingIdentifier = SyntaxFactory.MissingToken(SyntaxKind.Identifier);
+        var expressionLiteral = SyntaxFactory.CSharpExpressionLiteral(new SyntaxList<SyntaxToken>(missingIdentifier));
+        return SyntaxFactory.GenericBlock(new SyntaxList<RazorSyntaxNode>(expressionLiteral));
     }
 
     private RazorBlockSyntax ParseNonConditionalAttributeValue(SyntaxKind quote)

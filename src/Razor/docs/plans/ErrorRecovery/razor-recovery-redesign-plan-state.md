@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 3.1 complete. Ready for Stage 3.2 (HtmlMarkupParser attribute-parsing migration).
+Stage 3.2 complete. Ready for Stage 3.3 (HtmlMarkupParser remaining recovery sites).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -29,7 +29,7 @@ Stage 3.1 complete. Ready for Stage 3.2 (HtmlMarkupParser attribute-parsing migr
 - Stage 2.5: complete
 - Stage 2.6: complete
 - Stage 3.1: complete
-- Stage 3.2: not started
+- Stage 3.2: complete
 - Stage 3.3: not started
 - Stage 3.4: not started
 - Stage 4.1: not started
@@ -1353,3 +1353,102 @@ commit `f445deb5f8c`):
   Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
   1332 / 1332 (1330 baseline + 1 new legacy corpus + 1 new enhanced);
   language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+
+- **Stage 3.2 (HtmlMarkupParser attribute-parsing migration --
+  empty C#-bound attribute value)**: First parser fix landing the
+  BDD #9 shape `GenericBlock([CSharpExpressionLiteral([MissingToken(Identifier)])])`
+  for the motivating bug from dotnet/razor#10383
+  (`<button @onclick="">`).
+
+  **Flow analysis (deviation from plan literal text)**: the plan
+  references `ParseConditionalAttributeValue` / `OtherParserBlock`
+  as the migration site, but empirical investigation of the
+  motivating bug shows that under default Legacy file kind, the
+  `@onclick` name is parsed via the
+  `AttributeNameParsingResult.CSharp` -> `OtherParserBlock` path,
+  splitting `@onclick` and `=""` into two `MarkupMiscAttributeContent`
+  nodes; the bug shape never reaches `ParseRemainingAttribute`.
+  Under Component file kind (`AllowCSharpInMarkupAttributeArea`
+  cleared in `RazorParserOptions.Flags.cs:52`), `@onclick` parses
+  as a regular attribute name and flows through `ParseRemainingAttribute`
+  -> `IsConditionalAttributeName` true -> empty value -> `attributeValue`
+  is `null`. That is the path the fix targets, and it's the one
+  the Blazor component scenario in #10383 actually executes.
+
+  **Implementation (Option A)**: surgical injection at a single
+  site at the end of `HtmlMarkupParser.ParseRemainingAttribute`,
+  immediately before the final `return SyntaxFactory.MarkupAttributeBlock(...)`.
+  When `UseEnhancedRecovery` is set and `attributeValue is null`
+  and the name passes both `IsConditionalAttributeName(nameContent)`
+  (mirrors the original branch gate, excluding `data-`) and a new
+  `IsCSharpBoundAttributeName(nameContent)` check (name starts
+  with `@`), the parser synthesises a zero-width
+  `MarkupTagHelperAttributeValue` containing the BDD #9
+  `GenericBlock([CSharpExpressionLiteral([MissingToken(Identifier)])])`
+  subtree. The `@` gate is essential to leave plain HTML
+  attributes like `<input value="">` undisturbed (still null
+  Value, still valid HTML). Skipped also handling the
+  `ParseConditionalAttributeValue` -> `OtherParserBlock` path
+  (`class="@"` scenario) since the corpus exit criterion does
+  not require it and restructuring the
+  `MarkupDynamicAttributeValue` wrapper to emit the BDD #9
+  shape would be significantly larger; can be revisited in
+  Stage 3.3 / 3.4 if a corpus test forces it.
+
+  **Helpers added** (private static, placed between
+  `ParseRemainingAttribute` and `ParseNonConditionalAttributeValue`):
+  - `IsCSharpBoundAttributeName(string name)`: returns true iff
+    the attribute name starts with `@`.
+  - `CreateMissingCSharpExpressionValueBlock()`: builds the
+    BDD #9 zero-width subtree using the InternalSyntax
+    `SyntaxFactory` overloads (`MissingToken(SyntaxKind.Identifier)`,
+    `CSharpExpressionLiteral(SyntaxList<SyntaxToken>)`,
+    `GenericBlock(SyntaxList<RazorSyntaxNode>)`). Uses the
+    `SyntaxList<TNode>(GreenNode)` single-element constructor.
+
+  **No new RZ IDs**: Stage 3.2 introduces no parser diagnostic.
+  The shape downstream codegen (Stage 5.1) will read produces
+  the existing RZ2008 / RZ10024-class diagnostic via the
+  tag-helper / binding pipeline, not via the parser. Tests
+  assert `Assert.Empty(tree.Diagnostics)` to confirm.
+
+  **Tests**: one new enhanced-mode `[Fact]`
+  `EmptyBoundAttribute_Onclick_EnhancedRecovery` added to
+  `ParserRecoveryCorpusSnapshotTests.cs` (after
+  `UnnamedTag_EnhancedRecovery`, before `ParseCorpusFile`). Uses
+  the existing `EmptyBoundAttribute_Onclick.razor` corpus file
+  but parses with `fileKind: RazorFileKind.Component` and
+  `UseEnhancedRecovery=true` to hit the targeted code path,
+  then asserts:
+  - the targeted attribute has a non-null `Value` of type
+    `MarkupTagHelperAttributeValue`,
+  - it contains exactly one `GenericBlock` child whose single
+    child is a `CSharpExpressionLiteral` whose single token is a
+    missing `Identifier`,
+  - the synthesised subtree is zero-width,
+  - the sibling `class` attribute is unaffected (still produces
+    a normal markup-text value),
+  - the parse tree carries no diagnostics.
+
+  The corpus baselines (`EmptyBoundAttribute_Onclick.stree.txt` /
+  `.diag.txt`) document the legacy "before" state and were not
+  regenerated for Stage 3.2 (consistent with the Stage 1.4
+  / 2.x / 3.1 deviation: enhanced mode uses in-memory assertions
+  rather than parallel `.enhanced.*` baselines).
+
+  **WorkItem attribute note**: the legacyTest project does not
+  reference the `WorkItem` xUnit-extension attribute used elsewhere
+  in roslyn; the GitHub issue link is recorded as a `//` comment
+  on the test method instead.
+
+  **HtmlMarkupParser.cs Stage-3.2 site audit**: 1
+  `ParseRemainingAttribute` site migrated. The two `OtherParserBlock`
+  call sites (one in `ParseConditionalAttributeValue`, one in the
+  `AttributeNameParsingResult.CSharp` flow inside
+  `ParseAttributeName`) are intentionally not migrated -- they
+  do not produce the BDD #9 shape today and are deferred to
+  Stage 3.3 / 3.4 if a corpus case requires them.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1333 / 1333 (1332 baseline + 1 new enhanced); language tests
+  3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
