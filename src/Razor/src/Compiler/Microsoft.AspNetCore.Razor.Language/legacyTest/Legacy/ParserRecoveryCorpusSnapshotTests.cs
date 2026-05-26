@@ -99,6 +99,10 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     public void UnnamedTag()
         => ParseCorpusFile("UnnamedTag.razor");
 
+    [Fact]
+    public void MalformedCSharpWithSurroundingMarkup()
+        => ParseCorpusFile("MalformedCSharpWithSurroundingMarkup.razor");
+
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
     //
@@ -1554,6 +1558,108 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
             Assert.NotNull(wellFormedElement.MarkupEndTag);
             Assert.Equal("p", wellFormedElement.MarkupEndTag.Name.Content);
         }
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 4.2: outer-follow threading through enhanced-mode recovery.
+    //
+    // Stage 4.2 upgrades every enhanced-mode `Synchronize` / `Required`
+    // / `OtherParserBlock` call site added by Stages 2 and 3 to thread
+    // the parser's `_outerFollow` (populated by Stage 4.1's
+    // `ParseBlock(FollowSet outerFollow)` overload) through the
+    // recovery machinery. The corpus case below exercises the
+    // canonical hand-off: HTML's `ParseCodeTransition` passes
+    // `LessThan` as the outer-follow into the C# parser via
+    // `OtherParserBlock`, and the C# parser must bail at an
+    // unexpected `<` even when the C# construct's LOCAL follow set
+    // (e.g. `(NewLine, LeftBrace, RightBrace)` for
+    // `TryParseCondition`) does NOT include `<`.
+    //
+    // Stage 4.2 exit criteria asserted under enhanced mode:
+    //   - The C# parser stops at the outer-follow token (`<`) inside
+    //     the malformed `@if(...` even though `<` is not in
+    //     `TryParseCondition`'s local sync set. The garbage between
+    //     the unclosed `(` and the `<` is wrapped in a
+    //     `SkippedContentSyntax` tagged with `CSharpCodeBlock`.
+    //   - The HTML parser resumes at `<p>` and parses it as a real
+    //     `MarkupElement` (start tag, content, end tag), NOT absorbed
+    //     into a fat `CSharpStatementLiteral` and NOT wrapped in a
+    //     `MarkupMiscAttributeContent`.
+    //   - The outer `<div>...</div>` element survives intact: the
+    //     `</div>` end-tag still pairs with the `<div>` start-tag.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void MalformedCSharpWithSurroundingMarkup_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create(
+            "ParserRecoveryCorpus/MalformedCSharpWithSurroundingMarkup.razor",
+            typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // The C# parser must bail at `<` (the outer-follow token from
+        // HTML's `ParseCodeTransition`), even though `<` is NOT in
+        // `TryParseCondition`'s local sync set
+        // (`(NewLine, LeftBrace, RightBrace)`). Without Stage 4.2's
+        // outer-follow threading the C# parser would keep reading and
+        // absorb `<p>still html</p></div>` as a fat
+        // `CSharpStatementLiteral`.
+        var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
+        Assert.Equal(SyntaxKind.CSharpCodeBlock, skipped.OriginatingLanguage);
+        Assert.Equal("foo bar baz", skipped.GetContent());
+
+        // No `MarkupMiscAttributeContent` produced (Stage 2/3 exit
+        // criterion is preserved).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        // The `<p>still html</p>` parses as a real `MarkupElement` with
+        // both a start tag and an end tag -- not absorbed by C# recovery.
+        var pStartPosition = source.IndexOf("<p>");
+        Assert.True(pStartPosition > 0, "Corpus file should contain `<p>` markup.");
+        var pElement = tree.Root.DescendantNodes()
+            .OfType<MarkupElementSyntax>()
+            .Single(e => e.MarkupStartTag is { } start && start.Name.Content == "p");
+        Assert.Equal(pStartPosition, pElement.SpanStart);
+        Assert.NotNull(pElement.MarkupStartTag);
+        Assert.Equal("p", pElement.MarkupStartTag!.Name.Content);
+        Assert.NotNull(pElement.MarkupEndTag);
+        Assert.Equal("p", pElement.MarkupEndTag!.Name.Content);
+
+        // The outer `<div>...</div>` element survives intact: its
+        // `</div>` end tag still pairs with the start tag.
+        var divElement = tree.Root.DescendantNodes()
+            .OfType<MarkupElementSyntax>()
+            .Single(e => e.MarkupStartTag is { } start && start.Name.Content == "div");
+        Assert.NotNull(divElement.MarkupStartTag);
+        Assert.Equal("div", divElement.MarkupStartTag!.Name.Content);
+        Assert.NotNull(divElement.MarkupEndTag);
+        Assert.Equal("div", divElement.MarkupEndTag!.Name.Content);
+
+        // The `<p>` element is nested inside the surviving `<div>`.
+        Assert.Contains(pElement, divElement.DescendantNodes().OfType<MarkupElementSyntax>());
+
+        // Every `CSharpStatementLiteral` past the `(` must be
+        // zero-width: the legacy "fat literal" wrapping `foo bar baz`
+        // and the trailing markup is now a `SkippedContentSyntax`
+        // followed by markup nodes. Only the marker literal flushed by
+        // `OutputTokensAsStatementLiteral` (Width == 0) may remain.
+        var openParenPosition = source.IndexOf('(');
+        Assert.All(
+            tree.Root.DescendantNodes().OfType<CSharpStatementLiteralSyntax>(),
+            lit =>
+            {
+                if (lit.Width == 0)
+                {
+                    return;
+                }
+                Assert.True(
+                    lit.EndPosition <= openParenPosition + 1,
+                    $"Non-empty CSharpStatementLiteral at [{lit.SpanStart}..{lit.EndPosition}) overlaps the recovered region starting at {openParenPosition + 1}.");
+            });
     }
 
     private void ParseCorpusFile(string corpusFileName)

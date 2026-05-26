@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 4.1 complete. Ready for Stage 4.2 (wire outer follow sets through every enhanced-mode `Synchronize` call added by Stages 2/3, and start passing non-`Empty` translated outer follow sets at the six cross-parser handoff call sites enumerated in the Stage 4.1 verification section below).
+Stage 4.2 complete. Ready for Stage 4.3.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -33,7 +33,7 @@ Stage 4.1 complete. Ready for Stage 4.2 (wire outer follow sets through every en
 - Stage 3.3: complete
 - Stage 3.4: complete
 - Stage 4.1: complete
-- Stage 4.2: not started
+- Stage 4.2: complete
 - Stage 4.3: not started
 - Stage 4.4: not started
 - Stage 5.0.0: not started
@@ -1769,3 +1769,102 @@ behaviour-inert.
 
   See the **Stage 4.1 verification** section above for the per-call-site
   mapping table that Stage 4.2 will consume.
+- 2026-05-27: Stage 4.2 done. Outer follow sets are now wired through
+  every enhanced-mode `Synchronize` / `Required` / `OtherParserBlock`
+  call site added by Stages 2/3. Per-call-site upgrade audit:
+
+  **Enhanced-mode `Synchronize` call sites upgraded (9 total)**:
+    - `CSharpCodeParser.cs` (8 sites): `ParseExplicitExpressionBody`,
+      `ParseMethodCallOrArrayIndex`, `ParseStandardStatement`,
+      `TryBalanceBlock`, `ParseExtensibleDirective` (x2),
+      `TryParseCondition`, `ParseUsingDeclaration`. Each now passes
+      `_outerFollow` as the second arg to the full `Synchronize`
+      overload (`Synchronize(localFollow, outerFollow, originatingLanguage, options)`).
+    - `HtmlMarkupParser.cs` (1 site): `ParseMiscAttribute` -- same
+      mechanical upgrade.
+
+  **Enhanced-mode `Required` call sites upgraded (6 total)**:
+    - `TokenizerBackedParser` now accepts an optional
+      `FollowSet outerFollow = default` on both `Required` overloads
+      (single-kind and multi-kind). The inner `Synchronize` call
+      threads that value into the full overload. `FollowSet`'s default
+      value is `Empty`, so existing callers (notably the 2 in
+      `TokenizerBackedParser.ParseRazorComment`, which has no
+      per-parser context in the base class) are observably unchanged.
+    - `CSharpCodeParser.cs` (2 sites):
+      `ParseMethodCallOrArrayIndex` close-bracket, `ParseCodeBlock`
+      right-brace.
+    - `HtmlMarkupParser.cs` (4 sites): `ParseStartTag` tag-name and
+      close-angle, `ParseEndTag` tag-name and close-angle.
+
+  **Enhanced-mode `OtherParserBlock` cross-parser handoff sites
+  upgraded (5 total) + `ParseNestedBlock`**:
+    - `CSharpCodeParser.ParseStatement` markup-transition handoff:
+      passes `_outerFollow | (RightBrace, Semicolon, Transition, LessThan)`.
+    - `CSharpCodeParser.ParseTemplate` template handoff:
+      passes `_outerFollow | (RightParenthesis, Transition)`.
+    - `HtmlMarkupParser.ParseAttribute` C# branch:
+      passes `_outerFollow | (OpenAngle, ForwardSlash, DoubleQuote, SingleQuote)`.
+    - `HtmlMarkupParser.ParseConditionalAttributeValue` dynamic-value:
+      passes `_outerFollow | attributeFollow` where `attributeFollow`
+      is `(quote, NewLine)` when quoted or the full
+      unquoted-attribute terminator set otherwise.
+    - `HtmlMarkupParser.ParseCodeTransition`:
+      passes `_outerFollow | (OpenAngle)` -- this is the critical site
+      for the new corpus case below.
+    - `CSharpCodeParser.ParseNestedBlock` now calls
+      `ParseBlock(_outerFollow)` instead of the parameterless overload,
+      threading the outer-follow context through the embedded-expression
+      caller chain.
+    - Row 7 of the Stage 4.1 verification table (extensible-directive
+      `ParseRazorBlock` handoff at `CSharpCodeParser.cs:2170`) is
+      explicitly informational only -- Stage 4.2 leaves the parameterless
+      `OtherParserBlock(...)` form in place since `ParseRazorBlock`
+      matches nesting sequences as raw text.
+
+  No new diagnostics, no new public APIs, no `Synchronize` /
+  `OtherParserBlock` overloads removed. Cross-parser translation is
+  done inside `OtherParserBlock`'s parameterised body via
+  `RecoveryFollowSets.ForCSharpCallee` / `ForHtmlCallee` (Stage 4.1
+  wiring), so each upgraded caller passes `outerFollow` in its OWN
+  parser's vocabulary -- translation is automatic.
+
+  No explicit `AtOuterFollowToken` bail-out logic was added at any of
+  the 9 direct `Synchronize` sites: examining each call site, the
+  post-`Synchronize` flow naturally returns/exits the construct (e.g.
+  `TryParseCondition` returns `false` -> `ParseConditionalBlock` skips
+  the body -> `ParseStatement` returns -> `ParseBlockCore`'s `finally`
+  calls `PutCurrentBack` on the outer token). The plain mechanical
+  upgrade suffices.
+
+  **Corpus addition**: `MalformedCSharpWithSurroundingMarkup.razor`
+  (`<div>@if(foo bar baz<p>still html</p></div>`) -- the canonical
+  outer-follow handoff case. Without Stage 4.2, the C# parser
+  absorbs `<p>still html</p></div>` into a fat `CSharpStatementLiteral`
+  (legacy baseline confirms this). With Stage 4.2, HTML's
+  `ParseCodeTransition` passes `LessThan` as the outer-follow into the
+  C# parser via `OtherParserBlock`; `TryParseCondition`'s `Balance`
+  fails on `<`, `Synchronize` stops at the `<` outer-follow token,
+  `ParseConditionalBlock` skips the body, control returns to HTML
+  which resumes at `<p>` and parses it as a real `MarkupElement`. The
+  outer `<div>...</div>` survives intact with both start and end
+  tags. Enhanced-recovery test
+  `MalformedCSharpWithSurroundingMarkup_EnhancedRecovery` asserts:
+  the `foo bar baz` garbage is in a single `SkippedContentSyntax`
+  tagged `CSharpCodeBlock`; `<p>` is a real `MarkupElement` nested
+  inside the surviving `<div>` element; no `MarkupMiscAttributeContent`;
+  every non-zero-width `CSharpStatementLiteral` ends at or before the
+  opening `(`.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1337 / 1337 (1335 baseline + 2 new -- legacy `MalformedCSharpWithSurroundingMarkup`
+  pins the legacy fat-literal behaviour via standard
+  `.stree.txt` / `.diag.txt` / `.cspans.txt` baselines, enhanced
+  `_EnhancedRecovery` test asserts the fix); language tests
+  3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+
+  No Stage 2/3 enhanced-mode test regressed: the upgrades are
+  backward-compatible because `_outerFollow` is `FollowSet.Empty`
+  whenever the parser was entered via the parameterless `ParseBlock`
+  wrapper, and `FollowSet.Empty` is the identity for both the `|`
+  operator and `ForCSharpCallee` / `ForHtmlCallee` translation.
