@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 3.4 complete. **Stage 3 complete.** Ready for Stage 4.1 (cross-parser handoff: `OtherParserBlock` migration).
+Stage 4.1 complete. Ready for Stage 4.2 (wire outer follow sets through every enhanced-mode `Synchronize` call added by Stages 2/3, and start passing non-`Empty` translated outer follow sets at the six cross-parser handoff call sites enumerated in the Stage 4.1 verification section below).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -32,7 +32,7 @@ Stage 3.4 complete. **Stage 3 complete.** Ready for Stage 4.1 (cross-parser hand
 - Stage 3.2: complete
 - Stage 3.3: complete
 - Stage 3.4: complete
-- Stage 4.1: not started
+- Stage 4.1: complete
 - Stage 4.2: not started
 - Stage 4.3: not started
 - Stage 4.4: not started
@@ -161,6 +161,82 @@ commit `f445deb5f8c`):
 
 ## Performance baseline
 (not yet measured -- Stage 6.4)
+
+## Stage 4.1 verification
+
+Stage 4.1 added the overload-pair signatures for `ParseBlock` and
+`OtherParserBlock` on both parsers, the `_outerFollow` private field
+(stored but not yet consumed), and the `RecoveryFollowSets.ForCSharpCallee`
+/ `RecoveryFollowSets.ForHtmlCallee` translation helpers per Big Design
+Decision #4. Behaviour-inert: legacy 1335 / 1335 + language 3600 / 3600,
+unchanged on both `net10.0` and `net472`.
+
+### Signatures added
+
+- `CSharpCodeParser.ParseBlock()` -> wrapper delegating to `ParseBlock(FollowSet.Empty)`.
+- `CSharpCodeParser.ParseBlock(FollowSet outerFollow)` -> stores
+  `outerFollow` in the new `_outerFollow` field (save/restore in
+  try/finally) and delegates to private `ParseBlockCore()` which holds
+  the pre-existing body.
+- `CSharpCodeParser.OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder)`
+  -> wrapper delegating to `OtherParserBlock(builder, FollowSet.Empty)`.
+- `CSharpCodeParser.OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder, FollowSet outerFollow)`
+  -> pre-existing body, with the `HtmlParser.ParseBlock()` handoff now
+  passing `RecoveryFollowSets.ForHtmlCallee(outerFollow)`.
+- Same overload-pair shape on `HtmlMarkupParser.ParseBlock` /
+  `HtmlMarkupParser.OtherParserBlock`, with the `OtherParserBlock`
+  handoff calling `CodeParser.ParseBlock(RecoveryFollowSets.ForCSharpCallee(outerFollow))`.
+
+Because every Stage 4.1 caller still goes through the parameterless
+wrapper, `outerFollow` is always `FollowSet.Empty`; translation of an
+empty set is empty; no recovery code consumes `_outerFollow` yet -- so
+Stage 4.1 is a true no-op.
+
+### Translation helpers added (in `RecoveryFollowSets.cs`)
+
+- `public static FollowSet ForCSharpCallee(FollowSet htmlSet)` --
+  HTML-side -> C#-side translation. Maps `OpenAngle`->`LessThan`,
+  `CloseAngle`->`GreaterThan`, `ForwardSlash`->`Slash`; drops
+  `DoubleQuote` / `SingleQuote` (C# absorbs `"`/`'` into
+  `StringLiteral` / `CharacterLiteral`); preserves the shared
+  structural kinds `Whitespace`, `NewLine`, `Equals`, `Transition`;
+  all other kinds dropped.
+- `public static FollowSet ForHtmlCallee(FollowSet csharpSet)` --
+  C#-side -> HTML-side translation. Maps `LessThan`->`OpenAngle`,
+  `GreaterThan`->`CloseAngle`, `Slash`->`ForwardSlash`; drops
+  `Semicolon` / `LeftBrace` / `RightBrace` / `LeftParenthesis` /
+  `RightParenthesis` (no HTML equivalent); preserves the shared
+  structural kinds `Whitespace`, `NewLine`, `Equals`, `Transition`;
+  all other kinds dropped.
+
+### Per-call-site mapping table (for Stage 4.2)
+
+Re-verified line numbers via grep against the post-Stage-3.4 source
+tree. Line numbers will continue to drift as Stage 4.2 inserts new
+parameters; treat these as cursors for re-grep before editing.
+
+| # | Caller                                                                         | Callee                          | Outer follow set to thread (in callee's language)                                                                                                                                                                                                                                                                                                                              |
+|---|--------------------------------------------------------------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | `CSharpCodeParser.OtherParserBlock` callsite at `CSharpCodeParser.cs:1060` (inside `ParseStatement`, markup-transition branch) | `HtmlParser.ParseBlock`         | Caller's local recovery set, translated to HTML via `RecoveryFollowSets.ForHtmlCallee(...)`. Caller is C#-statement / statement-body context; typical local set includes `RightBrace` / `Semicolon` (both drop in translation) plus `Transition` (preserved).                                                                                              |
+| 2 | `CSharpCodeParser.OtherParserBlock` callsite at `CSharpCodeParser.cs:1454` (inside `ParseTemplate`)                            | `HtmlParser.ParseBlock`         | Caller's local recovery set, translated to HTML via `RecoveryFollowSets.ForHtmlCallee(...)`. `ParseTemplate` is invoked from inside an explicit-expression body; the propagated outer follow contributes the enclosing `RightParenthesis` (drops in translation).                                                                                                              |
+| 3 | `HtmlMarkupParser.OtherParserBlock` from `ParseAttribute` (`HtmlMarkupParser.cs:1348`, `AttributeNameParsingResult.CSharp` arm) | `CodeParser.ParseBlock`         | HTML attribute-terminator set `(OpenAngle, ForwardSlash, DoubleQuote, SingleQuote)` translated via `RecoveryFollowSets.ForCSharpCallee(...)` -> `(LessThan, Slash)` (the quote kinds drop because the C# tokenizer eats `"`/`'` as part of string/character literals).                                                                                                          |
+| 4 | `HtmlMarkupParser.OtherParserBlock` from `ParseConditionalAttributeValue` (`HtmlMarkupParser.cs:1703`)                          | `CodeParser.ParseBlock`         | If `quote != SyntaxKind.Marker` (quoted value): the closing-quote kind degenerates in C#, so the most useful sync token is `NewLine` (force end-of-line recovery). If `quote == SyntaxKind.Marker` (unquoted): the full unquoted-attribute-terminator set translated to C# -> `(LessThan, Slash, GreaterThan, Equals, Whitespace, NewLine)`. See `IsUnquotedEndOfAttributeValue` in `HtmlMarkupParser.cs` for the authoritative HTML-side list. |
+| 5 | `HtmlMarkupParser.OtherParserBlock` from `ParseCodeTransition` (`HtmlMarkupParser.cs:1926`)                                     | `CodeParser.ParseBlock`         | The current HTML follow set inherited from the enclosing `ParseMarkupNodes`, translated via `RecoveryFollowSets.ForCSharpCallee(...)`. Stage 4.2 must thread `outerFollow` through `ParseMarkupNodes` / `ParseCodeTransition` to be available at this site.                                                                                                                    |
+| 6 | `CSharpCodeParser.ParseNestedBlock` (definition `CSharpCodeParser.cs:1166`, internal `ParseBlock()` call at `1174`, lone caller at `1161`) | `CSharpCodeParser.ParseBlock` | Parent's `outerFollow` (same language; no translation needed). Stage 4.2 adds an `outerFollow` parameter to `ParseNestedBlock` and threads it from the `ParseEmbeddedExpression` caller chain.                                                                                                                                                                                  |
+| 7 | `CSharpCodeParser` extensible-directive handler at `CSharpCodeParser.cs:2170` (inside the `DirectiveKind.RazorBlock` branch of `ParseExtensibleDirective`) | `HtmlParser.ParseRazorBlock`    | The block's nesting sequences (no translation needed -- these are matched as text by `ParseRazorBlock`). Stage 4.2 should not add `outerFollow` plumbing through `ParseRazorBlock` unless evidence of cross-parser bail-back from inside `@section`/`@functions` shows up in Stage 4.2's test runs; this row is informational only.                                              |
+
+The total is **seven** call sites once `OtherParserBlock`'s two C#-side
+callers are counted separately (the plan's framing said "6 call sites"
+and lumped the two C# `OtherParserBlock` callers into one row -- the
+distinction surfaces because the two C# callers live in different parse
+contexts and need to compute their outer follow set independently).
+
+### Tests
+- Legacy: 1335 / 1335 pass on `net10.0`; 1335 / 1335 pass on `net472`.
+- Language: 3600 / 3600 pass on `net10.0`; 3600 / 3600 pass on `net472`.
+
+Identical to the Stage 3.4 baselines, confirming Stage 4.1 is
+behaviour-inert.
 
 ## Notes
 - 2026-05-24: Stage 0.0 done. Razor.slnf had a stale entry; fixed in
@@ -1668,3 +1744,28 @@ commit `f445deb5f8c`):
 
   **Stage 3 (HtmlMarkupParser migration) complete.** Ready for
   Stage 4.1 (cross-parser handoff `OtherParserBlock` migration).
+- 2026-05-26: Stage 4.1 done. Cross-parser handoff signature/protocol
+  setup (no behaviour change). Added the overload-pair signatures for
+  `ParseBlock` and `OtherParserBlock` on both `CSharpCodeParser` and
+  `HtmlMarkupParser` (parameterless wrapper -> parameterised method
+  delegating to a private `ParseBlockCore`), plus a private
+  `_outerFollow` field on each parser (save/restore around the
+  parameterised `ParseBlock` body) so Stage 4.2 has a place to read
+  the outer follow set from inner helpers.
+
+  The parameterised `OtherParserBlock` overloads thread their
+  `outerFollow` arg into the callee via the new cross-language
+  translation helpers `RecoveryFollowSets.ForCSharpCallee(...)` /
+  `RecoveryFollowSets.ForHtmlCallee(...)` -- defined in
+  `RecoveryFollowSets.cs` per Big Design Decision #4's translation
+  tables. Since Stage 4.1 callers all funnel through the parameterless
+  wrapper, `outerFollow` is always `FollowSet.Empty` at this stage;
+  translating an empty set yields an empty set, so the wiring is
+  observably inert.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1335 / 1335 unchanged; language tests 3600 / 3600 unchanged. Both
+  TFMs (net10.0 and net472).
+
+  See the **Stage 4.1 verification** section above for the per-call-site
+  mapping table that Stage 4.2 will consume.

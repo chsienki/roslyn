@@ -178,4 +178,180 @@ internal static class RecoveryFollowSets
             SyntaxKind.ForwardSlash,
             SyntaxKind.DoubleQuote,
             SyntaxKind.SingleQuote);
+
+    /// <summary>
+    /// Translates an HTML-side <see cref="FollowSet"/> into the equivalent C#-side
+    /// set, for use as the outer follow set when handing off into the C# parser.
+    /// See Big Design Decision #4 of the recovery plan for the translation table.
+    /// </summary>
+    /// <remarks>
+    /// Per BDD #4 the two tokenizers emit different <see cref="SyntaxKind"/> values
+    /// for the same characters: HTML emits <see cref="SyntaxKind.OpenAngle"/> for
+    /// <c>&lt;</c>, while C# emits <see cref="SyntaxKind.LessThan"/> for the same
+    /// character. A follow set authored in one tokenizer's vocabulary is not
+    /// directly meaningful to the other, so the cross-parser handoff translates
+    /// at the boundary.
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.OpenAngle"/> -&gt; <see cref="SyntaxKind.LessThan"/>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.CloseAngle"/> -&gt; <see cref="SyntaxKind.GreaterThan"/>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.ForwardSlash"/> -&gt; <see cref="SyntaxKind.Slash"/>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.DoubleQuote"/> / <see cref="SyntaxKind.SingleQuote"/>
+    ///     are dropped: the C# tokenizer absorbs <c>"</c> as part of a
+    ///     <see cref="SyntaxKind.StringLiteral"/> and <c>'</c> as part of a
+    ///     <see cref="SyntaxKind.CharacterLiteral"/>, so these quote kinds never
+    ///     appear as standalone tokens in C# follow sets.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Whitespace"/>, <see cref="SyntaxKind.NewLine"/>,
+    ///     <see cref="SyntaxKind.Equals"/>, <see cref="SyntaxKind.Transition"/>:
+    ///     shared structural kinds (same token kind in both tokenizers), passed
+    ///     through unchanged.
+    ///   </description></item>
+    ///   <item><description>
+    ///     All other kinds are dropped (no equivalent in the C#-side vocabulary
+    ///     in the recovery contexts of interest).
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    public static FollowSet ForCSharpCallee(FollowSet htmlSet)
+    {
+        if (htmlSet.IsEmpty)
+        {
+            return FollowSet.Empty;
+        }
+
+        var translated = FollowSet.Empty;
+
+        if (htmlSet.Contains(SyntaxKind.OpenAngle))
+        {
+            translated |= new FollowSet(SyntaxKind.LessThan);
+        }
+
+        if (htmlSet.Contains(SyntaxKind.CloseAngle))
+        {
+            translated |= new FollowSet(SyntaxKind.GreaterThan);
+        }
+
+        if (htmlSet.Contains(SyntaxKind.ForwardSlash))
+        {
+            translated |= new FollowSet(SyntaxKind.Slash);
+        }
+
+        // DoubleQuote / SingleQuote: dropped -- C# tokenizer absorbs these into
+        // StringLiteral / CharacterLiteral, so the quote kinds are not useful
+        // sync tokens on the C# side.
+
+        if (htmlSet.Contains(SyntaxKind.Whitespace))
+        {
+            translated |= new FollowSet(SyntaxKind.Whitespace);
+        }
+
+        if (htmlSet.Contains(SyntaxKind.NewLine))
+        {
+            translated |= new FollowSet(SyntaxKind.NewLine);
+        }
+
+        if (htmlSet.Contains(SyntaxKind.Equals))
+        {
+            translated |= new FollowSet(SyntaxKind.Equals);
+        }
+
+        if (htmlSet.Contains(SyntaxKind.Transition))
+        {
+            translated |= new FollowSet(SyntaxKind.Transition);
+        }
+
+        return translated;
+    }
+
+    /// <summary>
+    /// Translates a C#-side <see cref="FollowSet"/> into the equivalent HTML-side
+    /// set, for use as the outer follow set when handing off into the HTML parser.
+    /// See Big Design Decision #4 of the recovery plan for the translation table.
+    /// </summary>
+    /// <remarks>
+    /// The reverse direction of <see cref="ForCSharpCallee(FollowSet)"/>; see that
+    /// method for the architectural rationale.
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.LessThan"/> -&gt; <see cref="SyntaxKind.OpenAngle"/>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.GreaterThan"/> -&gt; <see cref="SyntaxKind.CloseAngle"/>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Slash"/> -&gt; <see cref="SyntaxKind.ForwardSlash"/>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Semicolon"/>, <see cref="SyntaxKind.LeftBrace"/>,
+    ///     <see cref="SyntaxKind.RightBrace"/>, <see cref="SyntaxKind.LeftParenthesis"/>,
+    ///     <see cref="SyntaxKind.RightParenthesis"/>: dropped (no HTML equivalent).
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Whitespace"/>, <see cref="SyntaxKind.NewLine"/>,
+    ///     <see cref="SyntaxKind.Equals"/>, <see cref="SyntaxKind.Transition"/>:
+    ///     shared structural kinds, passed through unchanged.
+    ///   </description></item>
+    ///   <item><description>
+    ///     All other kinds are dropped (no equivalent in the HTML-side vocabulary
+    ///     in the recovery contexts of interest).
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    public static FollowSet ForHtmlCallee(FollowSet csharpSet)
+    {
+        if (csharpSet.IsEmpty)
+        {
+            return FollowSet.Empty;
+        }
+
+        var translated = FollowSet.Empty;
+
+        if (csharpSet.Contains(SyntaxKind.LessThan))
+        {
+            translated |= new FollowSet(SyntaxKind.OpenAngle);
+        }
+
+        if (csharpSet.Contains(SyntaxKind.GreaterThan))
+        {
+            translated |= new FollowSet(SyntaxKind.CloseAngle);
+        }
+
+        if (csharpSet.Contains(SyntaxKind.Slash))
+        {
+            translated |= new FollowSet(SyntaxKind.ForwardSlash);
+        }
+
+        // Semicolon / LeftBrace / RightBrace / LeftParenthesis / RightParenthesis:
+        // dropped -- these are C#-only structural kinds with no HTML equivalent.
+
+        if (csharpSet.Contains(SyntaxKind.Whitespace))
+        {
+            translated |= new FollowSet(SyntaxKind.Whitespace);
+        }
+
+        if (csharpSet.Contains(SyntaxKind.NewLine))
+        {
+            translated |= new FollowSet(SyntaxKind.NewLine);
+        }
+
+        if (csharpSet.Contains(SyntaxKind.Equals))
+        {
+            translated |= new FollowSet(SyntaxKind.Equals);
+        }
+
+        if (csharpSet.Contains(SyntaxKind.Transition))
+        {
+            translated |= new FollowSet(SyntaxKind.Transition);
+        }
+
+        return translated;
+    }
 }

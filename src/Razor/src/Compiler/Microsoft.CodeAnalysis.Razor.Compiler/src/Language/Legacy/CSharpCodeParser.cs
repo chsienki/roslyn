@@ -257,11 +257,37 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         set => _htmlParser = value;
     }
 
+    /// <summary>
+    /// The outer (caller-supplied) follow set propagated through
+    /// <see cref="ParseBlock(FollowSet)"/>. Captures the set of tokens at which
+    /// the inner C# parser should bail back to its outer (typically HTML)
+    /// caller. Stage 4.1 just stores the value; Stage 4.2 of the recovery plan
+    /// wires the consumption into the recovery <c>Synchronize</c> calls.
+    /// </summary>
+    private FollowSet _outerFollow;
+
     protected internal KeywordSet Keywords { get; private set; }
 
     public bool IsNested { get; set; }
 
     public CSharpCodeBlockSyntax? ParseBlock()
+        => ParseBlock(FollowSet.Empty);
+
+    public CSharpCodeBlockSyntax? ParseBlock(FollowSet outerFollow)
+    {
+        var previousOuterFollow = _outerFollow;
+        _outerFollow = outerFollow;
+        try
+        {
+            return ParseBlockCore();
+        }
+        finally
+        {
+            _outerFollow = previousOuterFollow;
+        }
+    }
+
+    private CSharpCodeBlockSyntax? ParseBlockCore()
     {
         CancellationToken.ThrowIfCancellationRequested();
 
@@ -3314,6 +3340,9 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
     }
 
     private void OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder)
+        => OtherParserBlock(builder, FollowSet.Empty);
+
+    private void OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder, FollowSet outerFollow)
     {
         // When transitioning to the HTML parser we no longer want to act as if we're in a nested C# state.
         // For instance, if <div>@hello.</div> is in a nested C# block we don't want the trailing '.' to be handled
@@ -3326,7 +3355,12 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         RazorSyntaxNode? htmlBlock = null;
         using (PushSpanContextConfig())
         {
-            htmlBlock = HtmlParser.ParseBlock();
+            // Translate the C#-side outer follow set into the HTML-side vocabulary
+            // before handing off; see Big Design Decision #4 of the recovery plan.
+            // Stage 4.1 callers always pass FollowSet.Empty (via the parameterless
+            // wrapper above), so this translation is a no-op until Stage 4.2 wires
+            // real outer follow sets at each call site.
+            htmlBlock = HtmlParser.ParseBlock(RecoveryFollowSets.ForHtmlCallee(outerFollow));
         }
 
         builder.Add(htmlBlock);
