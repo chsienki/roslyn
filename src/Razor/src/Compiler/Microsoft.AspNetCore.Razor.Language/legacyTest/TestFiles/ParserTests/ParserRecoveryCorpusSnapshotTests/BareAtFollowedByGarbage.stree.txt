@@ -1,0 +1,57 @@
+﻿RazorDocument - [0..73)::73 - [@!@#$LFLF<p>real markup that should parse cleanly after the garbage</p>LF]
+    MarkupBlock - [0..73)::73
+        MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Marker;[];
+        CSharpCodeBlock - [0..1)::1
+            CSharpImplicitExpression - [0..1)::1
+                CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    Transition;[@];
+                CSharpImplicitExpressionBody - [1..1)::0
+                    CSharpCodeBlock - [1..1)::0
+                        CSharpExpressionLiteral - [1..1)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K15
+                            Marker;[];
+        MarkupTextLiteral - [1..2)::1 - [!] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Bang;[!];
+        CSharpCodeBlock - [2..3)::1
+            CSharpImplicitExpression - [2..3)::1
+                CSharpTransition - [2..3)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    Transition;[@];
+                CSharpImplicitExpressionBody - [3..3)::0
+                    CSharpCodeBlock - [3..3)::0
+                        CSharpExpressionLiteral - [3..3)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K15
+                            Marker;[];
+        MarkupTextLiteral - [3..9)::6 - [#$LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Text;[#$];
+            NewLine;[LF];
+            NewLine;[LF];
+        MarkupElement - [9..71)::62
+            MarkupStartTag - [9..12)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[p];
+                CloseAngle;[>];
+            MarkupTextLiteral - [12..67)::55 - [real markup that should parse cleanly after the garbage] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[real];
+                Whitespace;[ ];
+                Text;[markup];
+                Whitespace;[ ];
+                Text;[that];
+                Whitespace;[ ];
+                Text;[should];
+                Whitespace;[ ];
+                Text;[parse];
+                Whitespace;[ ];
+                Text;[cleanly];
+                Whitespace;[ ];
+                Text;[after];
+                Whitespace;[ ];
+                Text;[the];
+                Whitespace;[ ];
+                Text;[garbage];
+            MarkupEndTag - [67..71)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[p];
+                CloseAngle;[>];
+        MarkupTextLiteral - [71..73)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+    EndOfFile;[];

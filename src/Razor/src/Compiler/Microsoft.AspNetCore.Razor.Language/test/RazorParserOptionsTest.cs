@@ -48,4 +48,49 @@ public class RazorParserOptionsTest
         Assert.False(options.AllowUsingVariableDeclarations);
         Assert.False(options.AllowNullableForgivenessOperator);
     }
+
+    [Fact]
+    public void UseEnhancedRecovery_DefaultsToFalse()
+    {
+        // Arrange & Act
+        var builder = new RazorParserOptions.Builder(RazorLanguageVersion.Latest, RazorFileKind.Legacy);
+        var options = builder.ToOptions();
+
+        // Assert
+        Assert.False(options.UseEnhancedRecovery);
+    }
+
+    [Fact]
+    public void UseEnhancedRecovery_RoundTripsThroughBuilder()
+    {
+        // Arrange
+        var builder = new RazorParserOptions.Builder(RazorLanguageVersion.Latest, RazorFileKind.Legacy)
+        {
+            UseEnhancedRecovery = true,
+        };
+
+        // Act
+        var options = builder.ToOptions();
+
+        // Assert
+        Assert.True(options.UseEnhancedRecovery);
+    }
+
+    [Fact]
+    public void UseEnhancedRecovery_RoundTripsThroughWithFlags()
+    {
+        // Arrange
+        var defaultOptions = RazorParserOptions.Default;
+        Assert.False(defaultOptions.UseEnhancedRecovery);
+
+        // Act
+        var enhanced = defaultOptions.WithFlags(useEnhancedRecovery: true);
+
+        // Assert
+        Assert.True(enhanced.UseEnhancedRecovery);
+
+        // Round-trip back off:
+        var legacy = enhanced.WithFlags(useEnhancedRecovery: false);
+        Assert.False(legacy.UseEnhancedRecovery);
+    }
 }

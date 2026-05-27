@@ -100,6 +100,17 @@ public sealed partial class RazorParserOptions
     internal bool AllowNullableForgivenessOperator
         => _flags.IsFlagSet(Flags.AllowNullableForgivenessOperator);
 
+    /// <summary>
+    /// Gets a value which controls whether the parser uses the new "enhanced recovery"
+    /// model (missing tokens + skipped content + synchronize follow sets) instead of
+    /// the legacy panic-mode recovery. Defaults to <c>false</c> during the migration;
+    /// see <c>src/Razor/docs/plans/ErrorRecovery/razor-recovery-redesign-plan.md</c>
+    /// for the staged rollout. Flag is removed in Stage 6.2 after the legacy paths
+    /// are deleted.
+    /// </summary>
+    internal bool UseEnhancedRecovery
+        => _flags.IsFlagSet(Flags.UseEnhancedRecovery);
+
     public RazorParserOptions WithDirectives(params ImmutableArray<DirectiveDescriptor> value)
         => Directives.SequenceEqual(value)
             ? this
@@ -121,7 +132,8 @@ public sealed partial class RazorParserOptions
         Optional<bool> allowUsingVariableDeclarations = default,
         Optional<bool> allowConditionalDataDashAttributes = default,
         Optional<bool> allowCSharpInMarkupAttributeArea = default,
-        Optional<bool> allowNullableForgivenessOperator = default)
+        Optional<bool> allowNullableForgivenessOperator = default,
+        Optional<bool> useEnhancedRecovery = default)
     {
         var flags = _flags;
 
@@ -178,6 +190,11 @@ public sealed partial class RazorParserOptions
         if (allowNullableForgivenessOperator.HasValue)
         {
             flags.UpdateFlag(Flags.AllowNullableForgivenessOperator, allowNullableForgivenessOperator.Value);
+        }
+
+        if (useEnhancedRecovery.HasValue)
+        {
+            flags.UpdateFlag(Flags.UseEnhancedRecovery, useEnhancedRecovery.Value);
         }
 
         return flags == _flags

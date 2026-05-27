@@ -23,6 +23,9 @@ internal partial class SyntaxVisitor<TResult>
     /// <summary>Called when the visitor visits a UnclassifiedTextLiteralSyntax node.</summary>
     public virtual TResult VisitUnclassifiedTextLiteral(UnclassifiedTextLiteralSyntax node) => DefaultVisit(node);
 
+    /// <summary>Called when the visitor visits a SkippedContentSyntax node.</summary>
+    public virtual TResult VisitSkippedContent(SkippedContentSyntax node) => DefaultVisit(node);
+
     /// <summary>Called when the visitor visits a MarkupBlockSyntax node.</summary>
     public virtual TResult VisitMarkupBlock(MarkupBlockSyntax node) => DefaultVisit(node);
 
@@ -149,6 +152,9 @@ internal partial class SyntaxVisitor
     /// <summary>Called when the visitor visits a UnclassifiedTextLiteralSyntax node.</summary>
     public virtual void VisitUnclassifiedTextLiteral(UnclassifiedTextLiteralSyntax node) => DefaultVisit(node);
 
+    /// <summary>Called when the visitor visits a SkippedContentSyntax node.</summary>
+    public virtual void VisitSkippedContent(SkippedContentSyntax node) => DefaultVisit(node);
+
     /// <summary>Called when the visitor visits a MarkupBlockSyntax node.</summary>
     public virtual void VisitMarkupBlock(MarkupBlockSyntax node) => DefaultVisit(node);
 
@@ -274,6 +280,9 @@ internal partial class SyntaxRewriter : SyntaxVisitor<SyntaxNode>
 
     public override SyntaxNode VisitUnclassifiedTextLiteral(UnclassifiedTextLiteralSyntax node)
         => node.Update(VisitList(node.LiteralTokens), node.ChunkGenerator, node.EditHandler);
+
+    public override SyntaxNode VisitSkippedContent(SkippedContentSyntax node)
+        => node.Update(VisitList(node.SkippedTokens), node.OriginatingLanguage);
 
     public override SyntaxNode VisitMarkupBlock(MarkupBlockSyntax node)
         => node.Update(VisitList(node.Children));
@@ -436,6 +445,14 @@ internal static partial class SyntaxFactory
     /// <summary>Creates a new UnclassifiedTextLiteralSyntax instance.</summary>
     public static UnclassifiedTextLiteralSyntax UnclassifiedTextLiteral(ISpanChunkGenerator chunkGenerator, SpanEditHandler editHandler)
         => SyntaxFactory.UnclassifiedTextLiteral(default(SyntaxTokenList), chunkGenerator, editHandler);
+
+    /// <summary>Creates a new SkippedContentSyntax instance.</summary>
+    public static SkippedContentSyntax SkippedContent(SyntaxTokenList skippedTokens, SyntaxKind originatingLanguage)
+        => (SkippedContentSyntax)InternalSyntax.SyntaxFactory.SkippedContent(skippedTokens.Node.ToGreenList<InternalSyntax.SyntaxToken>(), originatingLanguage).CreateRed();
+
+    /// <summary>Creates a new SkippedContentSyntax instance.</summary>
+    public static SkippedContentSyntax SkippedContent(SyntaxKind originatingLanguage)
+        => SyntaxFactory.SkippedContent(default(SyntaxTokenList), originatingLanguage);
 
     /// <summary>Creates a new MarkupBlockSyntax instance.</summary>
     public static MarkupBlockSyntax MarkupBlock(SyntaxList<RazorSyntaxNode> children)

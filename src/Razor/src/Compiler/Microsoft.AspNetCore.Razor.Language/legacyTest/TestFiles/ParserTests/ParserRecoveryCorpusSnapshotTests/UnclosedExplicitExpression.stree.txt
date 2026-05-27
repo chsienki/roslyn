@@ -1,0 +1,72 @@
+﻿RazorDocument - [0..97)::97 - [<p>Hello @(foo.Bar</p>LFLF<div>LF    <span>some text after the broken expression</span>LF</div>LF]
+    MarkupBlock - [0..97)::97
+        MarkupElement - [0..22)::22
+            MarkupStartTag - [0..3)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[p];
+                CloseAngle;[>];
+            MarkupTextLiteral - [3..9)::6 - [Hello ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[Hello];
+                Whitespace;[ ];
+            CSharpCodeBlock - [9..18)::9
+                CSharpExplicitExpression - [9..18)::9
+                    CSharpTransition - [9..10)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                        Transition;[@];
+                    CSharpExplicitExpressionBody - [10..18)::8
+                        RazorMetaCode - [10..11)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                            LeftParenthesis;[(];
+                        CSharpCodeBlock - [11..18)::7
+                            CSharpExpressionLiteral - [11..18)::7 - [foo.Bar] - Gen<Expr> - SpanEditHandler;Accepts:Any
+                                Identifier;[foo];
+                                Dot;[.];
+                                Identifier;[Bar];
+                        RazorMetaCode - [18..18)::0 - Gen<None> - SpanEditHandler;Accepts:Any
+                            RightParenthesis;[<Missing>];
+            MarkupEndTag - [18..22)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[p];
+                CloseAngle;[>];
+        MarkupTextLiteral - [22..26)::4 - [LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+            NewLine;[LF];
+        MarkupElement - [26..95)::69
+            MarkupStartTag - [26..31)::5 - [<div>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[div];
+                CloseAngle;[>];
+            MarkupTextLiteral - [31..37)::6 - [LF    ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                NewLine;[LF];
+                Whitespace;[    ];
+            MarkupElement - [37..87)::50
+                MarkupStartTag - [37..43)::6 - [<span>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    OpenAngle;[<];
+                    Text;[span];
+                    CloseAngle;[>];
+                MarkupTextLiteral - [43..80)::37 - [some text after the broken expression] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Text;[some];
+                    Whitespace;[ ];
+                    Text;[text];
+                    Whitespace;[ ];
+                    Text;[after];
+                    Whitespace;[ ];
+                    Text;[the];
+                    Whitespace;[ ];
+                    Text;[broken];
+                    Whitespace;[ ];
+                    Text;[expression];
+                MarkupEndTag - [80..87)::7 - [</span>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    OpenAngle;[<];
+                    ForwardSlash;[/];
+                    Text;[span];
+                    CloseAngle;[>];
+            MarkupTextLiteral - [87..89)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                NewLine;[LF];
+            MarkupEndTag - [89..95)::6 - [</div>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[div];
+                CloseAngle;[>];
+        MarkupTextLiteral - [95..97)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+    EndOfFile;[];
