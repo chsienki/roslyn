@@ -797,6 +797,37 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
     }
 
     /// <summary>
+    /// Cross-language tokenizer-state hook for the enhanced-recovery
+    /// <c>Synchronize</c> bail-out path (Stage 4.4 of the recovery plan).
+    /// </summary>
+    /// <remarks>
+    /// When a recovery <c>Synchronize</c> stops at a token in the caller's
+    /// outer follow set (<see cref="SyncStopReason.AtOuterFollowToken"/>),
+    /// the parser is about to relinquish control to its outer parser
+    /// (typically across a C# / HTML language boundary). Tokenizers that
+    /// maintain wrapped-parser state -- specifically
+    /// <c>RoslynCSharpTokenizer</c>, which wraps a Roslyn
+    /// <see cref="Microsoft.CodeAnalysis.CSharp.SyntaxTokenParser"/> -- need
+    /// <see cref="EndingBlock"/> to fire at the relinquish point so the
+    /// wrapped parser's position stays aligned with the cursor the outer
+    /// parser will resume from. The legacy <c>HtmlTokenizer</c> and
+    /// <c>NativeCSharpTokenizer</c> are no-ops here so this call is free
+    /// when those tokenizers are active.
+    ///
+    /// The matching <see cref="StartingBlock"/> call already fires
+    /// automatically when the C# parser re-enters via <c>ParseBlock</c>
+    /// (or via <c>OtherParserBlock</c>'s post-return hook), so no
+    /// <c>StartingBlockIfStoppedOnOuter</c> companion is needed.
+    /// </remarks>
+    internal void EndingBlockIfStoppedOnOuter(SyncResult result)
+    {
+        if (result.StopReason == SyncStopReason.AtOuterFollowToken)
+        {
+            EndingBlock();
+        }
+    }
+
+    /// <summary>
     /// Advances the tokenizer past unexpected tokens until the current token
     /// is in <paramref name="localFollow"/>, in <paramref name="outerFollow"/>,
     /// at end-of-file, or matches a stop condition in <paramref name="options"/>.
@@ -907,6 +938,15 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
     /// recovery sync (e.g. <see cref="SyntaxKind.MarkupBlock"/> or
     /// <see cref="SyntaxKind.CSharpCodeBlock"/>).
     /// </param>
+    /// <param name="outerFollow">
+    /// Outer (caller-supplied) follow set in the same language as
+    /// <paramref name="recovery"/>. Threaded through to the inner
+    /// <see cref="Synchronize(FollowSet, FollowSet, SyntaxKind, SyncOptions)"/>
+    /// so the recovery sync stops at an outer-language token rather than
+    /// absorbing it into <see cref="SkippedContentSyntax"/>. Defaults to
+    /// <see cref="FollowSet.Empty"/> for call sites that have not yet been
+    /// migrated to thread the outer follow set (Stage 4.2 of the recovery plan).
+    /// </param>
     /// <returns>
     /// A tuple of (<c>token</c>, <c>skipped</c>):
     /// <list type="bullet">
@@ -928,7 +968,8 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
         SyntaxKind kind,
         RazorDiagnostic diagnostic,
         FollowSet recovery,
-        SyntaxKind originatingLanguage)
+        SyntaxKind originatingLanguage,
+        FollowSet outerFollow = default)
     {
         if (EnsureCurrent() && CurrentToken != null && CurrentToken.Kind == kind)
         {
@@ -938,12 +979,12 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
         }
 
         var missing = SyntaxFactory.MissingToken(kind, diagnostic);
-        var sync = Synchronize(recovery, originatingLanguage);
+        var sync = Synchronize(recovery, outerFollow, originatingLanguage);
         return (missing, sync.Skipped);
     }
 
     /// <summary>
-    /// Multi-kind overload of <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>:
+    /// Multi-kind overload of <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>:
     /// consumes the current token if its kind matches any entry in
     /// <paramref name="acceptableKinds"/>; otherwise emits a missing token of
     /// <c>acceptableKinds[0]</c> and synchronizes.
@@ -953,14 +994,16 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
     /// non-empty: the first entry is used as the kind of the missing token
     /// produced on the failure path.
     /// </param>
-    /// <param name="diagnostic">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>.</param>
-    /// <param name="recovery">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>.</param>
-    /// <param name="originatingLanguage">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>.</param>
+    /// <param name="diagnostic">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
+    /// <param name="recovery">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
+    /// <param name="originatingLanguage">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
+    /// <param name="outerFollow">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
     protected internal (SyntaxToken token, SkippedContentSyntax? skipped) Required(
         ImmutableArray<SyntaxKind> acceptableKinds,
         RazorDiagnostic diagnostic,
         FollowSet recovery,
-        SyntaxKind originatingLanguage)
+        SyntaxKind originatingLanguage,
+        FollowSet outerFollow = default)
     {
         Debug.Assert(!acceptableKinds.IsDefaultOrEmpty, "Required requires at least one acceptable kind.");
 
@@ -979,7 +1022,7 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
         }
 
         var missing = SyntaxFactory.MissingToken(acceptableKinds[0], diagnostic);
-        var sync = Synchronize(recovery, originatingLanguage);
+        var sync = Synchronize(recovery, outerFollow, originatingLanguage);
         return (missing, sync.Skipped);
     }
 
@@ -988,7 +1031,7 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
     /// it; otherwise returns <c>null</c> without advancing or emitting a diagnostic.
     /// </summary>
     /// <remarks>
-    /// This is the new-vocabulary counterpart to <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind)"/>:
+    /// This is the new-vocabulary counterpart to <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>:
     /// use it for tokens where absence is grammatical (and therefore not an
     /// error). Functionally equivalent to <see cref="GetOptionalToken(SyntaxKind)"/>;
     /// new recovery-aware parser code should prefer this name for symmetry with

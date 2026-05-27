@@ -257,11 +257,37 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         set => _htmlParser = value;
     }
 
+    /// <summary>
+    /// The outer (caller-supplied) follow set propagated through
+    /// <see cref="ParseBlock(FollowSet)"/>. Captures the set of tokens at which
+    /// the inner C# parser should bail back to its outer (typically HTML)
+    /// caller. Stage 4.1 just stores the value; Stage 4.2 of the recovery plan
+    /// wires the consumption into the recovery <c>Synchronize</c> calls.
+    /// </summary>
+    private FollowSet _outerFollow;
+
     protected internal KeywordSet Keywords { get; private set; }
 
     public bool IsNested { get; set; }
 
     public CSharpCodeBlockSyntax? ParseBlock()
+        => ParseBlock(FollowSet.Empty);
+
+    public CSharpCodeBlockSyntax? ParseBlock(FollowSet outerFollow)
+    {
+        var previousOuterFollow = _outerFollow;
+        _outerFollow = outerFollow;
+        try
+        {
+            return ParseBlockCore();
+        }
+        finally
+        {
+            _outerFollow = previousOuterFollow;
+        }
+    }
+
+    private CSharpCodeBlockSyntax? ParseBlockCore()
     {
         CancellationToken.ThrowIfCancellationRequested();
 
@@ -486,12 +512,16 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                         //   - `Transition` -- a nested `@` block transition.
                         //
                         // Stage 2.1 uses the convenience overload of `Synchronize` (no
-                        // `outerFollow`); Stage 4.2 will mechanically upgrade these calls
-                        // to thread the caller's outer follow set per Big Design Decision
-                        // #4.
+                        // `outerFollow`); Stage 4.2 upgrades the call to thread the
+                        // parser's outer follow set (`_outerFollow`, populated by
+                        // `ParseBlock(FollowSet outerFollow)`) so a stray outer-HTML
+                        // token like `<` aborts the inner sync before it can absorb
+                        // the surrounding markup.
                         var sync = Synchronize(
                             new FollowSet(SyntaxKind.RightParenthesis, SyntaxKind.LessThan, SyntaxKind.Transition),
+                            _outerFollow,
                             originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        EndingBlockIfStoppedOnOuter(sync);
                         enhancedSkipped = sync.Skipped;
                         balanceFailedInEnhancedMode = true;
                     }
@@ -677,11 +707,16 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                         //     point a whitespace token is a legitimate boundary.
                         //
                         // Stage 2.6 uses the convenience overload of `Synchronize`;
-                        // Stage 4.2 will mechanically upgrade this call to thread
-                        // the caller's outer follow set per BDD #4.
+                        // Stage 4.2 threads the parser's outer follow set
+                        // (`_outerFollow`, populated by
+                        // `ParseBlock(FollowSet outerFollow)`) so an outer HTML
+                        // boundary like `<` ends the implicit expression instead of
+                        // being absorbed into the recovery skip range.
                         var sync = Synchronize(
                             RecoveryFollowSets.CSharpImplicitExpressionTrailing,
+                            _outerFollow,
                             originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        EndingBlockIfStoppedOnOuter(sync);
                         AcceptMarkerTokenIfNecessary();
                         var pending = OutputTokensAsExpressionLiteral();
                         if (pending is not null)
@@ -714,14 +749,18 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                     // to `CSharpImplicitExpressionTrailing` above, so the cursor is
                     // already at a follow token; passing the same follow set means
                     // `Required`'s sync (if invoked) stops immediately at the
-                    // current token without consuming anything further. Either way
-                    // `sync.Skipped` is null.
+                    // current token without consuming anything further. Stage 4.2
+                    // additionally threads the parser's outer follow set
+                    // (`_outerFollow`) so an outer-HTML token (translated to the
+                    // C# side) is preserved for the outer parser instead of being
+                    // skipped. Either way `sync.Skipped` is null.
                     var (closeToken, closeSkipped) = Required(
                         right,
                         RazorDiagnosticFactory.CreateParsing_ExpectedCloseBracketBeforeEOF_At(
                             CurrentStart, Language.GetSample(left), Language.GetSample(right)),
                         RecoveryFollowSets.CSharpImplicitExpressionTrailing,
-                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock,
+                        outerFollow: _outerFollow);
                     Debug.Assert(closeSkipped is null,
                         "ParseMethodCallOrArrayIndex's Required call is invoked at a follow-set token (or `right`); sync should have nothing to skip.");
                     if (closeToken.IsMissing)
@@ -932,12 +971,20 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             // keeps `ParseCodeBlock`'s signature unchanged because the synchronize
             // would be functionally inert until Stage 2.3 migrates
             // `ParseStandardStatement`'s panic.]
+            //
+            // Stage 4.2 update: `Required` itself now threads `_outerFollow` into
+            // its inner sync. `ParseCodeBlock`'s loop invariant still guarantees
+            // the cursor is at EOF or `RightBrace` on exit, so the sync's local
+            // follow set (`FollowSet.Empty`) plus `_outerFollow` keeps the assert
+            // intact while letting an outer-HTML token bail out cleanly if it
+            // somehow becomes current.
             var (rightBraceToken, skipped) = Required(
                 SyntaxKind.RightBrace,
                 RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At(
                     CurrentStart, block.Name, "}", "{"),
                 FollowSet.Empty,
-                originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                originatingLanguage: SyntaxKind.CSharpCodeBlock,
+                outerFollow: _outerFollow);
             Debug.Assert(skipped is null, "ParseCodeBlock leaves the cursor at EOF or RightBrace; Required has nothing to skip.");
             rightBrace = OutputAsMetaCode(rightBraceToken, Context.CurrentAcceptedCharacters);
         }
@@ -1057,7 +1104,17 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
 
             // Markup block
             builder.Add(OutputTokensAsStatementLiteral());
-            OtherParserBlock(builder);
+            // Stage 4.2 cross-parser handoff (per the per-call-site mapping table
+            // in plan-state.md, row 1): pass the C# statement-context follow set
+            // through the handoff so the HTML parser inherits a meaningful
+            // outer-bail set. Most C# statement terminators drop in translation
+            // (RightBrace, Semicolon -> no HTML equivalent); Transition and
+            // LessThan are preserved -- Transition is the natural "back to C#"
+            // marker, and LessThan was already the parser's `_outerFollow` if it
+            // was set by the HTML parser at a higher level. The union with
+            // `_outerFollow` propagates any further-outer follow set downward.
+            OtherParserBlock(builder,
+                _outerFollow | new FollowSet(SyntaxKind.RightBrace, SyntaxKind.Semicolon, SyntaxKind.Transition, SyntaxKind.LessThan));
         }
         else
         {
@@ -1171,7 +1228,11 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         RazorSyntaxNode? nestedBlock;
         using (PushSpanContextConfig())
         {
-            nestedBlock = ParseBlock();
+            // Stage 4.2: same-language nesting -- propagate the current
+            // `_outerFollow` (already in C# vocabulary) into the inner
+            // `ParseBlock` so the nested C# parser inherits the same
+            // outer-bail set as its enclosing block.
+            nestedBlock = ParseBlock(_outerFollow);
         }
 
         InitializeContext();
@@ -1337,13 +1398,14 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                     //   3. Flushes any tokens accepted in prior iterations of
                     //      this loop as a `CSharpStatementLiteral` so the
                     //      pre-recovery boundary is precise.
-                    //   4. Calls the convenience overload of `Synchronize`
-                    //      with the C#-side follow set
+                    //   4. Calls `Synchronize` with the C#-side follow set
                     //      `(Semicolon | RightBrace | Transition | LessThan)`
                     //      per Big Design Decision #4 (C#-side kinds:
-                    //      `LessThan`, not the HTML-side `OpenAngle`).
-                    //      Stage 4.2 will mechanically upgrade this call to
-                    //      thread the caller's outer follow set.
+                    //      `LessThan`, not the HTML-side `OpenAngle`). Stage
+                    //      4.2 also threads the parser's outer follow set
+                    //      (`_outerFollow`) so an outer-HTML token (e.g. `<`
+                    //      on the C# side, translated from the HTML caller's
+                    //      `OpenAngle`) bails out before being absorbed.
                     //   5. Inserts the resulting `SkippedContentSyntax` into
                     //      the builder so positions are preserved without
                     //      contaminating the next statement literal.
@@ -1362,7 +1424,9 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                             CurrentStart, CurrentToken.Content));
                     var sync = Synchronize(
                         new FollowSet(SyntaxKind.Semicolon, SyntaxKind.RightBrace, SyntaxKind.Transition, SyntaxKind.LessThan),
+                        _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     builder.Add(OutputTokensAsStatementLiteral());
                     if (sync.Skipped is not null)
@@ -1406,11 +1470,16 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                     //
                     // Stage 2.3 uses the convenience overload of `Synchronize`
                     // (C#-side follow set `(LessThan, RightBrace)` per Big
-                    // Design Decision #4); Stage 4.2 will mechanically upgrade
-                    // this call to thread the caller's outer follow set.
+                    // Design Decision #4); Stage 4.2 threads the parser's
+                    // outer follow set (`_outerFollow`) so an outer-HTML token
+                    // (translated to the C# side at the cross-parser handoff)
+                    // bails out of the inner balance recovery instead of being
+                    // absorbed.
                     var sync = Synchronize(
                         new FollowSet(SyntaxKind.LessThan, SyntaxKind.RightBrace),
+                        _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     builder.Add(OutputTokensAsStatementLiteral());
                     if (sync.Skipped is not null)
@@ -1451,7 +1520,13 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             var templateBuilder = pooledResult.Builder;
             Context.InTemplateContext = true;
             PutCurrentBack();
-            OtherParserBlock(templateBuilder);
+            // Stage 4.2 cross-parser handoff (per the per-call-site mapping table
+            // row 2): `ParseTemplate` is invoked from inside an explicit-expression
+            // body, so the immediate C# terminator is `RightParenthesis` (drops in
+            // translation). Union with `_outerFollow` propagates any further-outer
+            // follow set into the nested HTML parser.
+            OtherParserBlock(templateBuilder,
+                _outerFollow | new FollowSet(SyntaxKind.RightParenthesis, SyntaxKind.Transition));
 
             var template = SyntaxFactory.CSharpTemplateBlock(templateBuilder.ToList());
             builder.Add(template);
@@ -2128,9 +2203,15 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 // parser (which would treat it as MarkupText
                                 // / fake MarkupStartTag). The pre-existing
                                 // diagnostic above keeps its narrow span.
+                                // Stage 4.2 threads the parser's outer follow
+                                // set (`_outerFollow`) so an outer-HTML token
+                                // translated to the C# side aborts the trailing
+                                // sync before it absorbs across the construct.
                                 var sync = Synchronize(
                                     RecoveryFollowSets.CSharpDirectiveTrailing,
+                                    _outerFollow,
                                     originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                                EndingBlockIfStoppedOnOuter(sync);
                                 AcceptMarkerTokenIfNecessary();
                                 var pending = OutputTokensAsStatementLiteral();
                                 if (pending is not null)
@@ -2256,9 +2337,9 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             // The follow set is C#-side per Big Design Decision #4 (see
             // `RecoveryFollowSets.CSharpDirectiveTrailing`).
             //
-            // Uses the convenience overload of `Synchronize` (no outer
-            // follow set); Stage 4.2 will mechanically upgrade this to
-            // thread the caller's outer follow set.
+            // Stage 4.2 threads the parser's outer follow set (`_outerFollow`)
+            // so the trailing sync stops at an outer-HTML token translated to
+            // the C# side instead of absorbing it.
             //
             // Returns the built directive (which the caller adds to
             // `builder`). Returning is necessary because `builder` is an
@@ -2269,7 +2350,9 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                 {
                     var sync = Synchronize(
                         RecoveryFollowSets.CSharpDirectiveTrailing,
+                        _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     var pending = OutputTokensAsStatementLiteral();
                     if (pending is not null)
@@ -2577,11 +2660,19 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                     //     even when the condition is malformed.
                     //
                     // Stage 2.4 uses the convenience overload of `Synchronize`;
-                    // Stage 4.2 will mechanically upgrade this call to thread
-                    // the caller's outer follow set per BDD #4.
+                    // Stage 4.2 threads the parser's outer follow set
+                    // (`_outerFollow`) so an outer-HTML token like `<`
+                    // (translated to C#-side `LessThan` at the handoff)
+                    // aborts the condition-recovery sync before it absorbs
+                    // surrounding markup. After bail-out the caller
+                    // (`TryParseCondition`) returns false, `ParseConditionalBlock`
+                    // skips body parsing, and `ParseBlockCore`'s finally
+                    // `PutCurrentBack`s the offending token for the HTML parser.
                     var sync = Synchronize(
                         new FollowSet(SyntaxKind.NewLine, SyntaxKind.RightBrace, SyntaxKind.LeftBrace),
+                        _outerFollow,
                         originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    EndingBlockIfStoppedOnOuter(sync);
                     AcceptMarkerTokenIfNecessary();
                     builder.Add(OutputTokensAsStatementLiteral());
                     if (sync.Skipped is not null)
@@ -3053,9 +3144,9 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                 // fake markup. The legacy path falls straight through to
                 // `CaptureWhitespaceToEndOfLine`, leaving any non-whitespace
                 // (e.g. `! garbage` after `@using `) for the outer parser
-                // to mis-categorise. Stage 4.2 will mechanically upgrade
-                // this convenience-overload call to thread the caller's
-                // outer follow set per Big Design Decision #4.
+                // to mis-categorise. Stage 4.2 threads the parser's outer
+                // follow set (`_outerFollow`) so an outer-HTML token
+                // (translated to the C# side) aborts the sync.
                 //
                 // No new diagnostic is emitted: the legacy path is also
                 // silent for this input (no `Parsing_DirectiveMustHaveValue`
@@ -3063,7 +3154,9 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                 // shape, not error reporting.
                 var sync = Synchronize(
                     RecoveryFollowSets.CSharpDirectiveTrailing,
+                    _outerFollow,
                     originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                EndingBlockIfStoppedOnOuter(sync);
                 if (sync.Skipped is not null)
                 {
                     builder.Add(sync.Skipped);
@@ -3314,6 +3407,9 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
     }
 
     private void OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder)
+        => OtherParserBlock(builder, FollowSet.Empty);
+
+    private void OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder, FollowSet outerFollow)
     {
         // When transitioning to the HTML parser we no longer want to act as if we're in a nested C# state.
         // For instance, if <div>@hello.</div> is in a nested C# block we don't want the trailing '.' to be handled
@@ -3326,7 +3422,12 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         RazorSyntaxNode? htmlBlock = null;
         using (PushSpanContextConfig())
         {
-            htmlBlock = HtmlParser.ParseBlock();
+            // Translate the C#-side outer follow set into the HTML-side vocabulary
+            // before handing off; see Big Design Decision #4 of the recovery plan.
+            // Stage 4.1 callers always pass FollowSet.Empty (via the parameterless
+            // wrapper above), so this translation is a no-op until Stage 4.2 wires
+            // real outer follow sets at each call site.
+            htmlBlock = HtmlParser.ParseBlock(RecoveryFollowSets.ForHtmlCallee(outerFollow));
         }
 
         builder.Add(htmlBlock);

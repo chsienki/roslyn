@@ -47,6 +47,15 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
         set => _codeParser = value;
     }
 
+    /// <summary>
+    /// The outer (caller-supplied) follow set propagated through
+    /// <see cref="ParseBlock(FollowSet)"/>. Captures the set of tokens at which
+    /// the inner HTML parser should bail back to its outer (typically C#)
+    /// caller. Stage 4.1 just stores the value; Stage 4.2 of the recovery plan
+    /// wires the consumption into the recovery <c>Synchronize</c> calls.
+    /// </summary>
+    private FollowSet _outerFollow;
+
     private bool CaseSensitive { get; set; }
 
     private StringComparison Comparison
@@ -119,6 +128,23 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
     // E.g, `<div> @{ </div> }` will be parsed as two separate elements with missing end and start tags respectively.
     //
     public MarkupBlockSyntax? ParseBlock()
+        => ParseBlock(FollowSet.Empty);
+
+    public MarkupBlockSyntax? ParseBlock(FollowSet outerFollow)
+    {
+        var previousOuterFollow = _outerFollow;
+        _outerFollow = outerFollow;
+        try
+        {
+            return ParseBlockCore();
+        }
+        finally
+        {
+            _outerFollow = previousOuterFollow;
+        }
+    }
+
+    private MarkupBlockSyntax? ParseBlockCore()
     {
         CancellationToken.ThrowIfCancellationRequested();
 
@@ -724,13 +750,15 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
             // skipped content in the common case.
             //
             // Stage 3.1 uses the convenience overload of `Synchronize`; Stage 4.2
-            // will mechanically upgrade these calls to thread the caller's outer
-            // follow set per Big Design Decision #4.
+            // threads the parser's outer follow set (`_outerFollow`) so an outer
+            // C# token (translated to HTML at the cross-parser handoff) aborts
+            // the tag-name sync.
             (tagNameToken, tagNameSkipped) = Required(
                 SyntaxKind.Text,
                 RazorDiagnosticFactory.CreateParsing_TagNameExpected_At(CurrentStart),
                 RecoveryFollowSets.HtmlTagRecovery,
-                originatingLanguage: SyntaxKind.MarkupBlock);
+                originatingLanguage: SyntaxKind.MarkupBlock,
+                outerFollow: _outerFollow);
         }
         else
         {
@@ -785,7 +813,8 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
                     SyntaxKind.CloseAngle,
                     RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName),
                     RecoveryFollowSets.HtmlTagRecovery,
-                    originatingLanguage: SyntaxKind.MarkupBlock);
+                    originatingLanguage: SyntaxKind.MarkupBlock,
+                    outerFollow: _outerFollow);
                 Debug.Assert(skipped is null,
                     "ParseStartTag's close-angle Required call is invoked at a tag-recovery boundary; sync should have nothing to skip.");
                 closeAngleToken = token;
@@ -1024,7 +1053,8 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
                 SyntaxKind.Text,
                 RazorDiagnosticFactory.CreateParsing_TagNameExpected_At(CurrentStart),
                 RecoveryFollowSets.HtmlTagRecovery,
-                originatingLanguage: SyntaxKind.MarkupBlock);
+                originatingLanguage: SyntaxKind.MarkupBlock,
+                outerFollow: _outerFollow);
         }
         else
         {
@@ -1086,7 +1116,8 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
                 SyntaxKind.CloseAngle,
                 RazorDiagnosticFactory.CreateParsing_UnfinishedTag_At(CurrentStart, tagName),
                 RecoveryFollowSets.HtmlTagRecovery,
-                originatingLanguage: SyntaxKind.MarkupBlock);
+                originatingLanguage: SyntaxKind.MarkupBlock,
+                outerFollow: _outerFollow);
             Debug.Assert(skipped is null,
                 "ParseEndTag's close-angle Required call is invoked at a tag-recovery boundary; sync should have nothing to skip.");
             closeAngleToken = token;
@@ -1235,8 +1266,9 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
             // `<tag>` shape where the next token is `>`.
             //
             // Stage 3.4 uses the convenience overload of `Synchronize`;
-            // Stage 4.2 will mechanically upgrade these calls to thread the
-            // caller's outer follow set per Big Design Decision #4.
+            // Stage 4.2 threads the parser's outer follow set (`_outerFollow`)
+            // so an outer-C# token (translated to the HTML side at the
+            // cross-parser handoff) aborts the misc-attribute sync.
             builder.Add(OutputAsMarkupLiteral());
 
             if (!EnsureCurrent() || EndOfFile ||
@@ -1250,6 +1282,7 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
 
             var sync = Synchronize(
                 RecoveryFollowSets.HtmlEndOfTagFollowSet,
+                _outerFollow,
                 originatingLanguage: SyntaxKind.MarkupBlock);
 
             if (sync.Skipped is not null)
@@ -1345,7 +1378,13 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
                     PutCurrentBack();
                     using var pooledResult = Pool.Allocate<RazorSyntaxNode>();
                     var dynamicAttributeValueBuilder = pooledResult.Builder;
-                    OtherParserBlock(dynamicAttributeValueBuilder);
+                    // Stage 4.2 cross-parser handoff (per the per-call-site mapping
+                    // table row 3): pass the HTML attribute-terminator set so the C#
+                    // parser bails at attribute / tag boundaries. The set is HTML-side;
+                    // `OtherParserBlock` translates via `ForCSharpCallee` (DoubleQuote /
+                    // SingleQuote drop -- C# absorbs `"`/`'` as literals).
+                    OtherParserBlock(dynamicAttributeValueBuilder,
+                        _outerFollow | new FollowSet(SyntaxKind.OpenAngle, SyntaxKind.ForwardSlash, SyntaxKind.DoubleQuote, SyntaxKind.SingleQuote));
                     var value = SyntaxFactory.MarkupMiscAttributeContent(dynamicAttributeValueBuilder.ToList());
                     builder.Add(value);
                     return;
@@ -1700,7 +1739,25 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
                 {
                     var dynamicAttributeValueBuilder = pooledResult.Builder;
 
-                    OtherParserBlock(dynamicAttributeValueBuilder);
+                    // Stage 4.2 cross-parser handoff (per the per-call-site mapping
+                    // table row 4): the local HTML follow set depends on whether the
+                    // attribute value is quoted. When quoted, the closing-quote kind
+                    // degenerates in C# (drops in translation), so we fall back to
+                    // `NewLine` as the cross-language sync boundary. When unquoted,
+                    // the full unquoted attribute terminator set (matching
+                    // `IsUnquotedEndOfAttributeValue`) provides the boundary.
+                    var attributeFollow = quote != SyntaxKind.Marker
+                        ? new FollowSet(quote, SyntaxKind.NewLine)
+                        : new FollowSet(
+                            SyntaxKind.OpenAngle,
+                            SyntaxKind.ForwardSlash,
+                            SyntaxKind.CloseAngle,
+                            SyntaxKind.Equals,
+                            SyntaxKind.DoubleQuote,
+                            SyntaxKind.SingleQuote,
+                            SyntaxKind.Whitespace,
+                            SyntaxKind.NewLine);
+                    OtherParserBlock(dynamicAttributeValueBuilder, _outerFollow | attributeFollow);
                     var value = SyntaxFactory.MarkupDynamicAttributeValue(prefix, SyntaxFactory.GenericBlock(dynamicAttributeValueBuilder.ToList()));
                     builder.Add(value);
                 }
@@ -1923,7 +1980,12 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
             PutBack(lastWhitespace);
         }
 
-        OtherParserBlock(builder);
+        // Stage 4.2 cross-parser handoff (per the per-call-site mapping table
+        // row 5): pass `OpenAngle` so an outer HTML tag start aborts the
+        // inner C# parser. Union with `_outerFollow` propagates any
+        // further-outer follow set into the nested C# parser. The translation
+        // to C#-side `LessThan` happens inside `OtherParserBlock`.
+        OtherParserBlock(builder, _outerFollow | new FollowSet(SyntaxKind.OpenAngle));
     }
 
     private void ParseMarkupComment(in SyntaxListBuilder<RazorSyntaxNode> builder)
@@ -2501,6 +2563,9 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
     }
 
     private void OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder)
+        => OtherParserBlock(builder, FollowSet.Empty);
+
+    private void OtherParserBlock(in SyntaxListBuilder<RazorSyntaxNode> builder, FollowSet outerFollow)
     {
         AcceptMarkerTokenIfNecessary();
         builder.Add(OutputAsMarkupLiteral());
@@ -2508,7 +2573,12 @@ internal class HtmlMarkupParser : TokenizerBackedParser<HtmlTokenizer>
         RazorSyntaxNode? codeBlock;
         using (PushSpanContextConfig())
         {
-            codeBlock = CodeParser.ParseBlock();
+            // Translate the HTML-side outer follow set into the C#-side vocabulary
+            // before handing off; see Big Design Decision #4 of the recovery plan.
+            // Stage 4.1 callers always pass FollowSet.Empty (via the parameterless
+            // wrapper above), so this translation is a no-op until Stage 4.2 wires
+            // real outer follow sets at each call site.
+            codeBlock = CodeParser.ParseBlock(RecoveryFollowSets.ForCSharpCallee(outerFollow));
         }
 
         builder.Add(codeBlock);
