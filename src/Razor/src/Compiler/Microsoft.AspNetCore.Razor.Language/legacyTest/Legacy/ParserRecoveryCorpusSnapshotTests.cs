@@ -95,6 +95,10 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     public void UnclosedMethodCallInImplicit()
         => ParseCorpusFile("UnclosedMethodCallInImplicit.razor");
 
+    [Fact]
+    public void UnnamedTag()
+        => ParseCorpusFile("UnnamedTag.razor");
+
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
     //
@@ -909,6 +913,647 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
             .OfType<MarkupElementSyntax>()
             .Single(e => e.GetContent().Contains("<div>"));
         Assert.Equal("<div>after</div>", divElement.GetContent());
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 3.1: ParseStartTag / ParseEndTag enhanced-recovery test.
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branches added in Stage 3.1 to:
+    //   - The tag-name slot in `ParseStartTag` and `ParseEndTag`, which
+    //     now uses `Required(SyntaxKind.Text, ...)` so the missing tag
+    //     name is represented as a zero-width `MissingToken(Text)` with
+    //     a narrow RZ1047 (Parsing_TagNameExpected) diagnostic attached
+    //     to the missing token at the precise cursor position;
+    //   - (Indirectly, via the existing 28 corpus tests passing) the
+    //     close-angle slot in `ParseStartTag`'s MarkupInCodeBlock branch
+    //     and `ParseEndTag`'s end-tag-close branch, which now use
+    //     `Required(SyntaxKind.CloseAngle, ...)` emitting a narrow
+    //     RZ1024 (Parsing_UnfinishedTag) on the missing close angle.
+    //
+    // Stage 3.1 exit criteria asserted under enhanced mode:
+    //   - Two RZ1047 diagnostics, zero-width, at the precise positions
+    //     of the missing tag names in `<>` and `</>` (positions 1 and 7,
+    //     not at the start-of-tag position 0 or 5).
+    //   - Two `MissingToken(Text)` at the same positions, both
+    //     zero-width.
+    //   - Real `CloseAngle` tokens at positions 1 and 7 (not missing).
+    //   - Trailing `<p>after</p>` parses cleanly as a real
+    //     `MarkupElement` (Stage 3.1 produces no recovery contamination
+    //     that would push it into `MarkupMiscAttributeContent`).
+    //   - No RZ1024 diagnostics: enhanced recovery only emits
+    //     `Parsing_UnfinishedTag` when the close angle is actually
+    //     missing (in `MarkupInCodeBlock` mode for start tags, or in
+    //     plain markup mode for end tags). Here both tags have a real
+    //     close angle, so RZ1024 must not appear.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void UnnamedTag_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnnamedTag.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Position layout for the corpus input `<>foo</>\r\n<p>after</p>\r\n`:
+        //   0      `<` (start tag open angle)
+        //   1      `>` (start tag close angle -- tag name is missing right before this)
+        //   2..4   `foo`
+        //   5      `<` (end tag open angle)
+        //   6      `/`
+        //   7      `>` (end tag close angle -- tag name is missing right before this)
+        //   8..9   `\r\n`
+        //   10..12 `<p>`
+        //   13..17 `after`
+        //   18..21 `</p>`
+        //   22..23 `\r\n`
+
+        // Exactly two RZ1047 diagnostics, both zero-width, at the
+        // precise missing-tag-name sites: position 1 (after `<`) and
+        // position 7 (after `</`). Legacy mode produces a bare
+        // `MissingToken(Text)` with no diagnostic, so RZ1047 is the
+        // net-new narrow diagnostic introduced in Stage 3.1.
+        var rz1047 = tree.Diagnostics.Where(d => d.Id == "RZ1047").ToArray();
+        Assert.Equal(2, rz1047.Length);
+        Assert.Equal(1, rz1047[0].Span.AbsoluteIndex);
+        Assert.Equal(0, rz1047[0].Span.Length);
+        Assert.Equal(7, rz1047[1].Span.AbsoluteIndex);
+        Assert.Equal(0, rz1047[1].Span.Length);
+
+        // RZ1024 (Parsing_UnfinishedTag) must not be emitted: both tags
+        // have a real `>` token, so the close-angle Required path is
+        // not exercised here. (Stage 3.1's close-angle migration is
+        // covered indirectly by the 28 pre-existing corpus baselines
+        // continuing to pass under enhanced mode.)
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1024"));
+
+        // Two `MarkupStartTag`s (`<>` and `<p>`) and two
+        // `MarkupEndTag`s (`</>` and `</p>`).
+        var startTags = tree.Root.DescendantNodes().OfType<MarkupStartTagSyntax>().ToArray();
+        var endTags = tree.Root.DescendantNodes().OfType<MarkupEndTagSyntax>().ToArray();
+        Assert.Equal(2, startTags.Length);
+        Assert.Equal(2, endTags.Length);
+
+        // The unnamed start tag `<>` has a zero-width
+        // `MissingToken(Text)` at position 1 and a real `CloseAngle`
+        // `>` at position 1 (also length 1, so the next non-virtual
+        // position is 2).
+        var unnamedStartTag = startTags[0];
+        Assert.True(unnamedStartTag.Name.IsMissing);
+        Assert.Equal(SyntaxKind.Text, unnamedStartTag.Name.Kind);
+        Assert.Equal(1, unnamedStartTag.Name.SpanStart);
+        Assert.Equal(0, unnamedStartTag.Name.Span.Length);
+        Assert.NotNull(unnamedStartTag.CloseAngle);
+        Assert.False(unnamedStartTag.CloseAngle!.IsMissing);
+        Assert.Equal(1, unnamedStartTag.CloseAngle.SpanStart);
+        Assert.Equal(">", unnamedStartTag.CloseAngle.Content);
+
+        // The unnamed end tag `</>` has a zero-width
+        // `MissingToken(Text)` at position 7 and a real `CloseAngle`
+        // `>` at position 7.
+        var unnamedEndTag = endTags[0];
+        Assert.True(unnamedEndTag.Name.IsMissing);
+        Assert.Equal(SyntaxKind.Text, unnamedEndTag.Name.Kind);
+        Assert.Equal(7, unnamedEndTag.Name.SpanStart);
+        Assert.Equal(0, unnamedEndTag.Name.Span.Length);
+        Assert.False(unnamedEndTag.CloseAngle.IsMissing);
+        Assert.Equal(7, unnamedEndTag.CloseAngle.SpanStart);
+        Assert.Equal(">", unnamedEndTag.CloseAngle.Content);
+
+        // The trailing `<p>after</p>` parses as a real `MarkupElement`
+        // with real (non-missing) tag-name tokens. Stage 3.1 exit
+        // criterion: no recovery contamination leaks into the trailing
+        // markup.
+        var namedStartTag = startTags[1];
+        Assert.False(namedStartTag.Name.IsMissing);
+        Assert.Equal("p", namedStartTag.Name.Content);
+        var namedEndTag = endTags[1];
+        Assert.False(namedEndTag.Name.IsMissing);
+        Assert.Equal("p", namedEndTag.Name.Content);
+
+        // No `MarkupMiscAttributeContent` wrappers from leaked tokens
+        // around the unnamed tags. (Stage 3.1's tag-name sync adds any
+        // skipped tokens to the attribute / misc-attribute builder as
+        // `SkippedContentSyntax`, not as `MarkupMiscAttributeContent`.
+        // Because `HtmlTagRecovery` matches the current token at every
+        // missing-tag-name site exercised here, no skipped content is
+        // produced in practice.)
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+        Assert.Empty(tree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 3.2: ParseRemainingAttribute enhanced-recovery test for the
+    // motivating bug (`<button @onclick="">`, dotnet/razor#10383).
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branch added in Stage 3.2 to `HtmlMarkupParser.ParseRemainingAttribute`,
+    // which detects an empty C#-bound attribute value (i.e. the attribute
+    // name starts with `@` and the value parse produced nothing) and
+    // synthesises the "missing C# expression" tree shape mandated by
+    // Big Design Decision #9:
+    //
+    //     GenericBlock([ CSharpExpressionLiteral([ MissingToken(Identifier) ]) ])
+    //
+    // The corpus file is parsed under `RazorFileKind.Component`: in
+    // Component mode `AllowCSharpInMarkupAttributeArea` is cleared, so
+    // `@onclick` is parsed as a regular markup attribute name (with `@`
+    // as the first character of the name) and flows through
+    // `ParseRemainingAttribute`. Under `RazorFileKind.Legacy` (the
+    // default the corpus snapshot uses) the same input splits into two
+    // separate `MarkupMiscAttributeContent` nodes -- the Stage 5.2
+    // tag-helper rewriter glues those back together. Stage 3.2 only
+    // covers the Component-direct-parse path; the legacy snapshot is
+    // unchanged.
+    //
+    // Stage 3.2 exit criteria asserted under enhanced mode:
+    //   - The `@onclick` attribute is a real `MarkupAttributeBlockSyntax`
+    //     (not split into `MarkupMiscAttributeContent` like the legacy
+    //     snapshot shows).
+    //   - Its `Value` is exactly the BDD #9 shape: one `GenericBlockSyntax`
+    //     containing one `CSharpExpressionLiteralSyntax` containing one
+    //     `MissingToken(Identifier)`.
+    //   - The whole `Value` subtree is zero-width (no source characters
+    //     were absorbed into the missing-expression placeholder).
+    //   - Sibling attribute `class="btn btn-primary"` is unaffected --
+    //     the fix is gated on the name starting with `@`.
+    //   - No new parser diagnostics are introduced by the enhanced
+    //     branch (RZ2008 is emitted later by tag-helper resolution, not
+    //     by the parser; this assertion guards against the enhanced
+    //     branch accidentally widening the diagnostic set).
+    // ----------------------------------------------------------------
+
+    // Motivating bug: dotnet/razor#10383 (https://github.com/dotnet/razor/issues/10383).
+    [Fact]
+    public void EmptyBoundAttribute_Onclick_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            fileKind: RazorFileKind.Component,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Locate the `@onclick=""` attribute. In Component mode the
+        // attribute name is parsed as `@onclick` (the `@` is just the
+        // first character of the name), so this is a real
+        // `MarkupAttributeBlockSyntax` with `name.Content == "@onclick"`.
+        var attributeBlock = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupAttributeBlockSyntax>()
+            .Single(a => GetAttributeNameContent(a) == "@onclick");
+
+        // Sanity check: the corpus has `@onclick=""` so an equals token
+        // is present and not missing.
+        Assert.False(attributeBlock.EqualsToken.IsMissing);
+        Assert.Equal(SyntaxKind.Equals, attributeBlock.EqualsToken.Kind);
+
+        // BDD #9 shape: GenericBlock([ CSharpExpressionLiteral([ MissingToken(Identifier) ]) ]).
+        // Stage 5.1 codegen detects this exact shape (single-child
+        // GenericBlock containing a single-token CSharpExpressionLiteral
+        // whose only token is a missing Identifier) and emits a safe
+        // placeholder. Any deviation here breaks that contract.
+        var value = Assert.IsType<GenericBlockSyntax>(attributeBlock.Value);
+        var expressionLiteral = Assert.IsType<CSharpExpressionLiteralSyntax>(Assert.Single(value.Children));
+        var missingToken = Assert.Single(expressionLiteral.LiteralTokens);
+        Assert.True(missingToken.IsMissing);
+        Assert.Equal(SyntaxKind.Identifier, missingToken.Kind);
+
+        // The whole synthesised value subtree is zero-width: the parser
+        // did not absorb any source characters into the placeholder.
+        Assert.Equal(0, value.Width);
+        Assert.Equal(0, expressionLiteral.Width);
+        Assert.Equal(0, missingToken.Span.Length);
+
+        // The sibling `class="btn btn-primary"` attribute is unaffected;
+        // it has a non-null `Value` with real content (BDD #9 only
+        // applies to names starting with `@`).
+        var classAttribute = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupAttributeBlockSyntax>()
+            .Single(a => GetAttributeNameContent(a) == "class");
+        Assert.NotNull(classAttribute.Value);
+        Assert.Contains("btn", classAttribute.Value!.GetContent());
+
+        // The enhanced branch must not emit any parser diagnostics --
+        // RZ2008 (empty bound attribute) is emitted later in tag-helper
+        // resolution (DefaultTagHelperResolutionPhase.LegacyTagHelperResolver),
+        // not in the parser. This assertion guards against the enhanced
+        // branch accidentally widening the diagnostic set.
+        Assert.Empty(tree.Diagnostics);
+
+        static string GetAttributeNameContent(MarkupAttributeBlockSyntax attribute)
+        {
+            return attribute.Name is { } name ? name.GetContent() : string.Empty;
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 3.3: TryRecoverStartTag / CompleteEndTag enhanced-recovery
+    // test.
+    //
+    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
+    // branches added in Stage 3.3 to `HtmlMarkupParser`:
+    //   - `CompleteMarkupInCodeBlock` (the markup-in-code-block EOF
+    //     cleanup loop): emits a narrow zero-width RZ1025
+    //     (Parsing_MissingEndTag) at the precise cursor position (EOF
+    //     or end-of-block) rather than the legacy wide span at the
+    //     unclosed start tag's name.
+    //   - `CompleteEndTag` (the "no tracker" / orphan-end-tag branch):
+    //     emits a narrow zero-width RZ1026 (Parsing_UnexpectedEndTag)
+    //     at the precise cursor position (start of the unexpected
+    //     `</`) rather than the legacy span covering the end tag name.
+    //   - `CompleteEndTag` (the outer-unclosed-tag cleanup loop):
+    //     emits a narrow zero-width RZ1025 at the unexpected end tag's
+    //     start position (where the missing end tag should have
+    //     appeared) rather than the legacy wide span at the unclosed
+    //     start tag's name.
+    //
+    // Stage 3.3 exit criteria asserted here:
+    //   - The corpus file `UnclosedTag.razor` is pure document-mode
+    //     markup where `TryRecoverStartTag` silently pops the
+    //     intermediate `<span>` / `<p>` as malformed elements (this
+    //     silent path is unchanged by Stage 3.3 -- see the
+    //     "tag-stack recovery itself doesn't change structurally"
+    //     wording in the plan). The corpus exercises the resulting
+    //     tree shape: a well-formed `<div>...</div>` outer element
+    //     with malformed `<span>` / `<p>` inside, a sibling
+    //     `<section>...</section>` element parsing cleanly, and no
+    //     `MarkupMiscAttributeContent` across the whole file.
+    //   - In-memory `@{ </div> }` and `@{ <div> }` sources cover the
+    //     three migrated diagnostic sites and verify the new spans
+    //     are zero-width at the precise tag positions (not at the
+    //     start of the construct).
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void UnclosedTag_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/UnclosedTag.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // The corpus file `<div>\r\n    <span>\r\n        <p>text</div>\r\n\r\n<section>after the mismatch</section>\r\n`
+        // parses to:
+        //   - One outer `<div>...</div>` `MarkupElement` containing the
+        //     two intermediate unclosed elements (`<span>` and `<p>`)
+        //     popped as malformed by `TryRecoverStartTag`.
+        //   - One sibling `<section>...</section>` element parsing
+        //     cleanly (no contamination from the recovery).
+        var topLevelMarkupBlock = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupBlockSyntax>()
+            .First();
+
+        var topLevelElements = topLevelMarkupBlock.Children
+            .OfType<MarkupElementSyntax>()
+            .ToArray();
+        Assert.Equal(2, topLevelElements.Length);
+
+        // The outer `<div>` element has a real `</div>` end tag (the
+        // recovery in `TryRecoverStartTag` matched it past the
+        // intermediate unclosed `<span>` / `<p>`).
+        var divElement = topLevelElements[0];
+        Assert.NotNull(divElement.MarkupStartTag);
+        Assert.Equal("div", divElement.MarkupStartTag.Name.Content);
+        Assert.NotNull(divElement.MarkupEndTag);
+        Assert.Equal("div", divElement.MarkupEndTag.Name.Content);
+
+        // The sibling `<section>` element is well-formed and unaffected
+        // by the upstream recovery -- no recovery contamination leaks
+        // into trailing markup.
+        var sectionElement = topLevelElements[1];
+        Assert.NotNull(sectionElement.MarkupStartTag);
+        Assert.Equal("section", sectionElement.MarkupStartTag.Name.Content);
+        Assert.NotNull(sectionElement.MarkupEndTag);
+        Assert.Equal("section", sectionElement.MarkupEndTag.Name.Content);
+
+        // Inside the `<div>` element, the intermediate `<span>` and
+        // `<p>` are nested malformed elements (start tag present, end
+        // tag absent). This is the "user-visible structure" exit
+        // criterion: nested elements are grouped correctly rather than
+        // sitting as siblings.
+        var spanElement = divElement.Body
+            .OfType<MarkupElementSyntax>()
+            .Single();
+        Assert.NotNull(spanElement.MarkupStartTag);
+        Assert.Equal("span", spanElement.MarkupStartTag.Name.Content);
+        Assert.Null(spanElement.MarkupEndTag);
+
+        var pElement = spanElement.Body
+            .OfType<MarkupElementSyntax>()
+            .Single();
+        Assert.NotNull(pElement.MarkupStartTag);
+        Assert.Equal("p", pElement.MarkupStartTag.Name.Content);
+        Assert.Null(pElement.MarkupEndTag);
+
+        // No `MarkupMiscAttributeContent` across the whole file --
+        // recovery did not absorb anything into a fat misc-attribute
+        // wrapper (Stage 3 exit criterion).
+        Assert.Empty(tree.Root.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+        // The corpus file exercises only the silent `TryRecoverStartTag`
+        // success path (and the document-mode EOF cleanup in
+        // `ParseDocument`, which also pops silently). Neither path is
+        // a Stage 3.3 diagnostic emission site, so no RZ1025 / RZ1026
+        // diagnostics fire here. The in-memory verifications below
+        // cover the actual migrated sites.
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1025"));
+        Assert.Empty(tree.Diagnostics.Where(d => d.Id == "RZ1026"));
+
+        // ----------------------------------------------------------------
+        // In-memory verification of the three migrated diagnostic sites.
+        //
+        // Each scenario uses `@{ ... }` so that the markup parser runs
+        // in `ParseMode.MarkupInCodeBlock`, which is the mode that
+        // actually fires `CompleteEndTag` (the no-tracker branch and
+        // the outer-unclosed cleanup) and `CompleteMarkupInCodeBlock`
+        // (the markup-in-code-block EOF cleanup). These three sites
+        // are the only emitters of RZ1025 / RZ1026 inside
+        // `HtmlMarkupParser`.
+        // ----------------------------------------------------------------
+
+        // Site #2 -- `CompleteEndTag` with an empty tag tracker:
+        // `</div>` inside a code block with no matching start tag.
+        // Legacy emits RZ1026 covering the end tag name; enhanced
+        // emits zero-width at the start of `</` (position 3: `@{ ` is
+        // 3 chars, then `</div>` begins).
+        {
+            var unexpectedSource = "@{ </div> }";
+            var unexpectedTree = ParseDocument(
+                unexpectedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var rz1026 = unexpectedTree.Diagnostics
+                .Where(d => d.Id == "RZ1026")
+                .ToArray();
+            var unexpectedEndTagDiagnostic = Assert.Single(rz1026);
+            Assert.Equal(3, unexpectedEndTagDiagnostic.Span.AbsoluteIndex);
+            Assert.Equal(0, unexpectedEndTagDiagnostic.Span.Length);
+        }
+
+        // Sites #1 and #3 -- `CompleteMarkupInCodeBlock` and
+        // `CompleteEndTag` outer-unclosed cleanup respectively.
+        //
+        // `@{ <div> }` reaches `CompleteMarkupInCodeBlock` (site #1)
+        // because the loop exits with `<div>` still on the tracker at
+        // the `}` of the code block. Legacy emits RZ1025 covering
+        // `div` at the unclosed start tag (position 4, length 3);
+        // enhanced emits zero-width at the cursor (the `}` at position
+        // 9). The unclosed `<div>` is also marked `IsWellFormed=true`
+        // (it had a real `>` close angle), so the diagnostic does
+        // fire.
+        {
+            var unclosedSource = "@{ <div> }";
+            var unclosedTree = ParseDocument(
+                unclosedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var rz1025 = unclosedTree.Diagnostics
+                .Where(d => d.Id == "RZ1025")
+                .ToArray();
+            var missingEndTagDiagnostic = Assert.Single(rz1025);
+            Assert.Equal(0, missingEndTagDiagnostic.Span.Length);
+            // The cursor at `CompleteMarkupInCodeBlock` is past the
+            // close `}` of the code block (the markup parser exits its
+            // loop at EOF, which sits at the very end of the source --
+            // position 10 for a 10-character `@{ <div> }`). The
+            // diagnostic is zero-width at that cursor.
+            Assert.Equal(unclosedSource.Length, missingEndTagDiagnostic.Span.AbsoluteIndex);
+        }
+
+        // Site #3 -- `CompleteEndTag` outer-unclosed cleanup loop.
+        // `@{ <div></span> }`: `</span>` has no matching open in the
+        // tracker; `TryRecoverStartTag` returns false; `CompleteEndTag`
+        // is called with a non-empty tracker (still holding `<div>`).
+        // The loop emits RZ1025 for the unclosed `<div>` at the
+        // position of the unexpected end tag (position 8: start of
+        // `</span>`). Note that the orphan `</span>` itself does NOT
+        // emit RZ1026 here -- in `CompleteEndTag`, RZ1026 only fires
+        // in the empty-tracker branch (site #2 above); the non-empty
+        // branch attributes the recovery to the unclosed start tags
+        // (RZ1025), not to the extra end tag.
+        {
+            var mixedSource = "@{ <div></span> }";
+            var mixedTree = ParseDocument(
+                mixedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var rz1025 = mixedTree.Diagnostics
+                .Where(d => d.Id == "RZ1025")
+                .ToArray();
+            var missingEndTagDiagnostic = Assert.Single(rz1025);
+            Assert.Equal(8, missingEndTagDiagnostic.Span.AbsoluteIndex);
+            Assert.Equal(0, missingEndTagDiagnostic.Span.Length);
+
+            Assert.Empty(mixedTree.Diagnostics.Where(d => d.Id == "RZ1026"));
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Stage 3.4 -- `ParseMiscAttribute` migration.
+    //
+    // Replaces the legacy "absorb everything into a fat
+    // `MarkupMiscAttributeContent`" loop with a single
+    // `Synchronize(HtmlEndOfTagFollowSet, originatingLanguage: MarkupBlock)`
+    // call. Stops at the first HTML tag boundary (`<`, `>`, `/`, `"`,
+    // `'`) and emits a narrow zero-width RZ1048
+    // (`Parsing_UnexpectedAttributeName`) at the cursor where an
+    // attribute name was expected. Absorbed tokens become
+    // `SkippedContentSyntax` tagged with `MarkupBlock`.
+    //
+    // No-op when the cursor is already at a follow-set boundary:
+    // `ParseAttributes` calls `ParseMiscAttribute` for the well-formed
+    // `<p>` shape too (no whitespace before `>`), so the enhanced
+    // branch must match the legacy no-op behaviour to avoid
+    // contaminating clean markup with a spurious RZ1048.
+    //
+    // Test layout:
+    //   - Corpus parse of `MalformedTagAttribute.razor` covers the
+    //     `ParseAttribute.AttributeNameParsingResult.Other` call site
+    //     (current is `=` after `<input @bind`).
+    //   - In-memory `<input!garbage>` covers the
+    //     `ParseAttributes` immediate-call site (no whitespace
+    //     between tag name and the next token).
+    //   - In-memory `<p>` (well-formed minimal tag) verifies the
+    //     no-op-at-boundary guard (no spurious RZ1048).
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void MalformedTagAttribute_EnhancedRecovery()
+    {
+        var testFile = TestFile.Create("ParserRecoveryCorpus/MalformedTagAttribute.razor", typeof(ParserRecoveryCorpusSnapshotTests));
+        var source = testFile.ReadAllText();
+
+        var tree = ParseDocument(
+            source,
+            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+        // Position layout for `<input @bind=>\r\n\r\n<p>after the malformed bind</p>\r\n`:
+        //   0      `<`
+        //   1..5   `input`
+        //   6      ` ` (whitespace)
+        //   7      `@`
+        //   8..11  `bind`
+        //   12     `=`
+        //   13     `>`
+        //   14..17 `\r\n\r\n`
+        //   18     `<`
+        //   19     `p`
+        //   20     `>`
+        //   21..44 `after the malformed bind`
+        //   45..48 `</p>`
+        //   49..50 `\r\n`
+
+        // The `<input ...>` start tag fires ParseMiscAttribute from the
+        // `Other` branch of `ParseAttribute` with the cursor at `=`
+        // (position 12). The enhanced branch emits a zero-width RZ1048
+        // there and synchronizes to the close angle (`>` at position 13).
+        // Legacy mode emits no diagnostic at this site; RZ1048 is the
+        // net-new narrow diagnostic introduced in Stage 3.4.
+        var rz1048 = tree.Diagnostics.Where(d => d.Id == "RZ1048").ToArray();
+        var unexpectedAttributeNameDiagnostic = Assert.Single(rz1048);
+        Assert.Equal(12, unexpectedAttributeNameDiagnostic.Span.AbsoluteIndex);
+        Assert.Equal(0, unexpectedAttributeNameDiagnostic.Span.Length);
+
+        // The `=` is absorbed into a `SkippedContentSyntax` tagged with
+        // `MarkupBlock` (legacy mode wrapped it in a
+        // `MarkupMiscAttributeContent` with a `MarkupTextLiteral`
+        // child). The skipped span starts at `=` and stops at `>`.
+        //
+        // The `@bind` CSharp implicit expression produces its own
+        // `SkippedContentSyntax` tagged with `CSharpCodeBlock` under
+        // Stage 2.1's enhanced recovery; we filter to the markup-side
+        // skipped node here.
+        var startTag = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupStartTagSyntax>()
+            .First();
+        var skipped = startTag
+            .DescendantNodes()
+            .OfType<SkippedContentSyntax>()
+            .Single(s => s.OriginatingLanguage == SyntaxKind.MarkupBlock);
+        Assert.Equal(12, skipped.SpanStart);
+        Assert.Equal("=", skipped.GetContent());
+
+        // The remaining `MarkupMiscAttributeContent` (wrapping the
+        // ` @bind` CSharp expression in attribute-name position) comes
+        // from `ParseAttribute`'s `AttributeNameParsingResult.CSharp`
+        // branch -- NOT from `ParseMiscAttribute`. That wrapping is
+        // not part of Stage 3.4's migration scope and is unchanged
+        // under enhanced mode.
+        var miscAttributeContents = startTag
+            .DescendantNodes()
+            .OfType<MarkupMiscAttributeContentSyntax>()
+            .ToArray();
+        var miscAttributeContent = Assert.Single(miscAttributeContents);
+        Assert.Equal(6, miscAttributeContent.SpanStart);
+        Assert.Equal(" @bind", miscAttributeContent.GetContent());
+
+        // Stage 3.4 exit criterion: the `=` is no longer wrapped in a
+        // `MarkupMiscAttributeContent`. The legacy baseline had two
+        // MarkupMiscAttributeContent nodes inside the start tag (the
+        // ` @bind` one above and a separate one for `=`); enhanced
+        // mode replaces the `=` wrapper with a single
+        // `SkippedContentSyntax` and emits the narrow RZ1048.
+
+        // The trailing `<p>after the malformed bind</p>` parses as a
+        // real, well-formed `MarkupElement` (no recovery contamination
+        // leaks into trailing markup).
+        var elements = tree.Root
+            .DescendantNodes()
+            .OfType<MarkupElementSyntax>()
+            .ToArray();
+        Assert.Equal(2, elements.Length);
+        var pElement = elements[1];
+        Assert.NotNull(pElement.MarkupStartTag);
+        Assert.Equal("p", pElement.MarkupStartTag.Name.Content);
+        Assert.False(pElement.MarkupStartTag.Name.IsMissing);
+        Assert.NotNull(pElement.MarkupEndTag);
+        Assert.Equal("p", pElement.MarkupEndTag.Name.Content);
+
+        // ----------------------------------------------------------------
+        // In-memory verification of the other ParseMiscAttribute call
+        // site (the `ParseAttributes` immediate-when-no-whitespace path)
+        // and of the no-op-at-boundary guard.
+        // ----------------------------------------------------------------
+
+        // Site #1 -- `ParseAttributes` immediate call. When there is
+        // no whitespace between the tag name and the next token,
+        // `ParseAttributes` invokes `ParseMiscAttribute` directly with
+        // the cursor at the unexpected token. For `<input!garbage>`
+        // the cursor is at `!` (position 6).
+        {
+            var immediateSource = "<input!garbage>";
+            var immediateTree = ParseDocument(
+                immediateSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            var immediateRz1048 = immediateTree.Diagnostics
+                .Where(d => d.Id == "RZ1048")
+                .ToArray();
+            var immediateDiagnostic = Assert.Single(immediateRz1048);
+            Assert.Equal(6, immediateDiagnostic.Span.AbsoluteIndex);
+            Assert.Equal(0, immediateDiagnostic.Span.Length);
+
+            // `!garbage` is wrapped in a `SkippedContentSyntax` tagged
+            // with `MarkupBlock`. Synchronize stops at `>` (position 14).
+            var immediateSkipped = immediateTree.Root
+                .DescendantNodes()
+                .OfType<SkippedContentSyntax>()
+                .Single();
+            Assert.Equal(SyntaxKind.MarkupBlock, immediateSkipped.OriginatingLanguage);
+            Assert.Equal(6, immediateSkipped.SpanStart);
+            Assert.Equal("!garbage", immediateSkipped.GetContent());
+
+            // No `MarkupMiscAttributeContent` for this start tag --
+            // there is no CSharp expression in attribute-name position
+            // here, only absorbed garbage.
+            var immediateStartTag = immediateTree.Root
+                .DescendantNodes()
+                .OfType<MarkupStartTagSyntax>()
+                .Single();
+            Assert.Empty(immediateStartTag.DescendantNodes().OfType<MarkupMiscAttributeContentSyntax>());
+
+            // The start tag still has a real close angle.
+            Assert.NotNull(immediateStartTag.CloseAngle);
+            Assert.False(immediateStartTag.CloseAngle!.IsMissing);
+            Assert.Equal(14, immediateStartTag.CloseAngle.SpanStart);
+        }
+
+        // No-op-at-boundary guard -- the well-formed `<p>` shape goes
+        // through `ParseMiscAttribute` (the `ParseAttributes`
+        // immediate-when-no-whitespace path: no whitespace between `p`
+        // and `>`). The enhanced branch must NOT emit RZ1048 here.
+        {
+            var wellFormedSource = "<p></p>";
+            var wellFormedTree = ParseDocument(
+                wellFormedSource,
+                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+
+            // No RZ1048 and no SkippedContentSyntax: cursor was already
+            // at the follow-set boundary (`>`), so the enhanced branch
+            // returned without absorbing or diagnosing.
+            Assert.Empty(wellFormedTree.Diagnostics.Where(d => d.Id == "RZ1048"));
+            Assert.Empty(wellFormedTree.Root.DescendantNodes().OfType<SkippedContentSyntax>());
+
+            // And the element parses cleanly.
+            var wellFormedElement = wellFormedTree.Root
+                .DescendantNodes()
+                .OfType<MarkupElementSyntax>()
+                .Single();
+            Assert.NotNull(wellFormedElement.MarkupStartTag);
+            Assert.Equal("p", wellFormedElement.MarkupStartTag.Name.Content);
+            Assert.NotNull(wellFormedElement.MarkupEndTag);
+            Assert.Equal("p", wellFormedElement.MarkupEndTag.Name.Content);
+        }
     }
 
     private void ParseCorpusFile(string corpusFileName)

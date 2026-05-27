@@ -86,4 +86,96 @@ internal static class RecoveryFollowSets
     /// </remarks>
     public static readonly FollowSet CSharpImplicitExpressionTrailing =
         new(SyntaxKind.LessThan, SyntaxKind.NewLine, SyntaxKind.Whitespace);
+
+    /// <summary>
+    /// Tag-internal recovery follow set for the HTML-side
+    /// <c>ParseStartTag</c> / <c>ParseEndTag</c> migrations (Stage 3.1 of the
+    /// recovery plan). The kinds are HTML-side per Big Design Decision #4.
+    /// </summary>
+    /// <remarks>
+    /// Used by <c>Required(SyntaxKind.Text, ...)</c> when the tag name is
+    /// missing and by <c>Required(SyntaxKind.CloseAngle, ...)</c> when the
+    /// closing <c>&gt;</c> is missing. The set captures every token that is
+    /// a sensible "boundary" inside or around an HTML tag, so the recovery
+    /// sync stops immediately at the cursor in the typical case (no skipped
+    /// content produced). The omitted kinds are <see cref="SyntaxKind.Text"/>
+    /// itself (since stopping at <c>Text</c> while looking for <c>Text</c>
+    /// is what triggers the consume path of <c>Required</c>) and the
+    /// razor-comment / unrelated kinds, which would be absorbed as
+    /// <see cref="SkippedContentSyntax"/> on the rare paths that reach them.
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Whitespace"/>, <see cref="SyntaxKind.NewLine"/>
+    ///     -- intra-tag separators and line boundaries.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.OpenAngle"/>, <see cref="SyntaxKind.CloseAngle"/>,
+    ///     <see cref="SyntaxKind.ForwardSlash"/> -- tag terminators / next-tag
+    ///     boundary.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Equals"/>, <see cref="SyntaxKind.DoubleQuote"/>,
+    ///     <see cref="SyntaxKind.SingleQuote"/> -- attribute boundaries.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.Transition"/> -- a Razor <c>@</c> transition
+    ///     embedded in or after the tag.
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    public static readonly FollowSet HtmlTagRecovery =
+        new(
+            SyntaxKind.Whitespace,
+            SyntaxKind.NewLine,
+            SyntaxKind.OpenAngle,
+            SyntaxKind.CloseAngle,
+            SyntaxKind.ForwardSlash,
+            SyntaxKind.Equals,
+            SyntaxKind.DoubleQuote,
+            SyntaxKind.SingleQuote,
+            SyntaxKind.Transition);
+
+    /// <summary>
+    /// End-of-tag recovery follow set for the HTML-side
+    /// <c>ParseMiscAttribute</c> migration (Stage 3.4 of the recovery plan).
+    /// The kinds are HTML-side per Big Design Decision #4.
+    /// </summary>
+    /// <remarks>
+    /// Used by <c>ParseMiscAttribute</c> in enhanced-recovery mode when the
+    /// cursor lands on something that isn't a valid attribute name (e.g.
+    /// the legacy <c>AttributeNameParsingResult.Other</c> branch, or the
+    /// "no whitespace after the tag name" branch in <c>ParseAttributes</c>).
+    /// The set captures the boundary kinds that delimit the absorbed
+    /// "miscellaneous attribute" range: the surrounding tag terminators
+    /// (<c>&lt;</c>, <c>&gt;</c>, <c>/</c>) and the quote kinds (<c>"</c>,
+    /// <c>'</c>) that bracket attribute values. Synchronisation stops at
+    /// these kinds so the recovered range stays narrow -- garbage between
+    /// the cursor and the next tag boundary is absorbed as
+    /// <see cref="SkippedContentSyntax"/>, replacing the legacy "fat"
+    /// <c>MarkupMiscAttributeContent</c> wrapper.
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.OpenAngle"/>, <see cref="SyntaxKind.CloseAngle"/>,
+    ///     <see cref="SyntaxKind.ForwardSlash"/> -- tag terminators (next-tag
+    ///     start, end of current tag, self-closing slash). Match
+    ///     <see cref="HtmlMarkupParser.IsTagRecoveryStopPoint"/>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="SyntaxKind.DoubleQuote"/>, <see cref="SyntaxKind.SingleQuote"/>
+    ///     -- attribute-value quote boundaries. The legacy
+    ///     <c>ParseMiscAttribute</c> absorbed quoted segments wholesale into the
+    ///     fat <c>MarkupMiscAttributeContent</c>; the enhanced version stops
+    ///     at the quote and lets the surrounding <c>ParseAttributes</c> loop
+    ///     resume normal attribute parsing, which keeps quoted attribute
+    ///     values out of the recovered skipped range.
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    public static readonly FollowSet HtmlEndOfTagFollowSet =
+        new(
+            SyntaxKind.OpenAngle,
+            SyntaxKind.CloseAngle,
+            SyntaxKind.ForwardSlash,
+            SyntaxKind.DoubleQuote,
+            SyntaxKind.SingleQuote);
 }
