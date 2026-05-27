@@ -76,6 +76,4 @@
                             NewLine;[LF];
                     RazorMetaCode - [121..122)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [122..122)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

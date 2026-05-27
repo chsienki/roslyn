@@ -16,16 +16,15 @@
                                     OpenAngle;[<];
                                     Bang;[!];
                                     Text;[p];
-                                    MarkupMiscAttributeContent - [5..6)::1
-                                        MarkupTextLiteral - [5..6)::1 - [ ] - Gen<Markup>
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [5..6)::1 - [ ] - Gen<Markup>
+                                        Whitespace;[ ];
                                     MarkupMiscAttributeContent - [6..7)::1
                                         MarkupTextLiteral - [6..7)::1 - [/] - Gen<Markup>
                                             ForwardSlash;[/];
                                     MarkupMinimizedAttributeBlock - [7..8)::1 - [}]
                                         MarkupTextLiteral - [7..8)::1 - [}] - Gen<Markup>
                                             Text;[}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(8:0,8 [0] )
                     RazorMetaCode - [8..8)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(8:0,8 [0] )
     EndOfFile;[];

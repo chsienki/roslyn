@@ -40,5 +40,5 @@
                             RightBrace;[}];
                             Whitespace;[ ];
                     RazorMetaCode - [45..45)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(45:0,45 [0] )
     EndOfFile;[];

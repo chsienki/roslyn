@@ -16,8 +16,8 @@
                             MarkupElement - [4..5)::1
                                 MarkupStartTag - [4..5)::1 - [<] - Gen<Markup>
                                     OpenAngle;[<];
-                                    Text;[<Missing>];
-                                    CloseAngle;[<Missing>];
+                                    Text;[<Missing>];RZ1047(5:1,1 [0] )
+                                    CloseAngle;[<Missing>];RZ1024(5:1,1 [0] )
                     RazorMetaCode - [5..5)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(5:1,1 [0] )
     EndOfFile;[];

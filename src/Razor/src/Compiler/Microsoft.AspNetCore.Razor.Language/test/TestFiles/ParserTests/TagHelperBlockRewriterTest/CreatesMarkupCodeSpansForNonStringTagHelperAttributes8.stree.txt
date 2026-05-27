@@ -56,9 +56,8 @@
                                                 Identifier;[Now];
                     MarkupTextLiteral - [66..67)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [67..68)::1
-                    MarkupTextLiteral - [67..68)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [67..68)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

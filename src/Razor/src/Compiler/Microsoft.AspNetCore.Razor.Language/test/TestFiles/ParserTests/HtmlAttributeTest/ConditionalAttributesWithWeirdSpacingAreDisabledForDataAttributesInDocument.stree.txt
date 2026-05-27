@@ -30,9 +30,8 @@
                                                         CSharpCodeBlock - [18..21)::3
                                                             CSharpExpressionLiteral - [18..21)::3 - [foo] - Gen<Expr>
                                                                 Identifier;[foo];
-                                    MarkupMiscAttributeContent - [21..22)::1
-                                        MarkupTextLiteral - [21..22)::1 - [ ] - Gen<Markup>
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [21..22)::1 - [ ] - Gen<Markup>
+                                        Whitespace;[ ];
                                     CloseAngle;[>];
                                 MarkupEndTag - [23..30)::7 - [</span>] - Gen<Markup>
                                     OpenAngle;[<];
@@ -43,6 +42,4 @@
                             Marker;[];
                     RazorMetaCode - [30..31)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [31..31)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

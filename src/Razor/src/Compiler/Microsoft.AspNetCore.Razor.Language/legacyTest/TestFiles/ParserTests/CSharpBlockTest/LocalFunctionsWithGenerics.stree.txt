@@ -62,7 +62,7 @@
                                                     RightParenthesis;[)];
                                                     Semicolon;[;];
                                                     Whitespace;[ ];
-                                            RazorMetaCode - [98..99)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                                            RazorMetaCode - [98..99)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                                                 RightBrace;[}];
                                 MarkupEndTag - [99..108)::9 - [</strong>] - Gen<Markup> - SpanEditHandler;Accepts:None
                                     OpenAngle;[<];
@@ -120,8 +120,6 @@
                             Whitespace;[    ];
                             RightBrace;[}];
                             NewLine;[LF];
-                    RazorMetaCode - [229..230)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [229..230)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [230..230)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

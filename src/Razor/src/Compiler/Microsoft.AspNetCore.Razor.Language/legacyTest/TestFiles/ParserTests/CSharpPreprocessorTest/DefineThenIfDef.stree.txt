@@ -61,8 +61,6 @@
                             Hash;[#];
                             Identifier;[endif];
                             NewLine;[LF];
-                    RazorMetaCode - [114..115)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [114..115)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [115..115)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

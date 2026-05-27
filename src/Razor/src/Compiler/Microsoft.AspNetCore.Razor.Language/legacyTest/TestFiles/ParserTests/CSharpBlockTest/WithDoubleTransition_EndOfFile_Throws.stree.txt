@@ -29,7 +29,7 @@
                                                     Transition;[@];
                                                 MarkupEphemeralTextLiteral - [14..15)::1 - [@] - Gen<None> - SpanEditHandler;Accepts:None
                                                     Transition;[@];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(15:0,15 [0] )
                     RazorMetaCode - [15..15)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(15:0,15 [0] )
     EndOfFile;[];

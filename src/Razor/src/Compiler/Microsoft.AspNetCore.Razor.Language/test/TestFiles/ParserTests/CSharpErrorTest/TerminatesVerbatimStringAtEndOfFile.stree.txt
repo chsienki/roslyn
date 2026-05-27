@@ -5,7 +5,7 @@
         CSharpCodeBlock - [0..61)::61
             CSharpTransition - [0..1)::1 - Gen<None>
                 Transition;[@];
-            CSharpStatementLiteral - [1..61)::60 - [if(foo) { var foo = @"blah LFblah; LF<p>Foo</p>LFblah LFblah] - Gen<Stmt>
+            CSharpStatementLiteral - [1..14)::13 - [if(foo) { var] - Gen<Stmt>
                 Keyword;[if];
                 LeftParenthesis;[(];
                 Identifier;[foo];
@@ -14,6 +14,7 @@
                 LeftBrace;[{];
                 Whitespace;[ ];
                 Keyword;[var];
+            SkippedContent - [14..61)::47
                 Whitespace;[ ];
                 Identifier;[foo];
                 Whitespace;[ ];

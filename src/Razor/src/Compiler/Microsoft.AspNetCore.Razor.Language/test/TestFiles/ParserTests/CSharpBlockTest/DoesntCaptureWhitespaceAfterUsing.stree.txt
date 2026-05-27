@@ -2,7 +2,7 @@
     MarkupBlock - [0..13)::13
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup>
             Marker;[];
-        CSharpCodeBlock - [0..10)::10
+        CSharpCodeBlock - [0..13)::13
             RazorUsingDirective - [0..10)::10
                 CSharpTransition - [0..1)::1 - Gen<None>
                     Transition;[@];
@@ -11,6 +11,8 @@
                         Keyword;[using];
                         Whitespace;[ ];
                         Identifier;[Foo];
-        MarkupTextLiteral - [10..13)::3 - [   ] - Gen<Markup>
-            Whitespace;[   ];
+            SkippedContent - [10..13)::3
+                Whitespace;[   ];
+        MarkupTextLiteral - [13..13)::0 - [] - Gen<Markup>
+            Marker;[];
     EndOfFile;[];

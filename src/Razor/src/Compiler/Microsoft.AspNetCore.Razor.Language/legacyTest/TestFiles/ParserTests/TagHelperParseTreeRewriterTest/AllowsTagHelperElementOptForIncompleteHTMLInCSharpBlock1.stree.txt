@@ -16,7 +16,7 @@
                                     OpenAngle;[<];
                                     Bang;[!];
                                     Text;[}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(5:0,5 [0] )
                     RazorMetaCode - [5..5)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(5:0,5 [0] )
     EndOfFile;[];

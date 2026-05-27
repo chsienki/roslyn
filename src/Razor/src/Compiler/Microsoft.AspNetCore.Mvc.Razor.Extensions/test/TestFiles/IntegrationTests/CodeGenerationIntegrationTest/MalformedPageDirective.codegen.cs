@@ -24,7 +24,7 @@ namespace AspNetCoreGeneratedDocument
         #pragma warning disable 1998
         public async override global::System.Threading.Tasks.Task ExecuteAsync()
         {
-            WriteLiteral("\"foo\r\n\r\n<h1>About Us</h1>\r\n<p>We are awesome.</p>");
+            WriteLiteral("\r\n\r\n<h1>About Us</h1>\r\n<p>We are awesome.</p>");
         }
         #pragma warning restore 1998
         #nullable restore

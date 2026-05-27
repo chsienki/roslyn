@@ -53,15 +53,12 @@
                                             Whitespace;[ ];
                                         MarkupTextLiteral - [35..53)::18 - [bound-required-int] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             Text;[bound-required-int];
-                                    MarkupMiscAttributeContent - [53..54)::1
-                                        MarkupTextLiteral - [53..54)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [53..54)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [56..56)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [56..57)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [56..57)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [57..57)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

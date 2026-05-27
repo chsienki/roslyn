@@ -25,8 +25,6 @@
                                         CloseAngle;[>];
                         CSharpStatementLiteral - [16..16)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [16..17)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [16..17)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [17..17)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

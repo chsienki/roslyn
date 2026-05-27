@@ -9,18 +9,16 @@
                 MarkupStartTag - [3..9)::6 - [<br />] - Gen<Markup>
                     OpenAngle;[<];
                     Text;[br];
-                    MarkupMiscAttributeContent - [6..7)::1
-                        MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup>
-                            Whitespace;[ ];
+                    MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup>
+                        Whitespace;[ ];
                     ForwardSlash;[/];
                     CloseAngle;[>];
             MarkupTagHelperElement - [9..19)::10 - strong[SelfClosing] - StrongTagHelper
                 MarkupTagHelperStartTag - [9..19)::10 - [<strong />] - Gen<Markup>
                     OpenAngle;[<];
                     Text;[strong];
-                    MarkupMiscAttributeContent - [16..17)::1
-                        MarkupTextLiteral - [16..17)::1 - [ ] - Gen<Markup>
-                            Whitespace;[ ];
+                    MarkupTextLiteral - [16..17)::1 - [ ] - Gen<Markup>
+                        Whitespace;[ ];
                     ForwardSlash;[/];
                     CloseAngle;[>];
             MarkupTagHelperEndTag - [19..23)::4 - [</p>]

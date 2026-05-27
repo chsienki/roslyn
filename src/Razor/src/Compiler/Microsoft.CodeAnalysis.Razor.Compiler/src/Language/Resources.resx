@@ -337,6 +337,12 @@
   <data name="ParseError_SingleLine_ControlFlowStatements_CannotContainMarkup" xml:space="preserve">
     <value>Single-statement control-flow statements in Razor documents statements cannot contain markup. Markup should be enclosed in "{{" and "}}".</value>
   </data>
+  <data name="ParseError_TagNameExpected" xml:space="preserve">
+    <value>Expected an HTML tag name.</value>
+  </data>
+  <data name="ParseError_UnexpectedAttributeName" xml:space="preserve">
+    <value>Expected an attribute name.</value>
+  </data>
   <data name="ParseError_TextTagCannotContainAttributes" xml:space="preserve">
     <value>"&lt;text&gt;" and "&lt;/text&gt;" tags cannot contain attributes.</value>
   </data>
@@ -618,5 +624,8 @@
   </data>
   <data name="Parent_has_not_been_set" xml:space="preserve">
     <value>Parent has not been set.</value>
+  </data>
+  <data name="ParseError_UnexpectedTokenInStatement" xml:space="preserve">
+    <value>An unexpected token was encountered in a CSharp statement: '{0}'.</value>
   </data>
 </root>

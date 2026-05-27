@@ -73,8 +73,20 @@ internal abstract partial class BaseMarkupEndTagSyntax
         {
             foreach (var content in children)
             {
-                var literal = (MarkupTextLiteralSyntax)content;
-                tokens.AddRange(literal.LiteralTokens);
+                // SkippedContentSyntax can land in the misc-attribute-content
+                // slot (e.g. via close-angle recovery). Flatten its tokens
+                // into the classified-span token stream alongside any
+                // `MarkupTextLiteralSyntax` content; both shapes are
+                // conceptually "absorbed garbage" for classification.
+                switch (content)
+                {
+                    case MarkupTextLiteralSyntax literal:
+                        tokens.AddRange(literal.LiteralTokens);
+                        break;
+                    case SkippedContentSyntax skipped:
+                        tokens.AddRange(skipped.SkippedTokens);
+                        break;
+                }
             }
         }
 

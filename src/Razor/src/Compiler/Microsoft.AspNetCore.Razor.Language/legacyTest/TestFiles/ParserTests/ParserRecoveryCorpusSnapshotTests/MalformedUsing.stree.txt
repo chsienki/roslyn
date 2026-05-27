@@ -1,0 +1,33 @@
+﻿RazorDocument - [0..30)::30 - [@using foo barLF<p>after</p>LF]
+    MarkupBlock - [0..30)::30
+        MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Marker;[];
+        CSharpCodeBlock - [0..16)::16
+            RazorUsingDirective - [0..10)::10
+                CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    Transition;[@];
+                RazorDirectiveBody - [1..10)::9
+                    CSharpStatementLiteral - [1..10)::9 - [using foo] - Gen<Import: foo;> - SpanEditHandler;Accepts:AnyExceptNewline
+                        Keyword;[using];
+                        Whitespace;[ ];
+                        Identifier;[foo];
+            SkippedContent - [10..14)::4
+                Whitespace;[ ];
+                Identifier;[bar];
+            RazorMetaCode - [14..16)::2 - Gen<None> - SpanEditHandler;Accepts:Any
+                NewLine;[LF];
+        MarkupElement - [16..28)::12
+            MarkupStartTag - [16..19)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[p];
+                CloseAngle;[>];
+            MarkupTextLiteral - [19..24)::5 - [after] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[after];
+            MarkupEndTag - [24..28)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[p];
+                CloseAngle;[>];
+        MarkupTextLiteral - [28..30)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+    EndOfFile;[];

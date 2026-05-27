@@ -39,6 +39,17 @@ internal static class HoverFactory
             return SpecializedTasks.Null<LspHover>();
         }
 
+        // If the cursor sits on a zero-width MissingToken -- the placeholder
+        // the parser inserts for a syntactically required but absent token --
+        // there is nothing meaningful to describe. The diagnostic emitted at
+        // the same position already tells the user what went wrong, so we just
+        // return null and let the diagnostic surface the information
+        // ("go to definition" / "hover" should not navigate to a phantom).
+        if (HasMissingTokenAt(owner, absoluteIndex))
+        {
+            return SpecializedTasks.Null<LspHover>();
+        }
+
         // For cases where the point in the middle of an attribute,
         // such as <any tes$$t=""></any>
         // the node desired is the *AttributeSyntax
@@ -173,6 +184,25 @@ internal static class HoverFactory
         }
 
         return SpecializedTasks.Null<LspHover>();
+    }
+
+    // Returns true when the cursor lies on a zero-width MissingToken inside
+    // owner. We scan owner's immediate child tokens since FindToken transparently
+    // steps past missing tokens and so cannot itself surface them.
+    // Internal for testing.
+    internal static bool HasMissingTokenAt(Microsoft.AspNetCore.Razor.Language.Syntax.SyntaxNode owner, int absoluteIndex)
+    {
+        foreach (var child in owner.ChildNodesAndTokens())
+        {
+            if (child.AsToken(out var token) &&
+                token.IsMissing &&
+                token.SpanStart == absoluteIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static LspHover? AttributeInfoToHover(

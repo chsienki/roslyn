@@ -20,5 +20,5 @@
                                 MarkupTextLiteral - [9..10)::1 - [}] - Gen<Markup>
                                     Text;[}];
                     RazorMetaCode - [10..10)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(10:0,10 [0] )
     EndOfFile;[];

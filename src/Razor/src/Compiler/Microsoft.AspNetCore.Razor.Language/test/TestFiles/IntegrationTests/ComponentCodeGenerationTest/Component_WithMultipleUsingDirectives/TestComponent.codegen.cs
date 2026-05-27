@@ -7,15 +7,10 @@ namespace Test
     using global::System.Collections.Generic;
     using global::System.Linq;
     using global::System.Threading.Tasks;
+    using global::Microsoft.AspNetCore.Components;
 #nullable restore
 #line (1,2)-(1,17) "x:\dir\subdir\Test\TestComponent.cshtml"
 using System.IO
-
-#nullable disable
-    ;
-#nullable restore
-#line (1,20)-(1,57) "x:\dir\subdir\Test\TestComponent.cshtml"
-using Microsoft.AspNetCore.Components
 
 #nullable disable
     ;
@@ -33,7 +28,7 @@ using System.Reflection;
         #pragma warning disable 1998
         protected override void BuildRenderTree(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
         {
-            __builder.AddMarkupContent(0, " ;; ");
+            __builder.AddContent(0, "; ");
         }
         #pragma warning restore 1998
     }

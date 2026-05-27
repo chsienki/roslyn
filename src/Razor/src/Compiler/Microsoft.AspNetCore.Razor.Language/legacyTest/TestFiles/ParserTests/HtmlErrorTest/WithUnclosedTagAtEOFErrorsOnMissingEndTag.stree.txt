@@ -27,5 +27,5 @@
                                     Whitespace;[ ];
                                     Text;[blah];
                     RazorMetaCode - [31..31)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(31:0,31 [0] )
     EndOfFile;[];

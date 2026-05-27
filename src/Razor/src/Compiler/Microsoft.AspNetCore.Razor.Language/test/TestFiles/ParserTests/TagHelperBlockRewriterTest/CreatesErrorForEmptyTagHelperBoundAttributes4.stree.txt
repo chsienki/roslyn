@@ -28,9 +28,8 @@
                         CSharpExpressionLiteral - [23..23)::0 - [] - Gen<None>
                     MarkupTextLiteral - [23..24)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [24..25)::1
-                    MarkupTextLiteral - [24..25)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [24..25)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

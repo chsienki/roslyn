@@ -58,8 +58,6 @@
                                             CSharpDirective;[#endifLF];
                                     RazorMetaCode - [63..64)::1 - Gen<None>
                                         RightBrace;[}];
-                        CSharpStatementLiteral - [64..64)::0 - [] - Gen<Stmt>
-                            Marker;[];
                     RazorMetaCode - [64..64)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(64:6,1 [0] )
     EndOfFile;[];

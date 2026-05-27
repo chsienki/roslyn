@@ -32,9 +32,8 @@
                                 Text;[color:red;];
                     MarkupTextLiteral - [32..33)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [33..34)::1
-                    MarkupTextLiteral - [33..34)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [33..34)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

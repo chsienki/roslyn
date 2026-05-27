@@ -20,12 +20,14 @@
                                     MarkupEndTag - [7..20)::13 - [</!-- bar -->] - Gen<Markup>
                                         OpenAngle;[<];
                                         ForwardSlash;[/];
-                                        Text;[<Missing>];
+                                        Text;[<Missing>];RZ1047(9:0,9 [0] )
                                         MarkupMiscAttributeContent - [9..19)::10
-                                            MarkupTextLiteral - [9..19)::10 - [!-- bar --] - Gen<Markup>
+                                            SkippedContent - [9..12)::3
                                                 Bang;[!];
                                                 DoubleHyphen;[--];
+                                            MarkupTextLiteral - [12..13)::1 - [ ] - Gen<Markup>
                                                 Whitespace;[ ];
+                                            MarkupTextLiteral - [13..19)::6 - [bar --] - Gen<Markup>
                                                 Text;[bar];
                                                 Whitespace;[ ];
                                                 DoubleHyphen;[--];
@@ -41,6 +43,4 @@
                             Marker;[];
                     RazorMetaCode - [26..27)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [27..27)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

@@ -49,9 +49,8 @@
                                 Text;[hi];
                     MarkupTextLiteral - [40..41)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [41..42)::1
-                    MarkupTextLiteral - [41..42)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [41..42)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 CloseAngle;[>];
             MarkupTextLiteral - [43..59)::16 - [words and spaces] - Gen<Markup>
                 Text;[words];

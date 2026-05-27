@@ -45,9 +45,8 @@
                                 Transition;[@];
                         CSharpExpressionLiteral - [42..47)::5 - [count] - Gen<None>
                             Text;[count];
-                MarkupMiscAttributeContent - [47..48)::1
-                    MarkupTextLiteral - [47..48)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [47..48)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

@@ -1,0 +1,44 @@
+﻿RazorDocument - [0..51)::51 - [<input @bind=>LFLF<p>after the malformed bind</p>LF]
+    MarkupBlock - [0..51)::51
+        MarkupElement - [0..14)::14
+            MarkupStartTag - [0..14)::14 - [<input @bind=>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[input];
+                MarkupMiscAttributeContent - [6..12)::6
+                    MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        Whitespace;[ ];
+                    CSharpCodeBlock - [7..12)::5
+                        CSharpImplicitExpression - [7..12)::5
+                            CSharpTransition - [7..8)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                                Transition;[@];
+                            CSharpImplicitExpressionBody - [8..12)::4
+                                CSharpCodeBlock - [8..12)::4
+                                    CSharpExpressionLiteral - [8..12)::4 - [bind] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                                        Identifier;[bind];
+                SkippedContent - [12..13)::1
+                    Equals;[=];
+                CloseAngle;[>];
+        MarkupTextLiteral - [14..18)::4 - [LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+            NewLine;[LF];
+        MarkupElement - [18..49)::31
+            MarkupStartTag - [18..21)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[p];
+                CloseAngle;[>];
+            MarkupTextLiteral - [21..45)::24 - [after the malformed bind] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[after];
+                Whitespace;[ ];
+                Text;[the];
+                Whitespace;[ ];
+                Text;[malformed];
+                Whitespace;[ ];
+                Text;[bind];
+            MarkupEndTag - [45..49)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[p];
+                CloseAngle;[>];
+        MarkupTextLiteral - [49..51)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+    EndOfFile;[];

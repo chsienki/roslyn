@@ -20,9 +20,8 @@
                             Whitespace;[  ];
                     MarkupTextLiteral - [24..25)::1 - ['] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         SingleQuote;['];
-                MarkupMiscAttributeContent - [25..26)::1
-                    MarkupTextLiteral - [25..26)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [25..26)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

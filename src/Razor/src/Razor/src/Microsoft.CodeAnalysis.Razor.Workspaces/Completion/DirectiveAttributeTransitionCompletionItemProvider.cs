@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #if !NET
@@ -67,6 +67,17 @@ internal class DirectiveAttributeTransitionCompletionItemProvider(IClientCapabil
         if (attribute is MarkupMiscAttributeContentSyntax && attribute.ContainsOnlyWhitespace())
         {
             // This represents a tag when there's no attribute content <InputText | />.
+            return Completions;
+        }
+
+        // Recovery emits whitespace in the attribute area as a
+        // direct MarkupTextLiteralSyntax child of the start/end tag, rather
+        // than wrapping it in a MarkupMiscAttributeContentSyntax. The two
+        // shapes are equivalent for the purpose of suggesting the directive
+        // transition (@) completion item.
+        if (owner is MarkupTextLiteralSyntax literal && literal.ContainsOnlyWhitespace() &&
+            attribute is BaseMarkupStartTagSyntax or BaseMarkupEndTagSyntax)
+        {
             return Completions;
         }
 

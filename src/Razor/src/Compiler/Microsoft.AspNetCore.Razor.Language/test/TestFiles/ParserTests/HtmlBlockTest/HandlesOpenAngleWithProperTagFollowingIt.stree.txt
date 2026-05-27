@@ -16,11 +16,10 @@
                             MarkupElement - [4..7)::3
                                 MarkupStartTag - [4..7)::3 - [<LF] - Gen<Markup>
                                     OpenAngle;[<];
-                                    Text;[<Missing>];
-                                    MarkupMiscAttributeContent - [5..7)::2
-                                        MarkupTextLiteral - [5..7)::2 - [LF] - Gen<Markup>
-                                            NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    Text;[<Missing>];RZ1047(5:1,1 [0] )
+                                    MarkupTextLiteral - [5..7)::2 - [LF] - Gen<Markup>
+                                        NewLine;[LF];
+                                    CloseAngle;[<Missing>];RZ1024(7:2,0 [0] )
                         MarkupBlock - [7..14)::7
                             MarkupElement - [7..14)::7
                                 MarkupEndTag - [7..14)::7 - [</html>] - Gen<Markup>
@@ -31,5 +30,5 @@
                         CSharpStatementLiteral - [14..14)::0 - [] - Gen<Stmt>
                             Marker;[];
                     RazorMetaCode - [14..14)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(14:2,7 [0] )
     EndOfFile;[];

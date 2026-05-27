@@ -20,7 +20,7 @@
                         CSharpCodeBlock - [8..8)::0
                             CSharpStatementLiteral - [8..8)::0 - [] - Gen<Stmt> - AutoCompleteEditHandler;Accepts:Any,AutoComplete:[<null>];AtEOL
                                 Marker;[];
-                        RazorMetaCode - [8..9)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                        RazorMetaCode - [8..9)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                             RightBrace;[}];
             CSharpStatementLiteral - [9..11)::2 - [ }] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 Whitespace;[ ];

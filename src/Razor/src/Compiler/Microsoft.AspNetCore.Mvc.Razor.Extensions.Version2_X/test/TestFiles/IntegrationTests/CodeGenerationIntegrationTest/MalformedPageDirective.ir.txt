@@ -13,11 +13,13 @@
         RazorSourceChecksumAttribute - 
         ClassDeclaration -  - public - TestFiles_IntegrationTests_CodeGenerationIntegrationTest_MalformedPageDirective - global::Microsoft.AspNetCore.Mvc.RazorPages.Page - 
             MethodDeclaration -  - public async override - global::System.Threading.Tasks.Task - ExecuteAsync
-                MalformedDirective - (0:0,0 [6] MalformedPageDirective.cshtml) - page
+                MalformedDirective - (0:0,0 [10] MalformedPageDirective.cshtml) - page
+                    CSharpCode - (6:0,6 [0] MalformedPageDirective.cshtml)
+                        LazyIntermediateToken - (6:0,6 [0] MalformedPageDirective.cshtml) - CSharp - 
                 CSharpCode - 
-                    IntermediateToken -  - CSharp - BeginContext(6, 49, true);
-                HtmlContent - (6:0,6 [49] MalformedPageDirective.cshtml)
-                    LazyIntermediateToken - (6:0,6 [8] MalformedPageDirective.cshtml) - Html - "foo\n\n
+                    IntermediateToken -  - CSharp - BeginContext(10, 45, true);
+                HtmlContent - (10:0,10 [45] MalformedPageDirective.cshtml)
+                    LazyIntermediateToken - (10:0,10 [4] MalformedPageDirective.cshtml) - Html - \n\n
                     LazyIntermediateToken - (14:2,0 [3] MalformedPageDirective.cshtml) - Html - <h1
                     LazyIntermediateToken - (17:2,3 [1] MalformedPageDirective.cshtml) - Html - >
                     LazyIntermediateToken - (18:2,4 [8] MalformedPageDirective.cshtml) - Html - About Us

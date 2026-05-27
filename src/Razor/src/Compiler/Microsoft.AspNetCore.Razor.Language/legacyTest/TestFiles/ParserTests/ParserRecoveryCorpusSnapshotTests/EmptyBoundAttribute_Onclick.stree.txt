@@ -1,0 +1,139 @@
+﻿RazorDocument - [0..247)::247 - [<h1>Counter</h1>LFLF<p>Current count: @currentCount</p>LFLF<button class="btn btn-primary" @onclick="">Click me</button>LFLF@code {LF    private int currentCount = 0;LFLF    private void IncrementCount()LF    {LF        currentCount++;LF    }LF}LF]
+    MarkupBlock - [0..247)::247
+        MarkupElement - [0..16)::16
+            MarkupStartTag - [0..4)::4 - [<h1>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[h1];
+                CloseAngle;[>];
+            MarkupTextLiteral - [4..11)::7 - [Counter] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[Counter];
+            MarkupEndTag - [11..16)::5 - [</h1>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[h1];
+                CloseAngle;[>];
+        MarkupTextLiteral - [16..20)::4 - [LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+            NewLine;[LF];
+        MarkupElement - [20..55)::35
+            MarkupStartTag - [20..23)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[p];
+                CloseAngle;[>];
+            MarkupTextLiteral - [23..38)::15 - [Current count: ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[Current];
+                Whitespace;[ ];
+                Text;[count:];
+                Whitespace;[ ];
+            CSharpCodeBlock - [38..51)::13
+                CSharpImplicitExpression - [38..51)::13
+                    CSharpTransition - [38..39)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                        Transition;[@];
+                    CSharpImplicitExpressionBody - [39..51)::12
+                        CSharpCodeBlock - [39..51)::12
+                            CSharpExpressionLiteral - [39..51)::12 - [currentCount] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                                Identifier;[currentCount];
+            MarkupEndTag - [51..55)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[p];
+                CloseAngle;[>];
+        MarkupTextLiteral - [55..59)::4 - [LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+            NewLine;[LF];
+        MarkupElement - [59..120)::61
+            MarkupStartTag - [59..103)::44 - [<button class="btn btn-primary" @onclick="">] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[button];
+                MarkupAttributeBlock - [66..90)::24 - [ class="btn btn-primary"]
+                    MarkupTextLiteral - [66..67)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        Whitespace;[ ];
+                    MarkupTextLiteral - [67..72)::5 - [class] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        Text;[class];
+                    Equals;[=];
+                    MarkupTextLiteral - [73..74)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        DoubleQuote;["];
+                    GenericBlock - [74..89)::15
+                        MarkupLiteralAttributeValue - [74..77)::3 - [btn]
+                            MarkupTextLiteral - [74..77)::3 - [btn] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                Text;[btn];
+                        MarkupLiteralAttributeValue - [77..89)::12 - [ btn-primary]
+                            MarkupTextLiteral - [77..78)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                Whitespace;[ ];
+                            MarkupTextLiteral - [78..89)::11 - [btn-primary] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                Text;[btn-primary];
+                    MarkupTextLiteral - [89..90)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        DoubleQuote;["];
+                MarkupMiscAttributeContent - [90..99)::9
+                    MarkupTextLiteral - [90..91)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        Whitespace;[ ];
+                    CSharpCodeBlock - [91..99)::8
+                        CSharpImplicitExpression - [91..99)::8
+                            CSharpTransition - [91..92)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                                Transition;[@];
+                            CSharpImplicitExpressionBody - [92..99)::7
+                                CSharpCodeBlock - [92..99)::7
+                                    CSharpExpressionLiteral - [92..99)::7 - [onclick] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                                        Identifier;[onclick];
+                SkippedContent - [99..100)::1
+                    Equals;[=];
+                MarkupMinimizedAttributeBlock - [100..102)::2 - [""]
+                    MarkupTextLiteral - [100..102)::2 - [""] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        DoubleQuote;["];
+                        DoubleQuote;["];
+                CloseAngle;[>];
+            MarkupTextLiteral - [103..111)::8 - [Click me] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[Click];
+                Whitespace;[ ];
+                Text;[me];
+            MarkupEndTag - [111..120)::9 - [</button>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[button];
+                CloseAngle;[>];
+        MarkupTextLiteral - [120..124)::4 - [LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+            NewLine;[LF];
+        CSharpCodeBlock - [124..129)::5
+            CSharpImplicitExpression - [124..129)::5
+                CSharpTransition - [124..125)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    Transition;[@];
+                CSharpImplicitExpressionBody - [125..129)::4
+                    CSharpCodeBlock - [125..129)::4
+                        CSharpExpressionLiteral - [125..129)::4 - [code] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            Identifier;[code];
+        MarkupTextLiteral - [129..247)::118 - [ {LF    private int currentCount = 0;LFLF    private void IncrementCount()LF    {LF        currentCount++;LF    }LF}LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Whitespace;[ ];
+            Text;[{];
+            NewLine;[LF];
+            Whitespace;[    ];
+            Text;[private];
+            Whitespace;[ ];
+            Text;[int];
+            Whitespace;[ ];
+            Text;[currentCount];
+            Whitespace;[ ];
+            Equals;[=];
+            Whitespace;[ ];
+            Text;[0;];
+            NewLine;[LF];
+            NewLine;[LF];
+            Whitespace;[    ];
+            Text;[private];
+            Whitespace;[ ];
+            Text;[void];
+            Whitespace;[ ];
+            Text;[IncrementCount()];
+            NewLine;[LF];
+            Whitespace;[    ];
+            Text;[{];
+            NewLine;[LF];
+            Whitespace;[        ];
+            Text;[currentCount++;];
+            NewLine;[LF];
+            Whitespace;[    ];
+            Text;[}];
+            NewLine;[LF];
+            Text;[}];
+            NewLine;[LF];
+    EndOfFile;[];

@@ -4,9 +4,8 @@
             MarkupStartTag - [0..6)::6 - [<div >] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 Text;[div];
-                MarkupMiscAttributeContent - [4..5)::1
-                    MarkupTextLiteral - [4..5)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [4..5)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 CloseAngle;[>];
             MarkupElement - [6..32)::26
                 MarkupStartTag - [6..23)::17 - [<p class = 'bar'>] - Gen<Markup> - SpanEditHandler;Accepts:Any

@@ -7,6 +7,15 @@ public abstract class IntermediateToken : IntermediateNode
 {
     public bool IsLazy { get; }
 
+    /// <summary>
+    /// True when this token was synthesized to represent a missing C# value
+    /// (e.g., the empty value of <c>@onclick=""</c>) rather than user-written
+    /// content. Downstream codegen emits a safe placeholder (e.g.,
+    /// <c>default!</c>) instead of leaving a hole that produces CS1525 in the
+    /// generated C#.
+    /// </summary>
+    internal bool IsMissingValue { get; set; }
+
     private object _content;
 
     public string Content

@@ -70,9 +70,8 @@
                                 Text;[i];
                     MarkupTextLiteral - [112..113)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [113..114)::1
-                    MarkupTextLiteral - [113..114)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [113..114)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
         MarkupTextLiteral - [116..117)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any

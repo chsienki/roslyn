@@ -54,7 +54,7 @@
                                 Identifier;[Bar];
                                 Semicolon;[;];
                                 Whitespace;[ ];
-                        RazorMetaCode - [55..56)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                        RazorMetaCode - [55..56)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                             RightBrace;[}];
             MarkupEphemeralTextLiteral - [56..58)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
                 NewLine;[LF];

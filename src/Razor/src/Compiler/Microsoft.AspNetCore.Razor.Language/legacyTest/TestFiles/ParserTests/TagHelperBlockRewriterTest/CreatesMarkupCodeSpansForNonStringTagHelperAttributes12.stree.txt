@@ -36,13 +36,12 @@
                                                 Colon;[:];
                                                 Whitespace;[ ];
                                                 IntegerLiteral;[12];
-                                        RazorMetaCode - [34..35)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                                        RazorMetaCode - [34..35)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                                             RightBrace;[}];
                     MarkupTextLiteral - [35..36)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [36..37)::1
-                    MarkupTextLiteral - [36..37)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [36..37)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

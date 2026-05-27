@@ -1,0 +1,52 @@
+﻿RazorDocument - [0..83)::83 - [<div>LF    <span>LF        <p>text</div>LFLF<section>after the mismatch</section>LF]
+    MarkupBlock - [0..83)::83
+        MarkupElement - [0..40)::40
+            MarkupStartTag - [0..5)::5 - [<div>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[div];
+                CloseAngle;[>];
+            MarkupTextLiteral - [5..11)::6 - [LF    ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                NewLine;[LF];
+                Whitespace;[    ];
+            MarkupElement - [11..34)::23
+                MarkupStartTag - [11..17)::6 - [<span>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    OpenAngle;[<];
+                    Text;[span];
+                    CloseAngle;[>];
+                MarkupTextLiteral - [17..27)::10 - [LF        ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    NewLine;[LF];
+                    Whitespace;[        ];
+                MarkupElement - [27..34)::7
+                    MarkupStartTag - [27..30)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        OpenAngle;[<];
+                        Text;[p];
+                        CloseAngle;[>];
+                    MarkupTextLiteral - [30..34)::4 - [text] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                        Text;[text];
+            MarkupEndTag - [34..40)::6 - [</div>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[div];
+                CloseAngle;[>];
+        MarkupTextLiteral - [40..44)::4 - [LFLF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+            NewLine;[LF];
+        MarkupElement - [44..81)::37
+            MarkupStartTag - [44..53)::9 - [<section>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                Text;[section];
+                CloseAngle;[>];
+            MarkupTextLiteral - [53..71)::18 - [after the mismatch] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                Text;[after];
+                Whitespace;[ ];
+                Text;[the];
+                Whitespace;[ ];
+                Text;[mismatch];
+            MarkupEndTag - [71..81)::10 - [</section>] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                OpenAngle;[<];
+                ForwardSlash;[/];
+                Text;[section];
+                CloseAngle;[>];
+        MarkupTextLiteral - [81..83)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+    EndOfFile;[];

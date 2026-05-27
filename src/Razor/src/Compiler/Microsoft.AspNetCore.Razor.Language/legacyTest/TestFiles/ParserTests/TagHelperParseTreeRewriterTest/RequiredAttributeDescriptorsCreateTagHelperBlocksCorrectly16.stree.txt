@@ -32,9 +32,8 @@
                                 Text;[btn];
                     MarkupTextLiteral - [29..30)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [30..31)::1
-                    MarkupTextLiteral - [30..31)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [30..31)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

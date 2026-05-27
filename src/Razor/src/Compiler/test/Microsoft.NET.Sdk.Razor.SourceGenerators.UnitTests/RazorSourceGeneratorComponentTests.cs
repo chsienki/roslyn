@@ -1,10 +1,16 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.Razor.Extensions;
+using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Razor;
 using Microsoft.CodeAnalysis.Text;
 using Roslyn.Test.Utilities;
 using Xunit;
@@ -1852,5 +1858,67 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
 
         result.Diagnostics.Verify();
         Assert.Single(result.GeneratedSources);
+    }
+
+    // Assertion-driven coverage: the codegen for `<button @onclick="">`
+    // must reach the EventCallback.Factory.Create<TEventArgs>(this, ...)
+    // wrapping instead of silently dropping the directive into
+    // AddMarkupContent. refined the empty argument into a safe
+    // default so the CS1525 from an empty placeholder no longer appears.
+    //
+    [Fact, WorkItem("https://github.com/dotnet/razor/issues/10383")]
+    public async Task EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping()
+    {
+        const string ComponentSource = """
+            @using Microsoft.AspNetCore.Components.Web
+
+            <h1>Counter</h1>
+
+            <p>Current count: @currentCount</p>
+
+            <button class="btn btn-primary" @onclick="">Click me</button>
+
+            @code {
+                private int currentCount = 0;
+
+                private void IncrementCount()
+                {
+                    currentCount++;
+                }
+            }
+            """;
+
+        var project = CreateTestProject(new()
+        {
+            ["Shared/Component1.razor"] = ComponentSource,
+        });
+
+        var compilation = await project.GetCompilationAsync();
+        var driver = await GetDriverAsync(project);
+
+        // the placeholder substitution replaces the empty argument with
+        // default(global::System.Action<TEventArgs>) so the generated C# parses
+        // cleanly under Roslyn (no CS1525). The wall-of-red for the motivating bug
+        // dotnet/razor#10383 is gone end-to-end at this point; the host
+        // compilation should produce zero diagnostics from the generated source.
+        var result = RunGenerator(compilation!, ref driver, out var outputCompilation);
+
+        var generated = Assert.Single(result.GeneratedSources);
+        var source = generated.SourceText.ToString();
+
+        // Sanity check: the directive must not be silently dropped into an
+        // HTML markup blob. Before the empty @onclick attribute
+        // fell through to `AddMarkupContent(..., "...<button ... @onclick>...</button>")`.
+        Assert.DoesNotContain("@onclick>Click me", source);
+
+        //  guarantee: the EventCallback wrapping is applied. The
+        // presence of the wrapping call proves the bail-out has been
+        // replaced with placeholder substitution.
+        Assert.Contains("EventCallback.Factory.Create", source);
+        Assert.Contains("AddAttribute(7, \"onclick\"", source);
+
+        //  guarantee: the placeholder for the missing C# value is
+        // emitted in the inner expression slot of Create<TEventArgs>(this, ...).
+        Assert.Contains("default(global::System.Action<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>)", source);
     }
 }

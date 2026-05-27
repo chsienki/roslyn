@@ -24,8 +24,6 @@
                                     NewLine;[LF];
                         CSharpStatementLiteral - [11..11)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [11..12)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [11..12)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [12..12)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

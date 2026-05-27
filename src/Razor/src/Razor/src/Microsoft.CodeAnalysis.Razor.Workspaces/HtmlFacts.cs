@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -282,6 +282,19 @@ internal static class HtmlFacts
         }
 
         if (attribute is MarkupMiscAttributeContentSyntax)
+        {
+            prefixLocation = null;
+            selectedAttributeName = null;
+            selectedAttributeNameLocation = null;
+            return true;
+        }
+
+        // Recovery emits whitespace in the attribute area as a
+        // direct MarkupTextLiteralSyntax child of the start/end tag, rather
+        // than wrapping it in a MarkupMiscAttributeContentSyntax. Treat the
+        // two shapes equivalently: the cursor is in the attribute area but
+        // no attribute name is selected.
+        if (attribute is MarkupTextLiteralSyntax textLiteral && textLiteral.ContainsOnlyWhitespace())
         {
             prefixLocation = null;
             selectedAttributeName = null;

@@ -173,9 +173,8 @@
                                                     Identifier;[Now];
                     MarkupTextLiteral - [115..116)::1 - ['] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         SingleQuote;['];
-                MarkupMiscAttributeContent - [116..117)::1
-                    MarkupTextLiteral - [116..117)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [116..117)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
         MarkupTextLiteral - [119..120)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any

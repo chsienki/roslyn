@@ -5,9 +5,8 @@
                 OpenAngle;[<];
                 Bang;[!];
                 Text;[th:myth];
-                MarkupMiscAttributeContent - [9..10)::1
-                    MarkupTextLiteral - [9..10)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [9..10)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

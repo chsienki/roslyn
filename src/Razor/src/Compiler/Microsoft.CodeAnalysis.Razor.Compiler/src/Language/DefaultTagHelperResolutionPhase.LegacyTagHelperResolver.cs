@@ -224,7 +224,10 @@ internal partial class DefaultTagHelperResolutionPhase
                 }
                 else
                 {
-                    prop.Children.Add(CreateEmptyCSharpToken(emptySpan));
+                    // Mark synthetic empty C# tokens for bound non-string
+                    // attributes (e.g. type="") as missing-value markers so
+                    // codegen can emit a safe placeholder.
+                    prop.Children.Add(CreateMissingValueCSharpToken(emptySpan));
                 }
             }
         }
@@ -460,8 +463,11 @@ internal partial class DefaultTagHelperResolutionPhase
                 }
                 else
                 {
+                    // Mark synthetic empty C# tokens for bound non-string
+                    // attributes as missing-value markers so codegen can
+                    // substitute a safe placeholder.
                     var emptySource = ComputeEmptyValueSource(htmlAttr);
-                    targetNode.Children.Add(new CSharpIntermediateToken(string.Empty, emptySource));
+                    targetNode.Children.Add(MissingValueMarker.CreateMissingCSharpToken(emptySource));
                 }
                 return;
             }

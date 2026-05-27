@@ -1,1 +1,2 @@
 ﻿(1,11): Error RZ1006: The functions block is missing a closing "}" character.  Make sure you have a matching "}" character for all the "{" characters within this block, and that none of the "}" characters are being interpreted as markup.
+(2,1): Error RZ1046: An unexpected token was encountered in a CSharp statement: 'foo'.

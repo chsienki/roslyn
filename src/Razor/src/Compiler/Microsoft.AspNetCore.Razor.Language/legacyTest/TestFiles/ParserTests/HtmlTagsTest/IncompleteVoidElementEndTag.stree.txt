@@ -30,7 +30,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(25:4,0 [0] )
                         MarkupBlock - [25..46)::21
                             MarkupElement - [25..46)::21
                                 MarkupStartTag - [25..31)::6 - [<base>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -49,7 +49,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(46:7,0 [0] )
                         MarkupBlock - [46..63)::17
                             MarkupElement - [46..63)::17
                                 MarkupStartTag - [46..50)::4 - [<br>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -68,7 +68,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(63:10,0 [0] )
                         MarkupBlock - [63..82)::19
                             MarkupElement - [63..82)::19
                                 MarkupStartTag - [63..68)::5 - [<col>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -87,7 +87,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(82:13,0 [0] )
                         MarkupBlock - [82..109)::27
                             MarkupElement - [82..109)::27
                                 MarkupStartTag - [82..91)::9 - [<command>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -106,7 +106,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(109:16,0 [0] )
                         MarkupBlock - [109..132)::23
                             MarkupElement - [109..132)::23
                                 MarkupStartTag - [109..116)::7 - [<embed>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -125,7 +125,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(132:19,0 [0] )
                         MarkupBlock - [132..149)::17
                             MarkupElement - [132..149)::17
                                 MarkupStartTag - [132..136)::4 - [<hr>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -144,7 +144,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(149:22,0 [0] )
                         MarkupBlock - [149..168)::19
                             MarkupElement - [149..168)::19
                                 MarkupStartTag - [149..154)::5 - [<img>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -163,7 +163,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(168:25,0 [0] )
                         MarkupBlock - [168..191)::23
                             MarkupElement - [168..191)::23
                                 MarkupStartTag - [168..175)::7 - [<input>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -182,7 +182,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(191:28,0 [0] )
                         MarkupBlock - [191..216)::25
                             MarkupElement - [191..216)::25
                                 MarkupStartTag - [191..199)::8 - [<keygen>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -201,7 +201,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(216:31,0 [0] )
                         MarkupBlock - [216..237)::21
                             MarkupElement - [216..237)::21
                                 MarkupStartTag - [216..222)::6 - [<link>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -220,7 +220,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(237:34,0 [0] )
                         MarkupBlock - [237..258)::21
                             MarkupElement - [237..258)::21
                                 MarkupStartTag - [237..243)::6 - [<meta>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -239,7 +239,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(258:37,0 [0] )
                         MarkupBlock - [258..281)::23
                             MarkupElement - [258..281)::23
                                 MarkupStartTag - [258..265)::7 - [<param>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -258,7 +258,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(281:40,0 [0] )
                         MarkupBlock - [281..306)::25
                             MarkupElement - [281..306)::25
                                 MarkupStartTag - [281..289)::8 - [<source>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -277,7 +277,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(306:43,0 [0] )
                         MarkupBlock - [306..329)::23
                             MarkupElement - [306..329)::23
                                 MarkupStartTag - [306..313)::7 - [<track>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -296,7 +296,7 @@
                                             Transition;[@];
                                             Text;[{];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(329:46,0 [0] )
                         MarkupBlock - [329..344)::15
                             MarkupElement - [329..344)::15
                                 MarkupStartTag - [329..334)::5 - [<wbr>] - Gen<Markup> - SpanEditHandler;Accepts:None
@@ -312,7 +312,7 @@
                                             NewLine;[LF];
                                             Text;[}];
                                             NewLine;[LF];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(344:48,0 [0] )
                     RazorMetaCode - [344..344)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(344:48,0 [0] )
     EndOfFile;[];

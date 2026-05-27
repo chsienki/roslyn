@@ -425,6 +425,10 @@ internal abstract partial class SyntaxNode(GreenNode green, SyntaxNode parent, i
     /// </description>
     /// </item>
     /// </param>
+    /// <remarks>
+    /// Zero-width missing tokens (<see cref="SyntaxToken.IsMissing"/> == true) are never returned by this method; the
+    /// scan transparently steps past them to the next/previous real token, matching the Roslyn convention.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when requested position is out of range of the root token requested. This includes the whitespace scanning: calling FindToken(0, false)
     /// on a whitespace token will throw.
@@ -503,7 +507,7 @@ internal abstract partial class SyntaxNode(GreenNode green, SyntaxNode parent, i
                         throw new ArgumentOutOfRangeException(nameof(position));
                     }
                 }
-                while (foundToken.Kind is SyntaxKind.Whitespace);
+                while (foundToken.Kind is SyntaxKind.Whitespace || foundToken.IsMissing);
 
                 return true;
             }
@@ -522,7 +526,7 @@ internal abstract partial class SyntaxNode(GreenNode green, SyntaxNode parent, i
                         throw new ArgumentOutOfRangeException(nameof(position));
                     }
                 }
-                while (currentToken is { Kind: SyntaxKind.NewLine or SyntaxKind.Whitespace });
+                while (currentToken is { Kind: SyntaxKind.NewLine or SyntaxKind.Whitespace } || currentToken.IsMissing);
 
                 return currentToken;
             }

@@ -33,7 +33,7 @@
                                     MarkupMinimizedAttributeBlock - [20..21)::1 - [}]
                                         MarkupTextLiteral - [20..21)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             Text;[}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(21:0,21 [0] )
                     RazorMetaCode - [21..21)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(21:0,21 [0] )
     EndOfFile;[];

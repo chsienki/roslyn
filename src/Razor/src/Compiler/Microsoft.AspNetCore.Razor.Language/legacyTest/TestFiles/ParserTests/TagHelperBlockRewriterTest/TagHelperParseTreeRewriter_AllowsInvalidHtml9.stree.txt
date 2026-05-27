@@ -4,20 +4,19 @@
             MarkupEndTag - [0..4)::4 - [</  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 ForwardSlash;[/];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(2:0,2 [0] )
                 MarkupMiscAttributeContent - [2..4)::2
                     MarkupTextLiteral - [2..4)::2 - [  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         Whitespace;[  ];
-                CloseAngle;[<Missing>];
+                CloseAngle;[<Missing>];RZ1024(4:0,4 [0] )
         MarkupTextLiteral - [4..5)::1 - [/] - Gen<Markup> - SpanEditHandler;Accepts:Any
             ForwardSlash;[/];
         MarkupElement - [5..52)::47
             MarkupStartTag - [5..9)::4 - [<  >] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
-                Text;[<Missing>];
-                MarkupMiscAttributeContent - [6..8)::2
-                    MarkupTextLiteral - [6..8)::2 - [  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[  ];
+                Text;[<Missing>];RZ1047(6:0,6 [0] )
+                MarkupTextLiteral - [6..8)::2 - [  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[  ];
                 CloseAngle;[>];
             MarkupTagHelperElement - [9..41)::32 - p[StartTagAndEndTag] - ptaghelper
                 MarkupTagHelperStartTag - [9..12)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
@@ -52,7 +51,7 @@
             MarkupEndTag - [41..52)::11 - [</        >] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 ForwardSlash;[/];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(43:0,43 [0] )
                 MarkupMiscAttributeContent - [43..51)::8
                     MarkupTextLiteral - [43..51)::8 - [        ] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         Whitespace;[        ];

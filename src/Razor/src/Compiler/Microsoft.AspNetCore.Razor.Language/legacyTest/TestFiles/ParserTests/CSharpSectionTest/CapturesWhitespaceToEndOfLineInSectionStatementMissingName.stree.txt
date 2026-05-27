@@ -14,6 +14,8 @@
                             Whitespace;[         ];
                         CSharpStatementLiteral - [17..17)::0 - [] - Gen<DirectiveToken {SectionName;Member;Opt:False}> - DirectiveTokenEditHandler;Accepts:NonWhitespace
                             Marker;[];
+                        CSharpStatementLiteral - [17..17)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+                            Marker;[];
         MarkupTextLiteral - [17..23)::6 - [LF    ] - Gen<Markup> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
             Whitespace;[    ];

@@ -79,15 +79,12 @@
                                                     Text;[i];
                                         MarkupTextLiteral - [113..114)::1 - ["] - Gen<Markup>
                                             DoubleQuote;["];
-                                    MarkupMiscAttributeContent - [114..115)::1
-                                        MarkupTextLiteral - [114..115)::1 - [ ] - Gen<Markup>
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [114..115)::1 - [ ] - Gen<Markup>
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [117..117)::0 - [] - Gen<Stmt>
                             Marker;[];
                     RazorMetaCode - [117..118)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [118..118)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

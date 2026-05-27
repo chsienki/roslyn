@@ -230,6 +230,50 @@ internal sealed partial class UnclassifiedTextLiteralSyntax : RazorSyntaxNode
     public UnclassifiedTextLiteralSyntax AddLiteralTokens(params SyntaxToken[] items) => WithLiteralTokens(this.LiteralTokens.AddRange(items));
 }
 
+internal sealed partial class SkippedContentSyntax : RazorSyntaxNode
+{
+    internal SkippedContentSyntax(GreenNode green, SyntaxNode parent, int position)
+        : base(green, parent, position)
+    {
+    }
+
+    public SyntaxTokenList SkippedTokens
+    {
+         get
+        {
+            var slot = Green.GetSlot(0);
+            return slot != null ? new SyntaxTokenList(this, slot, Position, 0) : default;
+        }
+    }
+    public SyntaxKind OriginatingLanguage => ((InternalSyntax.SkippedContentSyntax)Green).OriginatingLanguage;
+
+    internal override SyntaxNode GetNodeSlot(int index) => null;
+
+    internal override SyntaxNode GetCachedSlot(int index) => null;
+
+    public override TResult Accept<TResult>(SyntaxVisitor<TResult> visitor) => visitor.VisitSkippedContent(this);
+    public override void Accept(SyntaxVisitor visitor) => visitor.VisitSkippedContent(this);
+
+    public SkippedContentSyntax Update(SyntaxTokenList skippedTokens, SyntaxKind originatingLanguage)
+    {
+        if (skippedTokens != SkippedTokens)
+        {
+            var newNode = SyntaxFactory.SkippedContent(skippedTokens, originatingLanguage);
+            var diagnostics = GetDiagnostics();
+            if (diagnostics != null && diagnostics.Length > 0)
+                newNode = newNode.WithDiagnostics(diagnostics);
+            return newNode;
+        }
+
+        return this;
+    }
+
+    public SkippedContentSyntax WithSkippedTokens(SyntaxTokenList skippedTokens) => Update(skippedTokens, OriginatingLanguage);
+    public SkippedContentSyntax WithOriginatingLanguage(SyntaxKind originatingLanguage) => Update(SkippedTokens, originatingLanguage);
+
+    public SkippedContentSyntax AddSkippedTokens(params SyntaxToken[] items) => WithSkippedTokens(this.SkippedTokens.AddRange(items));
+}
+
 internal abstract partial class MarkupSyntaxNode : RazorSyntaxNode
 {
     internal MarkupSyntaxNode(GreenNode green, SyntaxNode parent, int position)

@@ -208,8 +208,6 @@
                             Identifier;[strong];
                             GreaterThan;[>];
                             NewLine;[LF];
-                    RazorMetaCode - [381..382)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [381..382)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [382..382)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

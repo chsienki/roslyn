@@ -66,7 +66,7 @@ partial class Program
             return new DebugInProcessConfig();
         }
 
-        return ManualConfig.CreateEmpty()
+        var config = ManualConfig.CreateEmpty()
             .AddLogger(ConsoleLogger.Default) // log output to console
             .AddValidator(DefaultConfig.Instance.GetValidators().ToArray()) // copy default validators
             .AddAnalyser(DefaultConfig.Instance.GetAnalysers().ToArray()) // copy default analysers
@@ -75,8 +75,21 @@ partial class Program
             .AddDiagnoser(MemoryDiagnoser.Default)
             .AddExporter(JsonExporter.Full)
             .AddColumn(StatisticColumn.Median, StatisticColumn.Min, StatisticColumn.Max)
-            .WithSummaryStyle(SummaryStyle.Default.WithMaxParameterColumnWidth(36)) // the default is 20 and trims too aggressively some benchmark results
-            .AddDiagnoser(CreateDisassembler());
+            .WithSummaryStyle(SummaryStyle.Default.WithMaxParameterColumnWidth(36)); // the default is 20 and trims too aggressively some benchmark results
+
+        // The DisassemblyDiagnoser pipeline crashes on current .NET 10 + Iced.Intel
+        // combinations because Iced.Intel.Instruction exposes an
+        // [Obsolete(IsError=true)] member that BenchmarkDotNet's XmlSerializer
+        // refuses to reflect over. The crash happens after the workload runs
+        // but blocks results export. Keep the diagnoser opt-in so default
+        // runs succeed; set BENCHMARK_DISASSEMBLY=1 to re-enable when the
+        // underlying issue is fixed.
+        if (Environment.GetEnvironmentVariable("BENCHMARK_DISASSEMBLY") == "1")
+        {
+            config = config.AddDiagnoser(CreateDisassembler());
+        }
+
+        return config;
     }
 
     private static DisassemblyDiagnoser CreateDisassembler()

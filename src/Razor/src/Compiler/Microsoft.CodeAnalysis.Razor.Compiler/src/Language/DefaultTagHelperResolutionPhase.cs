@@ -976,6 +976,16 @@ internal partial class DefaultTagHelperResolutionPhase : RazorEnginePhaseBase
     }
 
     /// <summary>
+    /// Creates a <see cref="CSharpIntermediateToken"/> tagged as a missing-value
+    /// marker. Used for synthetic empty C# tokens that stand in for a
+    /// user-omitted value (e.g. <c>type=""</c> on a bound non-string attribute or
+    /// <c>@onclick=""</c>). Codegen reads the marker to emit a safe placeholder
+    /// instead of leaving a hole in the generated C#.
+    /// </summary>
+    private static CSharpIntermediateToken CreateMissingValueCSharpToken(SourceSpan? source)
+        => MissingValueMarker.CreateMissingCSharpToken(source);
+
+    /// <summary>
     /// Checks whether all children of a node collection are of the specified type.
     /// </summary>
     private static bool AreAllChildrenOfType<T>(IntermediateNodeCollection children) where T : IntermediateNode

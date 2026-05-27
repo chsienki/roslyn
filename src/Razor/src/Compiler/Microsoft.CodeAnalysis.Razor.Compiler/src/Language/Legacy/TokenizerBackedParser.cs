@@ -369,7 +369,6 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
         using (PushSpanContextConfig(CommentSpanContextConfig))
         {
             EnsureCurrent();
-            var start = CurrentStart;
             Debug.Assert(At(SyntaxKind.RazorCommentTransition));
             var startTransition = EatExpectedToken(SyntaxKind.RazorCommentTransition);
             var startStar = EatExpectedToken(SyntaxKind.RazorCommentStar);
@@ -378,25 +377,40 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
             {
                 comment = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentLiteral);
             }
-            var endStar = GetOptionalToken(SyntaxKind.RazorCommentStar);
-            if (endStar == null)
-            {
-                var diagnostic = RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated(
-                    new SourceSpan(start, contentLength: 2 /* @* */));
-                endStar = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentStar, diagnostic);
-                Context.ErrorSink.OnError(diagnostic);
-            }
-            var endTransition = GetOptionalToken(SyntaxKind.RazorCommentTransition);
-            if (endTransition == null)
-            {
-                if (!endStar.IsMissing)
-                {
-                    var diagnostic = RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated(
-                        new SourceSpan(start, contentLength: 2 /* @* */));
-                    Context.ErrorSink.OnError(diagnostic);
-                    endTransition = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentTransition, diagnostic);
-                }
+            SyntaxToken endStar;
+            SyntaxToken endTransition;
+            // Recovery follow set is `Empty`: by the time we reach `endStar`, the
+            // `RazorCommentLiteral` above has already consumed every character up
+            // to the next `*@` or EOF. For an unterminated `@*`, the next token is
+            // EOF, so `Synchronize` returns immediately with no skipped content.
+            var endStarResult = Required(
+                SyntaxKind.RazorCommentStar,
+                RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated_At(CurrentStart),
+                FollowSet.Empty,
+                SyntaxKind.RazorComment);
+            Debug.Assert(endStarResult.skipped is null, "ParseRazorComment expects no skipped tokens after RazorCommentLiteral; sync should hit EOF.");
+            endStar = endStarResult.token;
 
+            if (!endStar.IsMissing)
+            {
+                // `endStar` was present; now the closing `@` (`RazorCommentTransition`)
+                // is required.
+                var endTransitionResult = Required(
+                    SyntaxKind.RazorCommentTransition,
+                    RazorDiagnosticFactory.CreateParsing_RazorCommentNotTerminated_At(CurrentStart),
+                    FollowSet.Empty,
+                    SyntaxKind.RazorComment);
+                Debug.Assert(endTransitionResult.skipped is null);
+                endTransition = endTransitionResult.token;
+            }
+            else
+            {
+                // `endStar` was already missing (the typical `@*` case). The
+                // diagnostic is attached to `endStar`; a second copy on
+                // `endTransition` would just dedupe to the same RZ1028 entry
+                // (same descriptor + same zero-width span at the same EOF cursor),
+                // so we emit a plain missing token without re-attaching the
+                // diagnostic.
                 endTransition = SyntaxFactory.MissingToken(SyntaxKind.RazorCommentTransition);
             }
 
@@ -731,6 +745,209 @@ internal abstract class TokenizerBackedParser<TTokenizer> : ParserBase, IDisposa
     {
         _tokenizer.Tokenizer.EndingBlock();
     }
+
+    /// <summary>
+    /// Calls <see cref="EndingBlock"/> when <paramref name="result"/> stopped
+    /// at an outer-follow token, so a tokenizer that wraps a Roslyn
+    /// <see cref="Microsoft.CodeAnalysis.CSharp.SyntaxTokenParser"/> can flush
+    /// state before the outer parser resumes. <see cref="HtmlTokenizer"/> and
+    /// <see cref="NativeCSharpTokenizer"/> are no-ops here, so the call is
+    /// free when those tokenizers are active.
+    /// </summary>
+    internal void EndingBlockIfStoppedOnOuter(SyncResult result)
+    {
+        if (result.StopReason == SyncStopReason.AtOuterFollowToken)
+        {
+            EndingBlock();
+        }
+    }
+
+    /// <summary>
+    /// Advances the tokenizer past unexpected tokens until the current token
+    /// is in <paramref name="localFollow"/>, in <paramref name="outerFollow"/>,
+    /// at end-of-file, or matches a stop condition in <paramref name="options"/>.
+    /// The synchronization-point token is NOT consumed.
+    /// </summary>
+    /// <remarks>
+    /// Skipped tokens (if any) are packaged as a
+    /// <see cref="SkippedContentSyntax"/> tagged with
+    /// <paramref name="originatingLanguage"/>. The caller is responsible for
+    /// placing the returned node into its own builder in the correct
+    /// positional order. <see cref="SyncStopReason.AtOuterFollowToken"/>
+    /// indicates the caller should bail back to its outer parser.
+    /// </remarks>
+    protected internal SyncResult Synchronize(
+        FollowSet localFollow,
+        FollowSet outerFollow,
+        SyntaxKind originatingLanguage,
+        SyncOptions options = SyncOptions.None)
+    {
+        using var pooled = Pool.Allocate<SyntaxToken>();
+        var builder = pooled.Builder;
+
+        SyncStopReason stopReason;
+        while (true)
+        {
+            CancellationToken.ThrowIfCancellationRequested();
+
+            if (!EnsureCurrent() || EndOfFile || CurrentToken == null)
+            {
+                stopReason = SyncStopReason.EndOfFile;
+                break;
+            }
+
+            var kind = CurrentToken.Kind;
+
+            if (localFollow.Contains(kind))
+            {
+                stopReason = SyncStopReason.AtFollowToken;
+                break;
+            }
+
+            if (outerFollow.Contains(kind))
+            {
+                stopReason = SyncStopReason.AtOuterFollowToken;
+                break;
+            }
+
+            if ((options & SyncOptions.StopAtNewLine) != 0 && kind == SyntaxKind.NewLine)
+            {
+                stopReason = SyncStopReason.AtNewLine;
+                break;
+            }
+
+            if ((options & SyncOptions.StopAtTransition) != 0 && kind == SyntaxKind.Transition)
+            {
+                stopReason = SyncStopReason.AtTransition;
+                break;
+            }
+
+            builder.Add(CurrentToken);
+            NextToken();
+        }
+
+        if (builder.Count == 0)
+        {
+            return new SyncResult(Skipped: null, stopReason);
+        }
+
+        var skipped = SyntaxFactory.SkippedContent(builder.ToList(), originatingLanguage);
+        return new SyncResult(skipped, stopReason);
+    }
+
+    /// <summary>
+    /// Same-language overload of <see cref="Synchronize(FollowSet, FollowSet, SyntaxKind, SyncOptions)"/>:
+    /// no outer follow set, no cross-language recovery.
+    /// </summary>
+    protected internal SyncResult Synchronize(
+        FollowSet localFollow,
+        SyntaxKind originatingLanguage,
+        SyncOptions options = SyncOptions.None)
+        => Synchronize(localFollow, FollowSet.Empty, originatingLanguage, options);
+
+    /// <summary>
+    /// Either consumes the current token (when its kind is <paramref name="kind"/>)
+    /// or emits a zero-width <see cref="SyntaxFactory.MissingToken(SyntaxKind, RazorDiagnostic[])"/>
+    /// of <paramref name="kind"/> with <paramref name="diagnostic"/> attached and
+    /// synchronizes to <paramref name="recovery"/>.
+    /// </summary>
+    /// <param name="kind">The expected token kind.</param>
+    /// <param name="diagnostic">
+    /// Diagnostic to attach to the missing token. Must be constructed with a
+    /// zero-length <see cref="SourceSpan"/> at the current position. MUST NOT
+    /// also be pushed to <see cref="ErrorSink"/>; the missing-token attachment
+    /// is the diagnostic.
+    /// </param>
+    /// <param name="recovery">
+    /// Follow set to synchronize at if the expected token is missing.
+    /// </param>
+    /// <param name="originatingLanguage">
+    /// Language tag for any <see cref="SkippedContentSyntax"/> produced by the
+    /// recovery sync (e.g. <see cref="SyntaxKind.MarkupBlock"/> or
+    /// <see cref="SyntaxKind.CSharpCodeBlock"/>).
+    /// </param>
+    /// <param name="outerFollow">
+    /// Outer (caller-supplied) follow set in the same language as
+    /// <paramref name="recovery"/>. Stops the recovery sync at an
+    /// outer-language token rather than absorbing it.
+    /// </param>
+    /// <returns>
+    /// On the consume path: <c>(token, null)</c>. On the missing path:
+    /// <c>(missingToken, skipped)</c> where <c>skipped</c> may be <c>null</c>
+    /// if nothing needed to be skipped. The caller places both values into
+    /// its output in positional order.
+    /// </returns>
+    protected internal (SyntaxToken token, SkippedContentSyntax? skipped) Required(
+        SyntaxKind kind,
+        RazorDiagnostic diagnostic,
+        FollowSet recovery,
+        SyntaxKind originatingLanguage,
+        FollowSet outerFollow = default)
+    {
+        if (EnsureCurrent() && CurrentToken != null && CurrentToken.Kind == kind)
+        {
+            var token = CurrentToken;
+            NextToken();
+            return (token, null);
+        }
+
+        var missing = SyntaxFactory.MissingToken(kind, diagnostic);
+        var sync = Synchronize(recovery, outerFollow, originatingLanguage);
+        return (missing, sync.Skipped);
+    }
+
+    /// <summary>
+    /// Multi-kind overload of <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>:
+    /// consumes the current token if its kind matches any entry in
+    /// <paramref name="acceptableKinds"/>; otherwise emits a missing token of
+    /// <c>acceptableKinds[0]</c> and synchronizes.
+    /// </summary>
+    /// <param name="acceptableKinds">
+    /// One-or-more acceptable kinds, in caller-preference order. Must be
+    /// non-empty: the first entry is used as the kind of the missing token
+    /// produced on the failure path.
+    /// </param>
+    /// <param name="diagnostic">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
+    /// <param name="recovery">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
+    /// <param name="originatingLanguage">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
+    /// <param name="outerFollow">See <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.</param>
+    protected internal (SyntaxToken token, SkippedContentSyntax? skipped) Required(
+        ImmutableArray<SyntaxKind> acceptableKinds,
+        RazorDiagnostic diagnostic,
+        FollowSet recovery,
+        SyntaxKind originatingLanguage,
+        FollowSet outerFollow = default)
+    {
+        Debug.Assert(!acceptableKinds.IsDefaultOrEmpty, "Required requires at least one acceptable kind.");
+
+        if (EnsureCurrent() && CurrentToken != null)
+        {
+            var currentKind = CurrentToken.Kind;
+            foreach (var acceptable in acceptableKinds)
+            {
+                if (currentKind == acceptable)
+                {
+                    var token = CurrentToken;
+                    NextToken();
+                    return (token, null);
+                }
+            }
+        }
+
+        var missing = SyntaxFactory.MissingToken(acceptableKinds[0], diagnostic);
+        var sync = Synchronize(recovery, outerFollow, originatingLanguage);
+        return (missing, sync.Skipped);
+    }
+
+    /// <summary>
+    /// Consumes the current token if its kind is <paramref name="kind"/>; otherwise
+    /// returns <c>null</c> without advancing or emitting a diagnostic. Use for
+    /// tokens whose absence is grammatical. Prefer this name over
+    /// <see cref="GetOptionalToken(SyntaxKind)"/> for symmetry with
+    /// <see cref="Required(SyntaxKind, RazorDiagnostic, FollowSet, SyntaxKind, FollowSet)"/>.
+    /// </summary>
+    protected internal SyntaxToken? Optional(SyntaxKind kind)
+        => GetOptionalToken(kind);
 
     public void Dispose()
     {

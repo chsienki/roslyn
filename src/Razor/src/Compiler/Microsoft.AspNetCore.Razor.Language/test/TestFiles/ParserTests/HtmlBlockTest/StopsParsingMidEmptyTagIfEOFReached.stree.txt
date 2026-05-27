@@ -16,9 +16,7 @@
                                     OpenAngle;[<];
                                     Text;[br];
                                     ForwardSlash;[/];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(6:0,6 [0] )
                     RazorMetaCode - [6..7)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [7..7)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

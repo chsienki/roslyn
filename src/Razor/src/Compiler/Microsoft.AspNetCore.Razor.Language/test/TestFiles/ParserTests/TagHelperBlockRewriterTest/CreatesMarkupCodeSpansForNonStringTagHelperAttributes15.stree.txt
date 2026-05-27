@@ -43,9 +43,8 @@
                             Transition;[@];
                             Identifier;[count];
                             Text;[)];
-                MarkupMiscAttributeContent - [65..66)::1
-                    MarkupTextLiteral - [65..66)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [65..66)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

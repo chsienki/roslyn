@@ -17,6 +17,4 @@
                             CSharpDirective;[#endifLF];
                     RazorMetaCode - [39..40)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [40..40)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

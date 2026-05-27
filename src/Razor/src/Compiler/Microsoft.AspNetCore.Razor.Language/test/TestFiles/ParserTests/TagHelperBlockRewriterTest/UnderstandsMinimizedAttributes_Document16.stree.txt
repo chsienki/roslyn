@@ -14,9 +14,8 @@
                         Whitespace;[ ];
                     MarkupTextLiteral - [24..45)::21 - [bound-required-string] - Gen<Markup>
                         Text;[bound-required-string];
-                MarkupMiscAttributeContent - [45..46)::1
-                    MarkupTextLiteral - [45..46)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [45..46)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

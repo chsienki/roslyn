@@ -12,8 +12,6 @@
                     CSharpCodeBlock - [2..2)::0
                         CSharpStatementLiteral - [2..2)::0 - [] - Gen<Stmt> - AutoCompleteEditHandler;Accepts:Any,AutoComplete:[<null>];AtEOL
                             Marker;[];
-                    RazorMetaCode - [2..3)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [2..3)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [3..3)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

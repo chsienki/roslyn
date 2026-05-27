@@ -42,15 +42,12 @@
                                                 Text;[suffix];
                                         MarkupTextLiteral - [51..52)::1 - ['] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             SingleQuote;['];
-                                    MarkupMiscAttributeContent - [52..53)::1
-                                        MarkupTextLiteral - [52..53)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [52..53)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [55..55)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [55..56)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [55..56)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [56..56)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

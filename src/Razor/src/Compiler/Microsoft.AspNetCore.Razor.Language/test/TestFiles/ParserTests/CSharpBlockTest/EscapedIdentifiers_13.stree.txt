@@ -29,5 +29,5 @@
                         CSharpStatementLiteral - [35..36)::1 - [@] - Gen<Stmt>
                             Transition;[@];
                     RazorMetaCode - [36..36)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(36:0,36 [0] )
     EndOfFile;[];

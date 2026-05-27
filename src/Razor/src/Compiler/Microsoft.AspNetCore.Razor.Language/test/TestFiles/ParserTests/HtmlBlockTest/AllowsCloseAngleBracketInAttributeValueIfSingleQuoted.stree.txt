@@ -34,9 +34,8 @@
                                                         CloseAngle;[>];
                                             MarkupTextLiteral - [18..19)::1 - ['] - Gen<Markup>
                                                 SingleQuote;['];
-                                        MarkupMiscAttributeContent - [19..20)::1
-                                            MarkupTextLiteral - [19..20)::1 - [ ] - Gen<Markup>
-                                                Whitespace;[ ];
+                                        MarkupTextLiteral - [19..20)::1 - [ ] - Gen<Markup>
+                                            Whitespace;[ ];
                                         ForwardSlash;[/];
                                         CloseAngle;[>];
                                 MarkupEndTag - [22..28)::6 - [</foo>] - Gen<Markup>
@@ -48,6 +47,4 @@
                             Marker;[];
                     RazorMetaCode - [28..29)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [29..29)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

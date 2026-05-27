@@ -8,9 +8,14 @@
                     Transition;[@];
                 CSharpImplicitExpressionBody - [1..7)::6
                     CSharpCodeBlock - [1..7)::6
-                        CSharpExpressionLiteral - [1..7)::6 - [foo(()] - Gen<Expr>
+                        CSharpExpressionLiteral - [1..5)::4 - [foo(] - Gen<Expr>
                             Identifier;[foo];
                             LeftParenthesis;[(];
+                        SkippedContent - [5..7)::2
                             LeftParenthesis;[(];
                             RightParenthesis;[)];
+                        CSharpExpressionLiteral - [7..7)::0 - [] - Gen<Expr>
+                            RightParenthesis;[<Missing>];RZ1027(7:0,7 [0] )
+        MarkupTextLiteral - [7..7)::0 - [] - Gen<Markup>
+            Marker;[];
     EndOfFile;[];

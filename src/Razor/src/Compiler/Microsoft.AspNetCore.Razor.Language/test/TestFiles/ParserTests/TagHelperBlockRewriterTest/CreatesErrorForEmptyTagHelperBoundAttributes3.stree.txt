@@ -17,9 +17,8 @@
                             Whitespace;[    ];
                     MarkupTextLiteral - [17..18)::1 - ['] - Gen<Markup>
                         SingleQuote;['];
-                MarkupMiscAttributeContent - [18..19)::1
-                    MarkupTextLiteral - [18..19)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [18..19)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

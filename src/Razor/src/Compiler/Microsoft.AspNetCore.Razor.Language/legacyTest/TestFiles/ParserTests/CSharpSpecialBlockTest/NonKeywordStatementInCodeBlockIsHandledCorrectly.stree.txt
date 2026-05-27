@@ -31,8 +31,6 @@
                             RightParenthesis;[)];
                             Semicolon;[;];
                             NewLine;[LF];
-                    RazorMetaCode - [56..57)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [56..57)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [57..57)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

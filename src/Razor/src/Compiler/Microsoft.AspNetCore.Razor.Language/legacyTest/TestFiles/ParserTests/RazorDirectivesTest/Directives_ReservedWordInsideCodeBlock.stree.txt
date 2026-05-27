@@ -14,8 +14,6 @@
                             Whitespace;[ ];
                             Keyword;[class];
                             Whitespace;[ ];
-                    RazorMetaCode - [9..10)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [9..10)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [10..10)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

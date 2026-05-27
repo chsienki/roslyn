@@ -7,7 +7,7 @@
     <AddPublicApiAnalyzers>false</AddPublicApiAnalyzers>
     <TargetFrameworks>$(NetVSAndVSCode)</TargetFrameworks>
     <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);$(NetFxVS)</TargetFrameworks>
-    <DefaultItemExcludes>$(DefaultItemExcludes);TestFiles\**\*</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);TestFiles\**\*;ParserRecoveryCorpus\**\*</DefaultItemExcludes>
 
     <!-- To generate baselines, run tests with /p:GenerateBaselines=true -->
     <DefineConstants Condition="'$(GenerateBaselines)'=='true'">$(DefineConstants);GENERATE_BASELINES</DefineConstants>
@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="TestFiles\**\*" />
+    <EmbeddedResource Include="ParserRecoveryCorpus\**\*" />
   </ItemGroup>
 
 </Project>

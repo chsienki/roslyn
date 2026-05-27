@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using Microsoft.AspNetCore.Razor.Language.Intermediate;
 using Microsoft.AspNetCore.Razor.Utilities;
 
 namespace Microsoft.AspNetCore.Razor.Language.CodeGeneration;
@@ -24,6 +25,24 @@ internal static class CodeRenderingContextExtensions
         return span is SourceSpan spanValue && !spanValue.FilePath.IsNullOrEmpty()
             ? LinePragmaScope.Enhanced(context, spanValue, characterOffset, suppressLineDefaultAndHidden)
             : LinePragmaScope.None;
+    }
+
+    /// <summary>
+    /// <see cref="BuildEnhancedLinePragma"/> variant that is aware of missing-value
+    /// placeholder tokens. When <see cref="IntermediateToken.IsMissingValue"/> is
+    /// set the token's <c>Content</c> is synthetic placeholder text and must not
+    /// anchor a <c>#line</c> directive or source mapping: a mapping anchored at
+    /// synthetic text would widen to swallow neighbouring user-authored tokens.
+    /// </summary>
+    public static LinePragmaScope BuildEnhancedLinePragmaForToken(
+        this CodeRenderingContext context, IntermediateToken token, int characterOffset = 0)
+    {
+        if (token is null || token.IsMissingValue)
+        {
+            return LinePragmaScope.None;
+        }
+
+        return context.BuildEnhancedLinePragma(token.Source, characterOffset);
     }
 
     public readonly ref struct LinePragmaScope

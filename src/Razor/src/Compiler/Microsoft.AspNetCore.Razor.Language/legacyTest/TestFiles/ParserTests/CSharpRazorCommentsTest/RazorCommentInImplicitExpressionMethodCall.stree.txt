@@ -2,12 +2,12 @@
     MarkupBlock - [0..13)::13
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
             Marker;[];
-        CSharpCodeBlock - [0..13)::13
-            CSharpImplicitExpression - [0..13)::13
+        CSharpCodeBlock - [0..11)::11
+            CSharpImplicitExpression - [0..11)::11
                 CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                     Transition;[@];
-                CSharpImplicitExpressionBody - [1..13)::12
-                    CSharpCodeBlock - [1..13)::12
+                CSharpImplicitExpressionBody - [1..11)::10
+                    CSharpCodeBlock - [1..11)::10
                         CSharpExpressionLiteral - [1..7)::6 - [foo(LF] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
                             Identifier;[foo];
                             LeftParenthesis;[(];
@@ -18,6 +18,10 @@
                             RazorCommentLiteral;[<Missing>];
                             RazorCommentStar;[*];
                             RazorCommentTransition;[@];
-                        CSharpExpressionLiteral - [11..13)::2 - [LF] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
-                            NewLine;[LF];
+                        CSharpExpressionLiteral - [11..11)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
+                            Marker;[];
+                        CSharpExpressionLiteral - [11..11)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightParenthesis;[<Missing>];RZ1027(11:1,4 [0] )
+        MarkupTextLiteral - [11..13)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
     EndOfFile;[];

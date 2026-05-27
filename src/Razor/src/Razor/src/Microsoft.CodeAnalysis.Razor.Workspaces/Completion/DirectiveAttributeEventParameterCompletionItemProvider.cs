@@ -35,7 +35,12 @@ internal class DirectiveAttributeEventParameterCompletionItemProvider : IRazorCo
                 ParameterName: { IsMissing: false, LiteralTokens: [{ Content: "event" }] },
                 EqualsToken.IsMissing: false,
                 ValuePrefix.IsMissing: false,
-                Value: { IsMissing: false } valueSyntax,
+                // The value is allowed to be missing/empty: in `@bind:event=""`
+                // recovery emits a zero-width MarkupTagHelperAttributeValue
+                // containing a missing CSharp identifier. We still want to offer
+                // completions inside the empty quote pair (the span/end-position
+                // check below filters out other call sites).
+                Value: { } valueSyntax,
             })
         {
             return [];

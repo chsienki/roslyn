@@ -15,15 +15,12 @@
                                 MarkupStartTag - [2..9)::7 - [<foo />] - Gen<Markup> - SpanEditHandler;Accepts:None
                                     OpenAngle;[<];
                                     Text;[foo];
-                                    MarkupMiscAttributeContent - [6..7)::1
-                                        MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [9..9)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [9..10)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [9..10)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [10..10)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

@@ -2,22 +2,26 @@
     MarkupBlock - [0..34)::34
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup>
             Marker;[];
-        CSharpCodeBlock - [0..20)::20
-            CSharpImplicitExpression - [0..20)::20
+        CSharpCodeBlock - [0..13)::13
+            CSharpImplicitExpression - [0..13)::13
                 CSharpTransition - [0..1)::1 - Gen<None>
                     Transition;[@];
-                CSharpImplicitExpressionBody - [1..20)::19
-                    CSharpCodeBlock - [1..20)::19
-                        CSharpExpressionLiteral - [1..20)::19 - [Foo[Bar[Baz]LFBizLF] - Gen<Expr>
+                CSharpImplicitExpressionBody - [1..13)::12
+                    CSharpCodeBlock - [1..13)::12
+                        CSharpExpressionLiteral - [1..5)::4 - [Foo[] - Gen<Expr>
                             Identifier;[Foo];
                             LeftBracket;[[];
+                        SkippedContent - [5..13)::8
                             Identifier;[Bar];
                             LeftBracket;[[];
                             Identifier;[Baz];
                             RightBracket;[]];
-                            NewLine;[LF];
-                            Identifier;[Biz];
-                            NewLine;[LF];
+                        CSharpExpressionLiteral - [13..13)::0 - [] - Gen<Expr>
+                            RightBracket;[<Missing>];RZ1027(13:0,13 [0] )
+        MarkupTextLiteral - [13..20)::7 - [LFBizLF] - Gen<Markup>
+            NewLine;[LF];
+            Text;[Biz];
+            NewLine;[LF];
         MarkupElement - [20..34)::14
             MarkupStartTag - [20..23)::3 - [<b>] - Gen<Markup>
                 OpenAngle;[<];

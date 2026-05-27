@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #nullable disable
@@ -220,7 +220,11 @@ public class CodeGenerationIntegrationTest : IntegrationTestBase
         AssertLinePragmas(compiled.CodeDocument);
 
         var diagnotics = compiled.CodeDocument.GetCSharpDocument().Diagnostics;
-        Assert.Equal("RZ1016", Assert.Single(diagnotics).Id);
+        // recovery additionally surfaces RZ1000 for the unterminated
+        // string literal that follows the malformed @page directive value.
+        Assert.Collection(diagnotics,
+            d => Assert.Equal("RZ1016", d.Id),
+            d => Assert.Equal("RZ1000", d.Id));
     }
 
     [Fact]

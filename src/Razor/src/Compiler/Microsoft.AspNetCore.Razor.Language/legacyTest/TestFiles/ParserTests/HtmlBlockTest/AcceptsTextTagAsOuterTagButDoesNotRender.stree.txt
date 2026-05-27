@@ -37,8 +37,6 @@
                         CSharpStatementLiteral - [32..37)::5 - [ zoop] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Whitespace;[ ];
                             Identifier;[zoop];
-                    RazorMetaCode - [37..38)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [37..38)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [38..38)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

@@ -14,9 +14,8 @@
             MarkupStartTag - [10..20)::10 - [<custom />] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 Text;[custom];
-                MarkupMiscAttributeContent - [17..18)::1
-                    MarkupTextLiteral - [17..18)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [17..18)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
         MarkupTextLiteral - [20..22)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any

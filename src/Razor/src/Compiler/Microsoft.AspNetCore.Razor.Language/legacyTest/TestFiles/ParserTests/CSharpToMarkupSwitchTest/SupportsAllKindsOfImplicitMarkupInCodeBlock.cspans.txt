@@ -19,5 +19,4 @@ Markup span at (182:8,11 [11] ) (Accepts:Any) - Parent: Markup block at (171:8,0
 Markup span at (193:8,22 [4] ) (Accepts:None) - Parent: Tag block at (193:8,22 [4] )
 Markup span at (197:8,26 [2] ) (Accepts:None) - Parent: Markup block at (171:8,0 [28] )
 Code span at (199:9,0 [7] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [207] )
-MetaCode span at (206:10,0 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [207] )
-Markup span at (207:10,1 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [207] )
+MetaCode span at (206:10,0 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [207] )

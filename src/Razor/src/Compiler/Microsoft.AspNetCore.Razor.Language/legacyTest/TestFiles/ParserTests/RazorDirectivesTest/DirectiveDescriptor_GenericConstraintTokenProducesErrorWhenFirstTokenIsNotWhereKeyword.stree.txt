@@ -2,26 +2,28 @@
     MarkupBlock - [0..45)::45
         MarkupTextLiteral - [0..2)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
-        CSharpCodeBlock - [2..21)::19
-            RazorDirective - [2..21)::19 - Directive:{custom;SingleLine;Unrestricted} [RZ1040(21:1,19 [5] )]
+        CSharpCodeBlock - [2..45)::43
+            RazorDirective - [2..45)::43 - Directive:{custom;SingleLine;Unrestricted} [RZ1040(21:1,19 [5] )]
                 CSharpTransition - [2..3)::1 - Gen<None> - SpanEditHandler;Accepts:None
                     Transition;[@];
-                RazorDirectiveBody - [3..21)::18
+                RazorDirectiveBody - [3..45)::42
                     RazorMetaCode - [3..9)::6 - Gen<None> - SpanEditHandler;Accepts:None
                         Identifier;[custom];
-                    CSharpCodeBlock - [9..21)::12
+                    CSharpCodeBlock - [9..45)::36
                         CSharpStatementLiteral - [9..10)::1 - [ ] - Gen<None> - SpanEditHandler;Accepts:Whitespace
                             Whitespace;[ ];
                         CSharpStatementLiteral - [10..20)::10 - [TSomething] - Gen<DirectiveToken {;Member;Opt:False}> - DirectiveTokenEditHandler;Accepts:NonWhitespace
                             Identifier;[TSomething];
                         CSharpStatementLiteral - [20..21)::1 - [ ] - Gen<None> - SpanEditHandler;Accepts:Whitespace
                             Whitespace;[ ];
-        MarkupTextLiteral - [21..45)::24 - [maybe TSomething : class] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Text;[maybe];
-            Whitespace;[ ];
-            Text;[TSomething];
-            Whitespace;[ ];
-            Text;[:];
-            Whitespace;[ ];
-            Text;[class];
+                        CSharpStatementLiteral - [21..21)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+                            Marker;[];
+                        SkippedContent - [21..45)::24
+                            Identifier;[maybe];
+                            Whitespace;[ ];
+                            Identifier;[TSomething];
+                            Whitespace;[ ];
+                            Colon;[:];
+                            Whitespace;[ ];
+                            Keyword;[class];
     EndOfFile;[];

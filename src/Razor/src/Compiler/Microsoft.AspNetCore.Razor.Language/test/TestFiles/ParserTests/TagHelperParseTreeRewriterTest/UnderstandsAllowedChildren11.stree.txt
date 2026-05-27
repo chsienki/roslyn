@@ -42,9 +42,8 @@
                 MarkupTagHelperStartTag - [50..56)::6 - [<br />] - Gen<Markup>
                     OpenAngle;[<];
                     Text;[br];
-                    MarkupMiscAttributeContent - [53..54)::1
-                        MarkupTextLiteral - [53..54)::1 - [ ] - Gen<Markup>
-                            Whitespace;[ ];
+                    MarkupTextLiteral - [53..54)::1 - [ ] - Gen<Markup>
+                        Whitespace;[ ];
                     ForwardSlash;[/];
                     CloseAngle;[>];
             MarkupTextLiteral - [56..65)::9 - [Something] - Gen<Markup>

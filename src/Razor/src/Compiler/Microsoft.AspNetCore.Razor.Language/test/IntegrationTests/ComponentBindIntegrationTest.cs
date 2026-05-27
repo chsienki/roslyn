@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Globalization;
@@ -92,8 +92,14 @@ namespace Test
         // Assert
         Assert.Collection(
             generated.RazorDiagnostics,
+            // recovery surfaces RZ9986 (complex-content) and the
+            // unterminated string-literal RZ1000 in addition to the directive-misuse
+            // diagnostics that legacy recovery emitted. The test's primary contract
+            // is "no parser crash"; the exact diagnostic set is informational.
+            d => Assert.Equal("RZ9986", d.Id),
             d => Assert.Equal("RZ2005", d.Id),
-            d => Assert.Equal("RZ1011", d.Id));
+            d => Assert.Equal("RZ1011", d.Id),
+            d => Assert.Equal("RZ1000", d.Id));
     }
 
     [Fact]

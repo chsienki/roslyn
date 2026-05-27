@@ -41,9 +41,8 @@
                         Whitespace;[ ];
                     MarkupTextLiteral - [65..79)::14 - [post-attribute] - Gen<Markup>
                         Text;[post-attribute];
-                MarkupMiscAttributeContent - [79..80)::1
-                    MarkupTextLiteral - [79..80)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [79..80)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

@@ -2,21 +2,25 @@
     MarkupBlock - [0..23)::23
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup>
             Marker;[];
-        CSharpCodeBlock - [0..23)::23
-            CSharpImplicitExpression - [0..23)::23
+        CSharpCodeBlock - [0..13)::13
+            CSharpImplicitExpression - [0..13)::13
                 CSharpTransition - [0..1)::1 - Gen<None>
                     Transition;[@];
-                CSharpImplicitExpressionBody - [1..23)::22
-                    CSharpCodeBlock - [1..23)::22
-                        CSharpExpressionLiteral - [1..23)::22 - [Foo[Bar[Baz]LFBizLFBoz] - Gen<Expr>
+                CSharpImplicitExpressionBody - [1..13)::12
+                    CSharpCodeBlock - [1..13)::12
+                        CSharpExpressionLiteral - [1..5)::4 - [Foo[] - Gen<Expr>
                             Identifier;[Foo];
                             LeftBracket;[[];
+                        SkippedContent - [5..13)::8
                             Identifier;[Bar];
                             LeftBracket;[[];
                             Identifier;[Baz];
                             RightBracket;[]];
-                            NewLine;[LF];
-                            Identifier;[Biz];
-                            NewLine;[LF];
-                            Identifier;[Boz];
+                        CSharpExpressionLiteral - [13..13)::0 - [] - Gen<Expr>
+                            RightBracket;[<Missing>];RZ1027(13:0,13 [0] )
+        MarkupTextLiteral - [13..23)::10 - [LFBizLFBoz] - Gen<Markup>
+            NewLine;[LF];
+            Text;[Biz];
+            NewLine;[LF];
+            Text;[Boz];
     EndOfFile;[];

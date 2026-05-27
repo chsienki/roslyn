@@ -9,5 +9,4 @@ Markup span at (18:0,18 [1] ) (Accepts:Any) - Parent: Markup block at (11:0,11 [
 Markup span at (19:0,19 [3] ) (Accepts:None) - Parent: Tag block at (7:0,7 [15] )
 Markup span at (22:0,22 [6] ) (Accepts:None) - Parent: Tag block at (22:0,22 [6] )
 Code span at (28:0,28 [0] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [29] )
-MetaCode span at (28:0,28 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [29] )
-Markup span at (29:0,29 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [29] )
+MetaCode span at (28:0,28 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [29] )

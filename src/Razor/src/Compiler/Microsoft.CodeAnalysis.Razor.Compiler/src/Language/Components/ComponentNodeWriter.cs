@@ -1314,6 +1314,7 @@ internal sealed class ComponentNodeWriter : IntermediateNodeWriter, ITemplateTar
         {
             // Handle delegate or child-content attributes specially.
             var tokens = GetCSharpTokens(node);
+            var tokensAreMissing = MissingValueMarker.IsMissingValueMarker(tokens);
             if ((node.BoundAttribute?.IsDelegateProperty() ?? false) ||
                 (node.BoundAttribute?.IsChildContentProperty() ?? false))
             {
@@ -1325,7 +1326,17 @@ internal sealed class ComponentNodeWriter : IntermediateNodeWriter, ITemplateTar
                     context.CodeWriter.Write("(");
                 }
 
-                WriteCSharpTokens(context, tokens);
+                if (tokensAreMissing)
+                {
+                    // Delegate / child-content property bound to an empty
+                    // value -- emit default(<fullyQualifiedType>) when the type
+                    // is known, else default!.
+                    WriteMissingDelegateOrTypedPlaceholder(context, node);
+                }
+                else
+                {
+                    WriteCSharpTokens(context, tokens);
+                }
 
                 if (canTypeCheck)
                 {
@@ -1371,7 +1382,18 @@ internal sealed class ComponentNodeWriter : IntermediateNodeWriter, ITemplateTar
                 context.CodeWriter.Write("this");
                 context.CodeWriter.Write(", ");
 
-                WriteCSharpTokens(context, tokens);
+                if (tokensAreMissing)
+                {
+                    // EventCallback<T> or untyped EventCallback property bound
+                    // to an empty value -- emit default(global::System.Action<T>)
+                    // so the synthesised Create<TValue>(object, Action<TValue>)
+                    // overload resolves.
+                    WriteMissingEventCallbackPlaceholder(context, node, isInferred);
+                }
+                else
+                {
+                    WriteCSharpTokens(context, tokens);
+                }
 
                 context.CodeWriter.Write(")");
 
@@ -1391,7 +1413,16 @@ internal sealed class ComponentNodeWriter : IntermediateNodeWriter, ITemplateTar
                     context.CodeWriter.Write("(");
                 }
 
-                WriteCSharpTokens(context, tokens);
+                if (tokensAreMissing)
+                {
+                    // Other bound attribute with an empty value --
+                    // default(<fullyQualifiedType>) when known, else default!.
+                    WriteMissingDelegateOrTypedPlaceholder(context, node);
+                }
+                else
+                {
+                    WriteCSharpTokens(context, tokens);
+                }
 
                 if (canTypeCheck && NeedsTypeCheck(node))
                 {
@@ -1853,8 +1884,15 @@ internal sealed class ComponentNodeWriter : IntermediateNodeWriter, ITemplateTar
 
     private static void WriteCSharpToken(CodeRenderingContext context, CSharpIntermediateToken token)
     {
-        if (token.Source?.FilePath == null)
+        if (token.Source?.FilePath == null || token.IsMissingValue)
         {
+            // Missing-value placeholders are synthetic. We deliberately skip
+            // the #line pragma so the source mapping isn't widened to cover
+            // synthesised placeholder text -- if Roslyn emits a diagnostic for
+            // the placeholder it should still map back to the original
+            // missing-value span via the surrounding source mappings, but the
+            // placeholder itself should not anchor a wide mapping that swallows
+            // neighboring tokens.
             context.CodeWriter.Write(token.Content);
             return;
         }
@@ -1863,5 +1901,51 @@ internal sealed class ComponentNodeWriter : IntermediateNodeWriter, ITemplateTar
         {
             context.CodeWriter.Write(token.Content);
         }
+    }
+
+    // Missing-value placeholder helpers ------------------------------------------
+    // These emit the safe placeholder text from MissingValueMarker.GetPlaceholderText
+    // directly to the code writer at the codegen site, so the generated C# parses
+    // cleanly when an empty user value is bound to a non-string component
+    // attribute. The motivating case is `<MyComponent OnClick="" />`; the
+    // analogous lowering-pass site is handled by
+    // ComponentEventHandlerLoweringPass.SubstituteMissingValuePlaceholder.
+
+    private static void WriteMissingEventCallbackPlaceholder(
+        CodeRenderingContext context,
+        ComponentAttributeIntermediateNode node,
+        bool? isInferred)
+    {
+        string typeArgument = null;
+        if (isInferred != true && node.TryParseEventCallbackTypeArgument(out ReadOnlyMemory<char> argument))
+        {
+            // Re-use the same globally-qualified rendering that the wrapping
+            // call uses (line ~1365 above) so the placeholder binds to the same
+            // Create<TValue>(object, Action<TValue>) overload.
+            typeArgument = TypeNameHelper.GetGloballyQualifiedNameIfNeeded(argument.ToString());
+        }
+
+        var placeholderKind = typeArgument is null
+            ? MissingValuePlaceholderKind.EventCallbackUntyped
+            : MissingValuePlaceholderKind.EventCallbackTyped;
+        context.CodeWriter.Write(MissingValueMarker.GetPlaceholderText(placeholderKind, typeArgument));
+    }
+
+    private static void WriteMissingDelegateOrTypedPlaceholder(
+        CodeRenderingContext context,
+        ComponentAttributeIntermediateNode node)
+    {
+        // Use the globally-qualified type name when the attribute resolves to a
+        // concrete (non-generic) type; otherwise fall back to default!.
+        var typeName = node.TypeName;
+        if (string.IsNullOrEmpty(typeName) || node.IsOpenGeneric)
+        {
+            context.CodeWriter.Write(MissingValueMarker.GetPlaceholderText(MissingValuePlaceholderKind.BoundAttributeUnknown));
+            return;
+        }
+
+        var qualifiedType = TypeNameHelper.GetGloballyQualifiedNameIfNeeded(typeName);
+        context.CodeWriter.Write(
+            MissingValueMarker.GetPlaceholderText(MissingValuePlaceholderKind.BoundAttributeTyped, qualifiedType));
     }
 }

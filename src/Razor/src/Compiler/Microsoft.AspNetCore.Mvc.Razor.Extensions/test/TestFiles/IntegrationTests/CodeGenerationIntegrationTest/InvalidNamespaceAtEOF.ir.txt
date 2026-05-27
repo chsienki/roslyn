@@ -13,9 +13,9 @@
         CreateNewOnMetadataUpdateAttribute - 
         ClassDeclaration -  - internal sealed - TestFiles_IntegrationTests_CodeGenerationIntegrationTest_InvalidNamespaceAtEOF - global::Microsoft.AspNetCore.Mvc.Razor.RazorPage<dynamic> - 
             MethodDeclaration -  - public async override - global::System.Threading.Tasks.Task - ExecuteAsync
-                MalformedDirective - (0:0,0 [11] InvalidNamespaceAtEOF.cshtml) - namespace
-                HtmlContent - (11:0,11 [5] InvalidNamespaceAtEOF.cshtml)
-                    LazyIntermediateToken - (11:0,11 [5] InvalidNamespaceAtEOF.cshtml) - Html - Test.
+                MalformedDirective - (0:0,0 [16] InvalidNamespaceAtEOF.cshtml) - namespace
+                    CSharpCode - (11:0,11 [0] InvalidNamespaceAtEOF.cshtml)
+                        LazyIntermediateToken - (11:0,11 [0] InvalidNamespaceAtEOF.cshtml) - CSharp - 
             Inject - 
             Inject - 
             Inject - 

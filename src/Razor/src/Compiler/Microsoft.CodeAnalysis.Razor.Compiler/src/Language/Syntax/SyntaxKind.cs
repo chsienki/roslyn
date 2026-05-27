@@ -17,6 +17,7 @@ internal enum SyntaxKind : byte
     RazorUsingDirective,
     RazorDirectiveBody,
     UnclassifiedTextLiteral,
+    SkippedContent,
 
     // Markup
     MarkupBlock,

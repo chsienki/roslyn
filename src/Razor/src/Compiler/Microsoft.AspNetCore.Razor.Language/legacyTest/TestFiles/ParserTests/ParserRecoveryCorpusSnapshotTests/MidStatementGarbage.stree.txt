@@ -1,0 +1,59 @@
+﻿RazorDocument - [0..75)::75 - [@{LF    var x = ?? 1;LFLF    <p>markup inside the broken statement</p>LF}LF]
+    MarkupBlock - [0..75)::75
+        MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Marker;[];
+        CSharpCodeBlock - [0..73)::73
+            CSharpStatement - [0..73)::73
+                CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    Transition;[@];
+                CSharpStatementBody - [1..73)::72
+                    RazorMetaCode - [1..2)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                        LeftBrace;[{];
+                    CSharpCodeBlock - [2..72)::70
+                        CSharpStatementLiteral - [2..25)::23 - [LF    var x = ?? 1;LFLF] - Gen<Stmt> - AutoCompleteEditHandler;Accepts:Any,AutoComplete:[<null>];AtEOL
+                            NewLine;[LF];
+                            Whitespace;[    ];
+                            Identifier;[var];
+                            Whitespace;[ ];
+                            Identifier;[x];
+                            Whitespace;[ ];
+                            Assign;[=];
+                            Whitespace;[ ];
+                            NullCoalesce;[??];
+                            Whitespace;[ ];
+                            IntegerLiteral;[1];
+                            Semicolon;[;];
+                            NewLine;[LF];
+                            NewLine;[LF];
+                        MarkupBlock - [25..72)::47
+                            MarkupTextLiteral - [25..29)::4 - [    ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                Whitespace;[    ];
+                            MarkupElement - [29..70)::41
+                                MarkupStartTag - [29..32)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:None
+                                    OpenAngle;[<];
+                                    Text;[p];
+                                    CloseAngle;[>];
+                                MarkupTextLiteral - [32..66)::34 - [markup inside the broken statement] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                    Text;[markup];
+                                    Whitespace;[ ];
+                                    Text;[inside];
+                                    Whitespace;[ ];
+                                    Text;[the];
+                                    Whitespace;[ ];
+                                    Text;[broken];
+                                    Whitespace;[ ];
+                                    Text;[statement];
+                                MarkupEndTag - [66..70)::4 - [</p>] - Gen<Markup> - SpanEditHandler;Accepts:None
+                                    OpenAngle;[<];
+                                    ForwardSlash;[/];
+                                    Text;[p];
+                                    CloseAngle;[>];
+                            MarkupTextLiteral - [70..72)::2 - [LF] - Gen<Markup> - SpanEditHandler;Accepts:None
+                                NewLine;[LF];
+                        CSharpStatementLiteral - [72..72)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+                            Marker;[];
+                    RazorMetaCode - [72..73)::1 - Gen<None> - SpanEditHandler;Accepts:Any
+                        RightBrace;[}];
+        MarkupEphemeralTextLiteral - [73..75)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
+            NewLine;[LF];
+    EndOfFile;[];

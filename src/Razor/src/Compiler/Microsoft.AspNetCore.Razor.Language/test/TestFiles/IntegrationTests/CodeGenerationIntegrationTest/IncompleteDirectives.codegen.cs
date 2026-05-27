@@ -32,7 +32,7 @@ namespace AspNetCoreGeneratedDocument
             WriteLiteral("\r\n\r\n");
             WriteLiteral("\r\n");
             WriteLiteral("\r\n\r\n");
-            WriteLiteral("{\r\n");
+            WriteLiteral("\r\n");
         }
         #pragma warning restore 1998
         #nullable restore

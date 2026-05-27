@@ -4,17 +4,15 @@
             MarkupStartTag - [0..7)::7 - [<input ] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 Text;[input];
-                MarkupMiscAttributeContent - [6..7)::1
-                    MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 CloseAngle;[<Missing>];
         MarkupTagHelperElement - [7..12)::5 - p[SelfClosing] - ptaghelper
             MarkupTagHelperStartTag - [7..12)::5 - [<p />] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
                 Text;[p];
-                MarkupMiscAttributeContent - [9..10)::1
-                    MarkupTextLiteral - [9..10)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [9..10)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];
