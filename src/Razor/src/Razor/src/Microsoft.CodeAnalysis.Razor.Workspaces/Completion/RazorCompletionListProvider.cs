@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.AspNetCore.Razor.Language.Syntax;
 using Microsoft.AspNetCore.Razor.PooledObjects;
 using Microsoft.CodeAnalysis.Razor.Logging;
+using Microsoft.CodeAnalysis.Razor.Protocol;
+using RazorSyntaxNode = Microsoft.AspNetCore.Razor.Language.Syntax.SyntaxNode;
 
 namespace Microsoft.CodeAnalysis.Razor.Completion;
 
@@ -95,6 +97,8 @@ internal class RazorCompletionListProvider(
         var owner = syntaxTree.Root.FindInnermostNode(absoluteIndex, includeWhitespace: true, walkMarkersBack: true);
         owner = AbstractRazorCompletionFactsService.AdjustSyntaxNodeForWordBoundary(owner, absoluteIndex);
 
+        var languageKind = DetermineLanguageKind(owner);
+
         return new RazorCompletionContext(
             codeDocument,
             absoluteIndex,
@@ -102,7 +106,59 @@ internal class RazorCompletionListProvider(
             syntaxTree,
             tagHelperContext,
             reason,
-            completionOptions);
+            completionOptions,
+            languageKind);
+    }
+
+    // Stage 5.6 of the parser error-recovery redesign (see
+    // razor-recovery-redesign-plan.md Big Design Decision #10 and Stage 5.6):
+    // when the cursor lands inside a SkippedContentSyntax -- the node that
+    // wraps tokens absorbed by the parser while synchronizing after an error
+    // -- dispatch completion to the language the skipped region originated
+    // from (so e.g. typing inside a half-formed C# attribute value still
+    // offers C# completions, not Razor-only completions). The
+    // OriginatingLanguage field on SkippedContentSyntax is set by
+    // Synchronize at the call site (Stage 0.4 / 4.x). When the field is
+    // SyntaxKind.None (document-level skip), walk the ancestor chain and
+    // use the closest CSharpCodeBlockSyntax / MarkupBlockSyntax to decide;
+    // HTML is the outer mode so it wins ties.
+    // Internal for testing.
+    internal static RazorLanguageKind DetermineLanguageKind(RazorSyntaxNode? owner)
+    {
+        if (owner is null)
+        {
+            return RazorLanguageKind.Razor;
+        }
+
+        var skipped = owner.FirstAncestorOrSelf<SkippedContentSyntax>();
+        if (skipped is null)
+        {
+            return RazorLanguageKind.Razor;
+        }
+
+        return skipped.OriginatingLanguage switch
+        {
+            SyntaxKind.CSharpCodeBlock => RazorLanguageKind.CSharp,
+            SyntaxKind.MarkupBlock => RazorLanguageKind.Html,
+            _ => InferLanguageFromAncestors(skipped),
+        };
+    }
+
+    private static RazorLanguageKind InferLanguageFromAncestors(RazorSyntaxNode node)
+    {
+        foreach (var ancestor in node.Ancestors())
+        {
+            switch (ancestor)
+            {
+                case CSharpCodeBlockSyntax:
+                    return RazorLanguageKind.CSharp;
+                case MarkupBlockSyntax:
+                    return RazorLanguageKind.Html;
+            }
+        }
+
+        // Default RazorDocumentSyntax -> HTML, since HTML is the outer mode.
+        return RazorLanguageKind.Html;
     }
 
     private RazorVSInternalCompletionList CreateAndCacheCompletionList(

@@ -788,12 +788,44 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
                 return;
             }
 
-            _builder.Add(IntermediateNodeFactory.CSharpToken(
+            var token = IntermediateNodeFactory.CSharpToken(
                 arg: node,
                 contentFactory: static node => node.GetContent(),
-                source: BuildSourceSpanFromNode(node)));
+                source: BuildSourceSpanFromNode(node));
+
+            // Stage 5.0 / BDD #9: the enhanced parser surfaces an empty C# expression
+            // (e.g. the right-hand side of @onclick="") as a single missing-identifier
+            // token under a CSharpExpressionLiteral. Tag the IR token so downstream
+            // lowering passes (ComponentEventHandlerLoweringPass) and Stage 5.1
+            // codegen can substitute a safe placeholder instead of emitting a hole
+            // that produces CS1525. We treat any literal whose tokens are all missing
+            // -- or has no literal tokens at all -- as a missing-value marker.
+            if (IsAllMissing(node.LiteralTokens))
+            {
+                token.IsMissingValue = true;
+            }
+
+            _builder.Add(token);
 
             base.VisitCSharpExpressionLiteral(node);
+        }
+
+        private static bool IsAllMissing(SyntaxTokenList tokens)
+        {
+            if (tokens.Count == 0)
+            {
+                return true;
+            }
+
+            for (var i = 0; i < tokens.Count; i++)
+            {
+                if (!tokens[i].IsMissing)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         protected internal void VisitAttributeValue(SyntaxNode node)

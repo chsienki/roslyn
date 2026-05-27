@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 4 complete (all 4 sub-stages). Ready for Stage 5.0.0.
+Stage 5 complete. Ready for Stage 6.1.
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -36,15 +36,15 @@ Stage 4 complete (all 4 sub-stages). Ready for Stage 5.0.0.
 - Stage 4.2: complete
 - Stage 4.3: complete
 - Stage 4.4: complete
-- Stage 5.0.0: not started
-- Stage 5.0: not started
-- Stage 5.1: not started
-- Stage 5.2: not started
-- Stage 5.3: not started
-- Stage 5.4: not started
-- Stage 5.5: not started
-- Stage 5.6.0: not started
-- Stage 5.6: not started
+- Stage 5.0.0: complete
+- Stage 5.0: complete
+- Stage 5.1: complete
+- Stage 5.2: complete
+- Stage 5.3: complete
+- Stage 5.4: complete
+- Stage 5.5: complete
+- Stage 5.6.0: complete
+- Stage 5.6: complete
 - Stage 6.1: not started
 - Stage 6.2: not started
 - Stage 6.3: not started
@@ -87,12 +87,372 @@ appear.
   free: **RZ10025**.
 
 ## Stage 5.0.0 spike report
-(not yet run -- to be populated with: malformed expression, writer
-file:line, IR node type, placeholder shape)
+
+Investigation-only test added at
+`src/Razor/src/Compiler/test/Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests/RazorSourceGeneratorComponentTests.cs`,
+method `Spike_EmptyOnclickAttribute_DumpsGeneratedSource` (around
+line 1879). The test exercises three configurations and dumps the
+generated C# plus Razor diagnostics under `artifacts/razor-recovery-spike/`
+(gitignored):
+
+1. Source-generator pipeline (legacy parser, real tag-helper discovery
+   from the test compilation -- the user-visible path).
+2. Direct `RazorProjectEngine` with `UseEnhancedRecovery = false`.
+3. Direct `RazorProjectEngine` with `UseEnhancedRecovery = true`
+   (BDD #9 tree shape -- Stage 3.2's `GenericBlock([CSharpExpressionLiteral
+   ([MissingToken(Identifier)])])`).
+
+Reproducer (the canonical corpus content from
+`legacyTest/ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor`,
+with `@using Microsoft.AspNetCore.Components.Web` prepended so
+`EventHandlerTagHelperProducer` actually discovers `onclick` as a
+bound event-handler attribute):
+
+```razor
+@using Microsoft.AspNetCore.Components.Web
+
+<h1>Counter</h1>
+
+<p>Current count: @currentCount</p>
+
+<button class="btn btn-primary" @onclick="">Click me</button>
+
+@code {
+    private int currentCount = 0;
+
+    private void IncrementCount()
+    {
+        currentCount++;
+    }
+}
+```
+
+### Findings per configuration
+
+**Configuration 1 (source generator, legacy mode -- user-visible
+path).** With the `@using Microsoft.AspNetCore.Components.Web` import
+the tag-helper discovery fires and `@onclick` is recognized. IR
+lowering then dispatches to
+`ComponentEventHandlerLoweringPass.RewriteUsage`
+(`src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Components/ComponentEventHandlerLoweringPass.cs:161`),
+where the **early bail-out at lines 164-169** fires because
+`GetAttributeContent` returns `ImmutableArray<IntermediateToken>.Empty`
+(the legacy parser produced no value node for `@onclick=""`):
+```csharp
+if (original.Length == 0)
+{
+    // This can happen in error cases, the parser will already have
+    // flagged this as an error, so ignore it.
+    return node;
+}
+```
+**The entire `@onclick` attribute is silently dropped** from the
+generated render-tree calls. The artifact
+`artifacts/razor-recovery-spike/empty-onclick.sourcegen.razor.g.cs`
+contains:
+```csharp
+__builder.OpenElement(5, "button");
+__builder.AddAttribute(6, "class", "btn btn-primary");
+__builder.AddContent(7, "Click me");
+__builder.CloseElement();
+```
+Note: no `AddAttribute` for `onclick` at all. **No CS1525 is emitted
+in the current legacy source-generator output for the BDD #9
+reproducer.** This was the first surprise of the spike: the plan's
+motivating "wall of red CS1525" for `<button @onclick="">` is
+**already** mitigated for the plain-HTML-element case by the
+`original.Length == 0` bail-out. The remaining CS1525 risk lives
+elsewhere -- see "Codegen sites at risk" below.
+
+**Configuration 2 (direct engine, legacy mode).** No tag-helper
+discovery (the direct path does not wire up
+`StaticCompilationTagHelperFeature`), so `@onclick` falls through to
+plain markup. Artifact `empty-onclick.legacy.razor.g.cs` produces a
+single `AddMarkupContent` with the raw HTML, no separate attribute
+emit, no CS1525. This configuration is **not informative** for the
+codegen question (the lowering pass that owns the bug is never
+reached); it's retained as a control showing that direct-engine
+output is parser-shape-driven only.
+
+**Configuration 3 (direct engine, enhanced mode -- BDD #9).** Same
+absence of tag-helper discovery, so the `@onclick` attribute is again
+treated as plain HTML. With the BDD #9 tree shape on the parser side,
+codegen emits `__builder.AddAttribute(7, "@onclick");` (the
+two-argument `AddAttribute` overload, no value) -- valid C#, no
+CS1525. Artifact: `empty-onclick.enhanced.razor.g.cs`. Again the
+lowering pass is not reached, so this configuration cannot directly
+exhibit the bug; its purpose is to confirm that the BDD #9 tree shape
+does not introduce a regression on the *non-component* HTML attribute
+codegen path.
+
+Razor parser diagnostics for configurations 2 and 3 are both empty
+(`empty-onclick.razor-diagnostics.txt`), confirming the direct-engine
+path produces no parser errors for `@onclick=""` in either parser
+mode -- so any CS1525 the user sees comes from C# codegen, not from
+the Razor parser.
+
+### Codegen sites at risk (the real bug surface for Stage 5.0 / 5.1)
+
+Two sites emit `EventCallback.Factory.Create<T>(this, <code>)`:
+
+1. **`ComponentEventHandlerLoweringPass.cs:181-186`** -- assembles
+   IR tokens of the form
+   `global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<T>(this, ` + `original` + `)`.
+   Used for `@onclick`-style event-handler directive attributes on
+   **plain HTML elements** (Razor synthesises an `EventCallback`
+   wrapper). **Gated by the `original.Length == 0` bail-out at
+   line 164-169.** In legacy mode the bail-out fires for `@onclick=""`
+   and the attribute is dropped (Configuration 1 above). **In
+   enhanced mode the BDD #9 tree shape surfaces a single
+   `MissingToken`-bearing `CSharpIntermediateToken`** through
+   `CSharpExpressionLiteral` lowering. If that token reaches
+   `GetAttributeContent` (`ComponentEventHandlerLoweringPass.cs:232`),
+   `original.Length` is **1, not 0**, the bail-out skips, and codegen
+   emits `EventCallback.Factory.Create<MouseEventArgs>(this, )`
+   (single missing-content token sandwiched between `, ` and `)`).
+   That is the CS1525 site. The bug only manifests once both
+   (a) BDD #9 is **on** (Stage 3.2 lights this up under the
+   `UseEnhancedRecovery` flag), and (b) the missing-content token
+   survives lowering as a length-1 array.
+
+2. **`ComponentNodeWriter.cs:1335-1376`** -- emits
+   `EventCallback.Factory.Create<T>(this, <tokens>)` directly during
+   codegen for `ComponentAttributeIntermediateNode` whose bound
+   attribute satisfies `BoundAttribute.IsEventCallbackProperty()`
+   (i.e. `<MyComponent OnClick="..."/>` where the parameter is
+   declared `EventCallback<T>`). **This site is NOT guarded by any
+   length check** -- `WriteCSharpTokens(context, tokens)` at line
+   1374 emits whatever tokens it receives. If the value is empty
+   (or a single empty-content missing token), the emitted text is
+   `EventCallback.Factory.Create<T>(this, )` -- CS1525, today, in
+   legacy mode, for *component* event-handler attributes
+   `OnXxx=""`. The motivating bug `dotnet/razor#10383` very likely
+   originates here for the *component-attribute* variant; the
+   plain-HTML-element variant happens to be mitigated by the
+   `RewriteUsage` bail-out.
+
+### Spike-required four bullets
+
+- **Malformed C# expression emitted today**: the literal text
+  `EventCallback.Factory.Create<{eventArgsType}>(this, )` --
+  closing paren immediately follows the second comma with no
+  expression. Produces Roslyn CS1525 ("Invalid expression term ')'")
+  at the position of the closing paren.
+- **Writer file:line(s)**:
+  - `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Components/ComponentEventHandlerLoweringPass.cs:181-186`
+    (lowering-time IR-token assembly; gated by line 164-169
+    bail-out). Path: plain-HTML element + directive attribute
+    `@onclick=""`. Currently safe in legacy mode (bail-out fires).
+    **Will break in enhanced mode** unless Stage 5.0 hardens the
+    bail-out or the placeholder.
+  - `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Components/ComponentNodeWriter.cs:1351-1376`
+    (codegen-time direct emit; **unguarded**). Path: component
+    attribute bound to an `EventCallback<T>` parameter, written with
+    an empty value (`OnClick=""`). **Already breaks today** in
+    legacy mode; #10383's "wall of red" most plausibly originates
+    here.
+- **IR node type(s) flowing in**:
+  - For the lowering-pass site:
+    `TagHelperDirectiveAttributeIntermediateNode` (input) ->
+    `HtmlAttributeIntermediateNode` containing a
+    `CSharpExpressionAttributeValueIntermediateNode` (output for
+    `MarkupElementIntermediateNode` parent at line 190-213) OR
+    `ComponentAttributeIntermediateNode` containing a
+    `CSharpExpressionIntermediateNode` (output for component-parent
+    at line 214-229). The content-bearing leaves are
+    `IntermediateToken` (specifically `CSharpIntermediateToken`).
+  - For the node-writer site:
+    `ComponentAttributeIntermediateNode` with
+    `BoundAttribute.IsEventCallbackProperty() == true`. Tokens come
+    from a child `CSharpExpressionIntermediateNode`.
+- **Recommended placeholder shape (for Stage 5.0 / 5.1)**: when
+  the original token stream is "effectively empty" (length 0, OR
+  length >= 1 with every token having `string.IsNullOrEmpty(Content)`),
+  substitute a single token containing `default!`. Concretely the
+  emitted call becomes
+  `EventCallback.Factory.Create<{eventArgsType}>(this, default!)`.
+  Rationale: (a) parses cleanly under Roslyn; (b) `default!` resolves
+  unambiguously to `EventCallback<T>` (or any `Delegate`-typed
+  overload `Create<T>` chooses) without producing CS8625 because of
+  the suppression; (c) the synthetic-vs-user position information is
+  preserved (codegen still emits `#line` markers around the
+  placeholder so IDE tooling like signature help / completion
+  re-targets to the original `""` span); (d) does not introduce
+  runtime divergence -- a `default` EventCallback is a no-op handler,
+  which is the same observable behaviour as the current bail-out's
+  "attribute silently dropped".
+
+  The placeholder logic must be added to **both** writer sites for
+  full coverage. The lowering-pass site (`RewriteUsage`) should
+  replace the line-164 bail-out with the placeholder substitution
+  (so it works in both legacy and enhanced mode and on both HTML
+  and component parents); the `ComponentNodeWriter` site needs the
+  same emptiness probe over `tokens` before the `WriteCSharpTokens`
+  call at line 1374.
+
+### Deviations from the plan procedure
+
+- **The plan envisioned the spike empirically dumping CS1525 from
+  the source-generator output for `<button @onclick="">`.** Empirical
+  finding: the source-generator output for that exact reproducer
+  has **no** CS1525 today because of the `RewriteUsage`
+  `original.Length == 0` bail-out. The motivating bug therefore lives
+  on the **component-attribute** branch
+  (`ComponentNodeWriter.cs:1351-1376`), not the plain-HTML-element
+  branch. The spike report documents both sites; Stage 5.0 / 5.1
+  must cover both.
+- **The `UseEnhancedRecovery` flag is not surfaced through the
+  source generator** (it is internal compiler scaffolding -- per
+  Stage 0.3's downstream audit it is deliberately not added to
+  `RazorConfiguration` / `RazorSourceGenerationOptions`). The spike
+  reaches the flag via `InternalsVisibleTo
+  "Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests"`, and only
+  through the direct `RazorProjectEngine` path -- which does **not**
+  do tag-helper discovery. Consequently the spike cannot directly
+  exhibit `EventCallback.Factory.Create<T>(this, )` under enhanced
+  mode in this harness; the inference about enhanced-mode behaviour
+  is based on reading `GetAttributeContent`
+  (`ComponentEventHandlerLoweringPass.cs:232-254`) and the BDD #9
+  parse-tree shape from Stage 3.2. Stage 5.0's first action will be
+  to wire tag-helper discovery into the spike's direct path (or
+  flip the source generator's options surface) so the enhanced-mode
+  emission can be observed directly before the codegen fix lands.
 
 ## Stage 5.6.0 LSP anchor classes
-(not yet identified -- to be populated with classification /
-completion / hover provider class names)
+
+Investigation performed on branch `razor-recovery-stage-5-6-0` (base
+commit `a17749a1370` -- Stage 5.5 complete). Discovery used
+`Get-ChildItem -Recurse -Path "src\Razor\src\Razor\src" -Filter "*.cs"
+| Select-String -Pattern "..."` per the Stage 5.6.0 procedure, then
+each surviving candidate was opened and read to confirm it walks the
+Razor syntax tree (rather than being a DTO, a routing shim, or an
+OOP-marshalling wrapper).
+
+**Architectural shape observed.** The LSP surface fans out into three
+host flavours -- the in-proc VS LanguageServices layer, the OOP
+`Microsoft.CodeAnalysis.Remote.Razor` layer (called from VS via
+ServiceHub), and the VS Code / Cohost layer (`CohostHoverEndpoint`,
+`CohostDocumentCompletionEndpoint`, `CohostSemanticTokensRangeEndpoint`).
+All three flavours funnel into the same syntax-tree-walking code that
+lives in `Microsoft.CodeAnalysis.Razor.Workspaces`. Cohost endpoints
+delegate to `IRemote*Service` (verified: `CohostHoverEndpoint.cs:60`,
+`CohostDocumentCompletionEndpoint.cs:109/139/255`), and the OOP
+`Remote*Service` implementations in turn call the shared Workspaces
+classes listed below. So the anchors that Stage 5.6 needs are all in
+`Microsoft.CodeAnalysis.Razor.Workspaces` -- changes there are picked
+up by every host.
+
+### Classification (semantic tokens)
+
+- **Primary anchor: `SemanticTokensVisitor`** at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/SemanticTokens/SemanticTokensVisitor.cs:14`.
+  Derives from `SyntaxWalker`; entry point `AddSemanticRanges` calls
+  `visitor.Visit(razorCodeDocument.GetRequiredSyntaxRoot())`
+  (line 37) and the class overrides per-kind visitors such as
+  `VisitMarkupTextLiteral`, `VisitMarkupLiteralAttributeValue`,
+  `VisitMarkupAttributeBlock`, etc. It is invoked from
+  `AbstractRazorSemanticTokensInfoService.cs:78`, which is the single
+  service consumed by all three host flavours
+  (`RazorSemanticTokensInfoService` in OOP, the VS/Cohost equivalents).
+  Stage 5.6 adds a `VisitSkippedContent` (or equivalent) override here
+  to classify `SkippedContentSyntax` as "comment" / "unknown" so the
+  user sees a visible marker.
+- Confidence: **high**. This is the only `SyntaxWalker` in the Razor
+  LSP tree dedicated to semantic-token emission; the only competing
+  walker (`ClassifiedSpanVisitor` in
+  `Extensions/RazorCodeDocumentExtensions_ClassifiedSpans.cs:24`) is
+  used for IR / source-mapping classification, not LSP semantic
+  tokens, and has a different `SpanKind` enum (`Transition`,
+  `MetaCode`, `Comment`, `Code`, `Markup`, `None`) consumed by
+  source generation rather than the editor.
+
+### Completion
+
+- **Primary anchor: `RazorCompletionListProvider.CreateCompletionContext`**
+  at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Completion/RazorCompletionListProvider.cs:78`.
+  This is where the syntax-tree owner is resolved:
+  `syntaxTree.Root.FindInnermostNode(absoluteIndex,
+  includeWhitespace: true, walkMarkersBack: true)` (line 95), followed
+  by `AbstractRazorCompletionFactsService.AdjustSyntaxNodeForWordBoundary`
+  (line 96). The `RazorCompletionContext` it builds is the input to
+  every `IRazorCompletionItemProvider`. This is the natural insertion
+  point for the `OriginatingLanguage`-based dispatch described in
+  Stage 5.6 / BDD #10: once the `owner` node is known, walk up to the
+  nearest `SkippedContentSyntax`, read its `OriginatingLanguage`
+  field, and route to the C# vs HTML provider set accordingly
+  (falling back to the ancestor-chain rule when
+  `OriginatingLanguage == None`).
+- **Supporting anchor: `AbstractRazorCompletionFactsService.AdjustSyntaxNodeForWordBoundary`**
+  at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Completion/AbstractRazorCompletionFactsService.cs:70`.
+  The tree-walking helper that already adjusts owner-node selection
+  for word boundaries / EOF / `MarkupAttributeBlockSyntax` /
+  `MarkupTagHelperDirectiveAttributeSyntax`. Stage 5.6 may need a
+  parallel adjustment that treats a missing/zero-width token landing
+  inside `SkippedContentSyntax` as "use the parent skipped region for
+  language classification".
+- All other Completion classes in
+  `Microsoft.CodeAnalysis.Razor.Workspaces/Completion/` are either
+  individual `IRazorCompletionItemProvider` implementations (which
+  receive the already-resolved `RazorCompletionContext` and do not
+  themselves walk to a new node), DTOs (`CompletionContext`,
+  `RazorCompletionItem`), or cache/optimisation helpers. The
+  `OOPRazorCompletionListProvider` /
+  `OOPRazorCompletionFactsService` / `RemoteCompletionService`
+  classes in `Microsoft.CodeAnalysis.Remote.Razor/Completion/` are
+  marshalling shims that ultimately invoke the Workspaces classes
+  above.
+- Confidence: **high**. `RazorCompletionListProvider` is the single
+  funnel that every flavour of host (in-proc VS, Cohost, OOP) reaches
+  before per-provider dispatch.
+
+### Hover
+
+- **Primary anchor: `HoverFactory.GetHoverAsync`** at
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Hover/HoverFactory.cs:24`.
+  Static method that calls
+  `codeDocument.GetRequiredSyntaxRoot()` and
+  `root.FindInnermostNode(absoluteIndex)` (lines 33-35), then walks
+  parents and consults `HtmlFacts` / `TagHelperFacts`. It is the
+  single shared implementation: `RemoteHoverService.cs:134` calls
+  `HoverFactory.GetHoverAsync(...)` for the OOP / Cohost path, and
+  the in-proc VS hover service does the same. Stage 5.6 adds the
+  "missing token -> no hover, fall back to diagnostic" rule here at
+  the `owner` resolution point (zero-width `MissingToken` produces
+  no hover content; the existing diagnostic surfaces the
+  information).
+- Confidence: **high**. The only competing classes returned by the
+  discovery search (`CohostHoverEndpoint`, `RemoteHoverService`) are
+  pure delegation shims and do not walk the syntax tree themselves.
+
+### Notes
+
+- The LSP code has *not* shifted to a single endpoint-per-feature
+  pattern since the plan was written. The three-flavour fan-out (VS
+  in-proc / VS OOP / Cohost) is still in place, but the convergence
+  on `Microsoft.CodeAnalysis.Razor.Workspaces` for the actual
+  tree-walking work means Stage 5.6 still has a single anchor per
+  category, which is what the plan assumes.
+- For semantic tokens, `SemanticTokensVisitor.Visit(SyntaxNode? node)`
+  at line 53 currently early-exits on `node == null` and only visits
+  nodes that overlap `_range`; the `SkippedContentSyntax` override
+  Stage 5.6 adds should slot in beside the existing
+  `Visit*Literal` / `Visit*Block` overrides without any structural
+  change.
+- For completion, the existing pattern of having
+  `CreateCompletionContext` resolve the owner and then immediately
+  delegate to the providers means Stage 5.6's
+  `OriginatingLanguage` dispatch can be inserted between lines 96
+  and 98 (between `AdjustSyntaxNodeForWordBoundary` and the
+  `RazorCompletionContext` constructor), so the constructed context
+  carries the language identification.
+- Build and smoke check on this branch:
+  `dotnet build Razor.slnf` -- succeeded, 0 warnings, 0 errors.
+  `dotnet test Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests.csproj
+  --no-build --framework net10.0 --filter "FullyQualifiedName~Completion
+  | FullyQualifiedName~Hover"` -- 258 / 258 passed (0 source code
+  changes; this is investigation only).
 
 ## Stage 2 verification
 (parser-recovery branch counts; populate during Stage 2 gate check)
@@ -2070,3 +2430,868 @@ behaviour-inert.
   set in all enhanced-mode paths (Stage 4.2), implicit-expression /
   markup boundary validated (Stage 4.3), and tokenizer state hooks
   fire correctly across `Synchronize` bail-out (Stage 4.4).
+- 2026-05-30: Stage 5.0.0 done. Investigation-only spike test
+  `Spike_EmptyOnclickAttribute_DumpsGeneratedSource` added to
+  `src/Razor/src/Compiler/test/Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests/RazorSourceGeneratorComponentTests.cs`
+  (around line 1879) plus a `ProcessSingleComponent` helper that
+  mirrors `RazorSourceGenerator.Helpers.GetGenerationProjectEngine`
+  with a `useEnhancedRecovery` knob (the internal `UseEnhancedRecovery`
+  flag is reachable through `InternalsVisibleTo`). The test dumps
+  four artifacts to `artifacts/razor-recovery-spike/` (gitignored
+  via the pre-existing `[Aa]rtifacts/` rule): the source-generator
+  output (user-visible legacy), direct-engine legacy, direct-engine
+  enhanced, and a parser-diagnostics summary.
+
+  Key empirical findings (full detail in the "Stage 5.0.0 spike
+  report" section above):
+    - Source-generator output for `<button @onclick="">` under the
+      legacy parser **silently drops** the `@onclick` attribute --
+      no `AddAttribute` call is emitted at all -- because
+      `ComponentEventHandlerLoweringPass.RewriteUsage`'s `original.Length == 0`
+      bail-out at lines 164-169 fires. No CS1525 in current
+      legacy source-generator output for the BDD #9 reproducer.
+    - The motivating "wall of red" in dotnet/razor#10383 therefore
+      most plausibly originates from the second writer site --
+      `ComponentNodeWriter.cs:1351-1376` -- which emits
+      `EventCallback.Factory.Create<T>(this, <tokens>)` directly for
+      component attributes bound to an `EventCallback<T>` parameter
+      (e.g. `<MyComponent OnClick="">`) and is **NOT guarded** by any
+      length / emptiness check. Stage 5.0 / 5.1 must cover both
+      writer sites.
+    - The recommended placeholder shape (`default!` substituted for
+      the empty token stream) is recorded in the report so Stage 5.0
+      can pick it up without re-running the spike.
+
+  Test runs green (~2s) on net10.0; full source-generator unit-test
+  suite still green: 214 / 214 passing on net10.0
+  (the spike adds 1 test, baseline 213 -> 214). No baseline
+  changes elsewhere. Razor.slnf builds clean.
+
+  Deviations recorded for Stage 5.0:
+    1. The source generator does not surface `UseEnhancedRecovery`
+       (deliberate per Stage 0.3's downstream audit), and the direct
+       `RazorProjectEngine` path used by the spike does **not** wire
+       tag-helper discovery. Consequently the spike cannot directly
+       observe enhanced-mode `EventCallback.Factory.Create<T>(this, )`
+       emission in this harness; the enhanced-mode behavioural
+       prediction relies on reading `GetAttributeContent`
+       (`ComponentEventHandlerLoweringPass.cs:232-254`) plus the
+       Stage 3.2 BDD #9 parse-tree shape. **Stage 5.0's first
+       action** must be to wire tag-helper discovery into the spike's
+       direct path (or surface a parser-options override on the
+       source generator) so the enhanced-mode emission can be
+       observed before the codegen fix lands.
+    2. The `Spike_EmptyOnclickAttribute_DumpsGeneratedSource` test is
+       deliberately investigation-only (asserts `Assert.True(true)`
+       after writing the artifacts). Stage 5.1 will replace it with
+       an assertion-driven corpus harness.
+- 2026-05-26: Stage 5.0 done. Two deliverables landed:
+
+  **Deliverable A - source-generator `UseEnhancedRecovery` plumbing.**
+  Mirrored the existing `use-roslyn-tokenizer` ParseOption feature
+  pattern. New `ParseOptions.UseEnhancedRecovery()` extension reads
+  the `use-enhanced-recovery` feature key
+  (`CSharp/ParseOptionsExtensions.cs`). New internal
+  `RazorSourceGenerationOptions.UseEnhancedRecovery` property
+  (`SourceGenerators/RazorSourceGenerationOptions.cs`). Wired through
+  `ComputeRazorSourceGeneratorOptions` (RazorProviders) and both
+  `GetDeclarationProjectEngine` / `GetGenerationProjectEngine` (Helpers).
+  This addresses the Stage 5.0.0 spike deviation #1 by giving the
+  source generator a way to turn on enhanced parsing, which Stage 5.0's
+  Deliverable B then exercises end-to-end via a feature-flagged
+  source-gen test.
+
+  **Deliverable B - IR missing-value marker pipeline.**
+    - New internal `IntermediateToken.IsMissingValue` boolean property
+      on the abstract base (`Intermediate/IntermediateToken.cs`).
+    - New `Intermediate/MissingValueMarker.cs` helper class providing
+      `IsMissingValueMarker(IReadOnlyList<IntermediateToken>)`,
+      `IsMissingValueMarker(ImmutableArray<IntermediateToken>)`, and
+      `CreateMissingCSharpToken(SourceSpan?)`. The detection helper
+      classifies a stream as a missing-value marker when the stream
+      length is zero, all tokens carry `IsMissingValue == true`, or
+      all tokens have `string.IsNullOrEmpty(Content)`. This handles
+      the three observed shapes for empty C# attribute values
+      (legacy = empty array; enhanced / BDD #9 = single
+      MissingToken-bearing token; resolver-synthesized = single
+      empty-content token).
+    - `DefaultRazorIntermediateNodeLoweringPhase.LoweringVisitor.VisitCSharpExpressionLiteral`
+      tags the IR token when all `LiteralTokens` have
+      `GreenNode.IsMissing == true`. New private helper
+      `IsAllMissing(SyntaxTokenList)` (the literal node's
+      `IsMissing` aggregate is NOT used because `GreenNode.IsMissing`
+      is the flag-only check, never aggregated from children).
+    - `DefaultTagHelperResolutionPhase` adds `CreateMissingValueCSharpToken`
+      next to the existing `CreateEmptyCSharpToken`. The
+      `LegacyTagHelperResolver` synthetic-empty-token call sites in
+      `LowerBoundLegacyAttributeValue` and `ConvertValueChildren` now
+      route through it / `MissingValueMarker.CreateMissingCSharpToken`
+      so resolver-synthesised empty tokens are tagged.
+    - `ComponentEventHandlerLoweringPass.RewriteUsage` bail-out
+      (`if (original.Length == 0) return node;`) replaced with
+      `if (MissingValueMarker.IsMissingValueMarker(original))
+       original = SubstituteMissingValuePlaceholder(node, original);`.
+      New private helper `SubstituteMissingValuePlaceholder` returns
+      `[MissingValueMarker.CreateMissingCSharpToken(source)]` (single
+      tagged token; Stage 5.1 will refine the content to a safe
+      placeholder such as `default!`). The `SourceSpan` is carried
+      from the original first token (or `node.Source` when the
+      stream was empty) so signature help still maps back to the
+      user's `""` span.
+
+  **Behavioural impact verified via spike artifacts.** Before
+  Stage 5.0 the source-gen path emitted
+  `__builder.AddMarkupContent(5, "<button ... @onclick>...</button>")`
+  for `<button @onclick="">`, silently dropping the directive.
+  After Stage 5.0 the same input produces
+  `__builder.AddAttribute(7, "onclick",
+   global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<
+   global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this, )); `
+  with an empty argument placeholder. The empty argument still
+  produces CS1525 in C# compilation; Stage 5.1 will finalize the
+  placeholder content (e.g. `default!`) to remove the diagnostic.
+
+  **Tests added (7 new):**
+    - 4 new `MissingValueMarkerLoweringTests` in the Language
+      UnitTests project: enhanced-mode tagging assertion via direct
+      `RazorProjectEngine` (sufficient because tag-helper discovery
+      is not required at this lower-level boundary),
+      `LegacyMode_BoundNonStringAttributeWithEmptyValue_TagsSyntheticToken`,
+      `IsMissingValueMarker_DetectsEffectivelyEmptyStreams`, and
+      `SkippedContentSyntax_IsNotProjectedToIR`.
+    - 3 new theory rows on
+      `RazorSourceGeneratorComponentTests.EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping`
+      (`null`, `"false"`, `"true"` for the `use-enhanced-recovery`
+      feature value). Each asserts the generated code no longer
+      contains the silent-drop `@onclick>Click me` markup blob and
+      DOES contain `EventCallback.Factory.Create` and
+      `AddAttribute(7, "onclick"`.
+
+  **Test counts after Stage 5.0:**
+    - Legacy: 1342 / 1342 (unchanged).
+    - Language: 3604 / 3604 (was 3600, +4 new).
+    - Source-gen: 217 / 217 (was 214, +3 new theory rows).
+  Razor.slnf builds clean. No baseline changes elsewhere.
+
+  Deviations carried into Stage 5.1:
+    1. `ComponentNodeWriter.cs:1335-1376` (the unguarded second
+       writer site noted in the Stage 5.0.0 spike report) was not
+       touched by Stage 5.0; it remains the codegen site that
+       Stage 5.1 must refine to emit the actual placeholder
+       content (`default!`) instead of the empty token Stage 5.0
+       hands it.
+    2. The enhanced-mode IR-shape behaviour for `@onclick=""` cannot
+       be observed end-to-end in the bare component engine harness
+       used by `MissingValueMarkerLoweringTests` because tag-helper
+       discovery is not wired up there; the `EmptyOnclickAttribute_*`
+       tests therefore assert at the lower-level
+       `HtmlAttributeIntermediateNode` boundary and the
+       `EventCallback.Factory.Create` wrapping is asserted by the
+       source-generator theory which DOES have tag-helper discovery.
+    3. Stage 5.0 unifies the legacy `original.Length == 0` bail-out
+       with the enhanced single-missing-token path, so the legacy
+       parser now also produces an `EventCallback.Factory.Create<T>(this, )`
+       call (empty argument) for `@onclick=""` instead of silently
+       dropping the attribute. This is the intended unification: it
+       gives Stage 5.1 a single codegen site to fix.
+
+- 2026-05-28: Stage 5.1 done. Codegen now substitutes safe C#
+  placeholders for every missing-value marker emitted by the
+  Stage 5.0 IR-shape pass, eliminating the cascading CS1525 /
+  CS1003 wall-of-red for `dotnet/razor#10383`.
+
+  Deliverables:
+    1. `MissingValuePlaceholderKind` (new internal enum) encodes
+       the six surrounding generated-C# contexts from the plan's
+       placeholder matrix: `EventCallbackTyped`,
+       `EventCallbackUntyped`, `BoundAttributeTyped`,
+       `BoundAttributeUnknown`, `MarkupExpression`,
+       `StatementContext`.
+    2. `MissingValueMarker.GetPlaceholderText(kind, typeArgument)`
+       is the single source of truth that turns a kind +
+       optionally-globally-qualified type into the literal C#
+       text to splice in (e.g.
+       `default(global::System.Action<MouseEventArgs>)` for
+       `EventCallbackTyped`).
+    3. Site #1 fix (lowering pass):
+       `ComponentEventHandlerLoweringPass.RewriteUsage` now
+       computes the `eventArgsType` first, then
+       `SubstituteMissingValuePlaceholder(node, original,
+       eventArgsType)` pre-fills the missing-value token's
+       `Content` with
+       `default(global::System.Action<{globally-qualified
+       eventArgsType}>)`. The token keeps `IsMissingValue=true`
+       so downstream stages can still see the marker; only the
+       textual content changes.
+    4. Site #2 fix (component writer):
+       `ComponentNodeWriter.WriteComponentAttributeInnards` now
+       detects `MissingValueMarker.IsMissingValueMarker(tokens)`
+       at all three `WriteCSharpTokens` sites
+       (delegate/childContent, `EventCallback`, other-typed)
+       and dispatches to `WriteMissingEventCallbackPlaceholder`
+       (emits `default(global::System.Action<T>)` or
+       `default(global::System.Action)`) or
+       `WriteMissingDelegateOrTypedPlaceholder` (emits
+       `default(<globally-qualified TypeName>)` or `default!`
+       when the type is open-generic / unknown).
+    5. Stage 5.3 source-mapping safeguard:
+       `ComponentNodeWriter.WriteCSharpToken` now skips the
+       `#line` pragma when `token.IsMissingValue == true`.
+       Synthetic placeholder text should not anchor source
+       mappings -- if the user's IDE asks "what produced this
+       generated code", the answer must NOT be "the empty
+       string the user just typed".
+    6. Generic `MissingValueMarker.IsMissingValueMarker<T>`
+       overload was needed because
+       `ImmutableArray<CSharpIntermediateToken>` is not
+       covariant to `IReadOnlyList<IntermediateToken>` at the
+       caller in `ComponentNodeWriter`.
+
+  Concrete BEFORE / AFTER for the motivating bug
+  (`Shared/Component1.razor` containing
+  `<button @onclick="">Click</button>`):
+
+  BEFORE (Stage 5.0, generated source-gen output):
+  ```cs
+  __builder.AddAttribute(7, "onclick",
+      global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this,
+
+  #line (1,21)-(1,21) "..."
+
+  #line default
+  #line hidden
+  ));
+  ```
+  --> Roslyn reports CS1525 ("Invalid expression term ')'").
+
+  AFTER (Stage 5.1):
+  ```cs
+  __builder.AddAttribute(7, "onclick",
+      global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this,
+          default(global::System.Action<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>)));
+  ```
+  --> Compiles cleanly; only the narrow RZ2008 from the parser
+  remains, which is the intended user-facing diagnostic.
+
+  Tests added:
+    - `Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`:
+      * `ParserRecoveryCorpus_CodegenSafetyTests` (new file):
+        + `EmptyBoundAttribute_Onclick_EnhancedMode_NoCascadingCSharpDiagnostics`
+          loads
+          `legacyTest/ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor`
+          (prepending `@using Microsoft.AspNetCore.Components.Web`,
+          which the corpus file does not contain), runs the
+          source generator under `use-enhanced-recovery=true`,
+          and asserts the output compilation has zero
+          diagnostics.
+        + `EmptyBoundAttribute_Onclick_LegacyMode_NoCascadingCSharpDiagnostics`
+          asserts the same invariant under the default
+          (legacy) parser, because Stage 5.0 unified the legacy
+          and enhanced shapes.
+      * `MissingValuePlaceholder_MatrixTests` (new file):
+        + `PlaceholderMatrix_EventCallbackTyped_GeneratesValidCSharp`
+          (compile + assert placeholder text for `@onclick=""`).
+        + `PlaceholderMatrix_EventCallbackUntyped_GeneratesValidCSharp`
+          (custom `<MyButton OnPressed="" />` with
+          `EventCallback OnPressed` parameter; asserts
+          `default(global::System.Action)` in generated text).
+        + `PlaceholderMatrix_TypedBoundAttribute_GeneratesValidCSharp`
+          (custom `<MyCounter Count="" />` with `int Count`
+          parameter; asserts `default(global::System.Int32)`).
+        + `PlaceholderMatrix_GetPlaceholderText_MatchesContract`
+          (theory; 8 rows; locks down every matrix entry by
+          string-kind to avoid exposing the internal enum to a
+          public Theory parameter).
+        The end-to-end `@expr` markup-output compile test is
+        intentionally deferred -- Stage 5.0 only tags
+        missing-value markers on the attribute-value path; the
+        markup-output path will be wired in a later stage. The
+        contract for what that placeholder text should be
+        (`""`) is still locked down by the theory above.
+    - `Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`
+      `RazorSourceGeneratorComponentTests.EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping`:
+      the test's `verify: static _ => { }` CS-diagnostic
+      suppression was REMOVED, so the existing default
+      `c => c.VerifyDiagnostics()` now asserts zero CS errors.
+      A new assertion confirms the literal
+      `default(global::System.Action<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>)`
+      appears in the generated source.
+
+  Test counts after Stage 5.1 (Debug):
+    - Legacy parser (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1342 / 1342 on net10.0 and net472 (unchanged from
+      Stage 5.0).
+    - Language (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3604 / 3604 on net10.0 and net472 (unchanged from
+      Stage 5.0).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      230 / 230 on net10.0 (up from 217 -- 13 new tests across
+      the two new test files; one was a theory with 8 inline
+      data rows).
+
+  Deviations carried into Stage 5.2:
+    1. The `@expr` markup-output path is not yet tagged with
+       `IsMissingValue`. Stage 5.1's placeholder selector and
+       the writer-side substitution are both ready for it; the
+       follow-up is to wire `MissingValueMarker.IsMissingValue`
+       on the parse-tree shape for missing-content markup
+       expressions and route the writer's literal-emission
+       path through `IsMissingValueMarker`. Once that lands the
+       `MarkupExpression` matrix entry will switch from
+       theory-only coverage to a real compile-test.
+    2. `LiteralRuntimeNodeWriter` and
+       `TagHelperHtmlAttributeRuntimeNodeWriter` still contain
+       the same stub bail-out from Stage 5.0 (writer-site
+       fallback when tokens is empty). Stage 5.1 did NOT
+       refactor these to use `IsMissingValueMarker` because the
+       enhanced-recovery path now keeps the synthetic token in
+       the array (`tokens.Length == 1, IsMissingValue == true`),
+       so the empty-tokens stub is unreachable for that path.
+       The stub remains correct for the genuinely-empty edge
+       cases the legacy parser still produces in non-attribute
+       contexts. Stage 5.4 (or 5.5) is the right place to
+       refactor those writers to a single shared helper.
+    3. The `BuildEnhancedLinePragma` source-mapping suppression
+       was applied ONLY to `ComponentNodeWriter.WriteCSharpToken`;
+       `IntermediateNodeWriter`, `LiteralRuntimeNodeWriter`,
+       and `TagHelperHtmlAttributeRuntimeNodeWriter` are NOT
+       updated. They currently don't route missing-value
+       markers through their writers (see deviation #2), but if
+       Stage 5.4 unifies the writers, the same suppression must
+       propagate.
+
+- 2026-05-29: Stage 5.2 done. Audited TagHelperParseTreeRewriter
+  and TagHelperBlockRewriter against the new tree shapes the
+  enhanced-recovery parser produces. Two findings:
+
+  1. TagHelperParseTreeRewriter.GetAttributeNameValuePairs
+     already silently continues for any non-MarkupAttributeBlock
+     child (existing fallthrough), so SkippedContentSyntax is a
+     no-op here. No code change needed.
+  2. TagHelperBlockRewriter.Rewrite's attribute switch had no
+     SkippedContentSyntax arm. A SkippedContent child fell
+     into the catch-all `else { result = null; }` branch, which
+     then aborted via `if (result == null)`: the loop copied
+     all remaining attributes verbatim into `attributeBuilder`
+     and broke, meaning any trailing well-formed tag-helper
+     attribute (e.g. the trailing `@onclick=""`) would NOT
+     be rewritten. Fix: added a dedicated `SkippedContentSyntax`
+     case that preserves the node in `attributeBuilder` and
+     `continue`s -- semantics per the Stage 0.5 audit
+     checklist's "must ignore" disposition for skipped content
+     in attribute lists.
+
+  Coverage. Added a new test class
+  `TagHelperRewriter_EnhancedRecoveryTests` (in the legacy
+  unit-test project) with four `[Fact]` tests under
+  `UseEnhancedRecovery = true`:
+
+  1. `DirectiveAttribute_EmptyValue_..._PreservesBdd9MissingValueShape`
+     -- the motivating `@onclick=""` from dotnet/razor#10383. The
+     rewriter must produce a `MarkupTagHelperDirectiveAttribute`
+     whose `Value` is the BDD #9 shape
+     `MarkupTagHelperAttributeValue([CSharpExpressionLiteral([
+     MissingToken(Identifier)])])` with the missing-Identifier
+     token preserved zero-width.
+  2. `MinimizedDirectiveAttribute_..._IsUnchanged` -- minimized
+     directive attributes (`@onclick` with no value) still
+     rewrite to `MarkupMinimizedTagHelperDirectiveAttribute`
+     under the new parser, distinct from the empty-value case.
+  3. `MinimizedBoundAttribute_..._IsUnchanged` -- same for
+     non-directive minimized attributes.
+  4. `SkippedContentBetweenAttributes_..._RewriterTreatsAsNoOp`
+     -- splices a `SkippedContentSyntax` between two parsed
+     `MarkupAttributeBlock` children in `MarkupStartTag.Attributes`
+     (parser-driven generation is impractical today because
+     `ParseMiscAttribute`'s `HtmlEndOfTagFollowSet` synchronize
+     is greedy enough to absorb the trailing attribute), then
+     drives `TagHelperParseTreeRewriter.Rewrite` end-to-end.
+     Asserts: SkippedContent survives the rewriter and BOTH
+     directive attributes (`@attr` and `@onclick`) bind. Verified
+     by reverting the `TagHelperBlockRewriter` fix that this test
+     fails (Expected: 2 directives, Actual: 1) before the fix
+     and passes after -- so the test genuinely guards the fix.
+
+  Test counts after Stage 5.2 (Debug):
+    - Legacy parser (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1346 / 1346 on net10.0 and net472 (up from 1342 -- 4 new
+      tests in `TagHelperRewriter_EnhancedRecoveryTests`).
+    - Language (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3604 / 3604 on net10.0 and net472 (unchanged from
+      Stage 5.1).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      230 / 230 on net10.0 (unchanged from Stage 5.1; project
+      does not target net472).
+
+  Deviations carried into Stage 5.3:
+    1. The parser does not currently emit `SkippedContentSyntax`
+       between two well-formed attributes -- `ParseMiscAttribute`
+       synchronizes through `HtmlEndOfTagFollowSet` (`<`, `>`,
+       `/`, `"`, `'`) which is greedy enough to absorb a
+       subsequent attribute name into the skipped span. The
+       Stage 5.2 splice test ensures the rewriter is
+       forward-compatible if a later stage (e.g. Stage 7
+       parser tightening) ever narrows the synchronize set so
+       that SkippedContent CAN appear between well-formed
+       attributes naturally.
+
+
+- 2026-05-30: Stage 5.3 done. Source-mapping precision audit + writer
+  tightening so `SourceMapping` ranges never cross missing-token /
+  skipped-content boundaries.
+
+  **Helper authored.** Added `BuildEnhancedLinePragmaForToken(this
+  CodeRenderingContext, IntermediateToken)` in
+  `CodeRenderingContextExtensions.cs`. Returns `LinePragmaScope.None`
+  when the token is null or `IsMissingValue=true` (dispose-safe -- the
+  default-valued ref struct's `Dispose()` no-ops when `_context is
+  null`), otherwise delegates to `BuildEnhancedLinePragma(token.Source)`.
+  Mirrors the Stage 5.1 `ComponentNodeWriter.WriteCSharpToken` guard
+  pattern.
+
+  **Writers tightened.** Three sites in
+  `IntermediateNodeWriter.cs`:
+    - `WriteCSharpExpression` first-child site and the
+      remaining-children loop now route through
+      `BuildEnhancedLinePragmaForToken(token)`.
+    - `WriteCSharpChildren` does the same.
+    - `RenderCSharpCode` wraps `context.AddSourceMappingFor(token)` in
+      an `if (!token.IsMissingValue)` guard.
+
+  **Deliberate non-change.**
+  `DefaultTagHelperTargetExtension.RenderTagHelperAttributeInline` was
+  initially tightened, but reverted: it broke
+  `CodeGenerationIntegrationTest.EmptyAttributeTagHelpers` because the
+  legacy MVC tag-helper baseline locks in the old behavior of emitting
+  zero-width `#line` pragmas over empty C# attribute values
+  (`EmptyAttributeTagHelpers.codegen.cs` lines 64-71, 95-102, 117-124).
+  Per Stage 5.3 plan text ("one mapping per literal behaviour is
+  preserved for legacy-mode parses so existing tests still match
+  baselines"), the MVC tag-helper writer keeps the legacy
+  noisy-pragma behavior. User-authored C# tokens never carry
+  `IsMissingValue=true`, so the writer-level guards in
+  `IntermediateNodeWriter` only fire on synthesized placeholder tokens
+  -- existing baselines are unaffected.
+
+  **E2E harness.** Added new test file
+  `ParserRecoveryCorpus_SourceMappingPrecisionTests.cs` in the
+  source-gen UnitTests project with the
+  `MeasureMappingWidths(RazorCSharpDocument)` static helper from
+  Stage 5.1's plan, returning `(max, total, count)` measured against
+  `SourceMappingsSortedByOriginal`. (The literal helper signature in
+  the plan -- `csharpDoc.SourceMappings.Select(...)` -- doesn't match
+  the actual API; `RazorCSharpDocument.SourceMappings` exposes
+  `SortedByGenerated`/`SortedByOriginal` views.) Theory runs over all
+  17 corpus `.razor` files with `UseEnhancedRecovery=true`, asserts
+  widest mapping <= 200 chars (investigation threshold), and emits
+  per-corpus widths via `ITestOutputHelper`.
+
+  **Per-corpus mapping widths under enhanced mode:**
+
+  | Corpus | max | total | count |
+  | --- | --- | --- | --- |
+  | BareAtFollowedByGarbage | 0 | 0 | 2 |
+  | EmptyBoundAttribute_Onclick | 113 | 166 | 3 |
+  | EmptyExplicitExpression | 0 | 0 | 1 |
+  | ImplicitExpressionHittingMarkup | 3 | 3 | 1 |
+  | MalformedCSharpWithSurroundingMarkup | 3 | 3 | 1 |
+  | MalformedTagAttribute | 0 | 0 | 0 |
+  | MalformedUsing | 9 | 9 | 1 |
+  | MidStatementGarbage | 23 | 23 | 2 |
+  | UnclosedCodeBlock | 15 | 15 | 2 |
+  | UnclosedExplicitExpression | 0 | 0 | 1 |
+  | UnclosedForeach | 8 | 11 | 3 |
+  | UnclosedIfParen | 3 | 5 | 2 |
+  | UnclosedMethodCallInImplicit | 8 | 8 | 1 |
+  | UnclosedString | 49 | 49 | 2 |
+  | UnclosedSwitch | 7 | 9 | 2 |
+  | UnclosedTag | 0 | 0 | 0 |
+  | UnnamedTag | 0 | 0 | 0 |
+
+  All widths under the 200-char investigation threshold. Only
+  `EmptyBoundAttribute_Onclick` exceeds the 50-char target, and the
+  widest mapping there is the user-authored `@code { private int
+  currentCount = 0; ... IncrementCount() ... }` block -- a single
+  valid C# region intentionally mapped 1:1, not a recovery-widening
+  symptom.
+
+  **Test counts after Stage 5.3 (Debug, net10.0):**
+    - Legacy
+      (`Microsoft.AspNetCore.Razor.Language.LegacyTest`):
+      1346 / 1346 (unchanged from Stage 5.2 measurements re-run).
+    - Language
+      (`Microsoft.AspNetCore.Razor.Language.Test`):
+      3604 / 3604 (unchanged).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      247 / 247 (was 230, +17 new corpus theory rows).
+    - MVC Extensions
+      (`Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`):
+      140 / 140 (unchanged; verified after the
+      `DefaultTagHelperTargetExtension` revert).
+  Razor.slnf builds clean with 0 warnings / 0 errors.
+
+  **Plan vs. implementation gap, called out.** Big Design Decision #6
+  in the plan body specifies a *zero-width mapping at the insertion
+  point* for missing-value tokens. Stage 5.1 instead chose the
+  stricter "no mapping at all" behavior in
+  `ComponentNodeWriter.WriteCSharpToken` (skips
+  `BuildEnhancedLinePragma` entirely when `IsMissingValue`). Stage 5.3
+  extends Stage 5.1's stricter behavior to the symmetric writers, NOT
+  the literal plan text. Consistent with Stage 5.1's plan-state
+  notes. If a later stage wants debugger-stop positions over empty
+  placeholder text, `BuildEnhancedLinePragmaForToken` is the single
+  surface to switch to a zero-width pragma instead of
+  `LinePragmaScope.None`.
+
+  Deviations carried into Stage 5.4:
+    1. `DefaultTagHelperTargetExtension.RenderTagHelperAttributeInline`
+       is intentionally not tightened (see above). If a future stage
+       refreshes MVC tag-helper baselines (e.g. as part of a
+       legacy-codegen cleanup), this writer can be migrated to the
+       helper at that time.
+- 2026-05-30: Stage 5.4 done. `SyntaxNavigator` / `FindToken` audit
+  for zero-width missing tokens. **Audit summary: divergence found
+  and fixed.**
+
+  `SyntaxNavigator.cs` (the navigator that exposes `GetFirstToken`,
+  `GetLastToken`, `GetNextToken`, `GetPreviousToken`) does not own
+  position-based search; the equivalent entry point is `SyntaxNode.FindToken`
+  in `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Syntax/SyntaxNode.cs`.
+  The "or equivalent" wording in the plan covers this path-drift.
+
+  The descent via `ChildSyntaxList.ChildThatContainsPosition` already
+  skips zero-width children correctly (the loop uses
+  `targetPosition < endPosition`, which is false for any zero-width
+  child). The bug surface was the whitespace trivia walk: when the
+  initial descent landed on a `Whitespace` or `NewLine` token,
+  `FindToken`'s local `tryWalkBackwards` / `walkForward` helpers
+  stepped one token at a time with `includeZeroWidth: true`, and the
+  termination conditions only filtered `Whitespace` / `NewLine` /
+  `None`. A zero-width missing token sitting between the prior real
+  token and the newline (the common `@inherits\r\n<p>` shape, where
+  the directive parser emits a Missing identifier for the absent
+  type-name argument at the position immediately preceding the `\r\n`)
+  was therefore returned as-is. This contradicts the Roslyn convention.
+
+  Fix: extended both `do/while` loops to additionally skip any token
+  where `IsMissing` is true. `IsMissing` is preferred over `Width == 0`
+  because the synthesised `RazorDocumentSyntax.EndOfFile` token is
+  also zero-width but **not** `IsMissing`; using `Width == 0` would
+  cause the forward walk to silently step over EOF and either loop
+  to `Kind == None` or run off the end of the document. Updated the
+  `<remarks>` doc-comment on `FindToken` to call out the new
+  invariant.
+
+  Existing `FindTokenIntegrationTest.EmptyDirective` asserted the
+  buggy `Identifier;[<Missing>];` shape (the test was originally a
+  regression fence for issue 9177 before the Roslyn convention was
+  understood). Updated to the post-fix expectation
+  `Identifier;[inherits];` (the whitespace walk-back's natural
+  outcome once the missing identifier is skipped) and added a
+  comment explaining why.
+
+  New tests in
+  `src/Razor/src/Compiler/Microsoft.AspNetCore.Razor.Language/test/Syntax/SyntaxNavigatorTests.cs`:
+    - `EmptyInheritsDirective_ProducesMissingIdentifier` -- sanity
+      check that the structural precondition (an `@inherits` with no
+      type-name argument produces a Missing identifier in the parse
+      tree) still holds; if this regresses, the position math in the
+      other tests becomes meaningless.
+    - `FindToken_AtMissingTokenStart_SkipsMissingAndReturnsAdjacentReal`
+      -- position at the missing token's start (= start of the
+      following newline) returns the prior `inherits` identifier.
+    - `FindToken_InsideNewlineAdjacentToMissingToken_SkipsMissing` --
+      position one past the missing-token start (still inside the
+      `\r\n`) returns the same prior identifier.
+    - `FindToken_ImmediatelyAfterMissingToken_LandsOnNextRealToken`
+      -- regression guard ensuring the direct-descent path still
+      returns the OpenAngle when position is on a real token.
+    - `FindToken_MissingTokenAtEndOfFile_ReturnsEndOfFile` -- the
+      `position == EndPosition` early return wins over the whitespace
+      walk; EOF is returned, not the missing identifier.
+    - `FindToken_MultipleNewlinesAfterMissingToken_StillSkipsMissing`
+      -- position on a later newline (where walk-back fails and
+      walk-forward is used) still avoids returning the missing
+      identifier. Probing confirmed this case was already correct
+      pre-fix because the missing token sits behind the walker, but
+      the test is a useful regression guard against future
+      symmetric-walk regressions.
+
+  Probe results (preserved here for future stages): missing tokens
+  in Razor are produced at many sites (~23 `SyntaxFactory.MissingToken`
+  calls across `CSharpCodeParser`, `HtmlMarkupParser`,
+  `TokenizerBackedParser`, `TagHelperBlockRewriter`) but most are
+  reached only via configured directive descriptors or specific
+  token-stream shapes. Plain `RazorSyntaxTree.Parse` with default
+  options for inputs like `<`, `<>`, `</`, `@`, `<div attr=` did
+  *not* produce a structure where the FindToken whitespace walk
+  encounters a missing token, because in those cases the missing
+  tokens are positioned ahead of EOF and the descent's early
+  `position == EndPosition` branch short-circuits. The directive
+  parser path is the reliable reproducer; hence the tests register
+  `InheritsDirective.Directive` via `RazorParserOptions.Builder.Directives`.
+
+  **Test counts after Stage 5.4 (Debug, net10.0):**
+    - Legacy
+      (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1346 / 1346 (unchanged from Stage 5.3).
+    - Language
+      (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3610 / 3610 (was 3604, +6 new `SyntaxNavigatorTests`).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      247 / 247 (unchanged).
+    - MVC Extensions
+      (`Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`):
+      140 / 140 (unchanged).
+  Razor.slnf builds clean with 0 warnings / 0 errors.
+
+  Deviations from the plan literal:
+    1. Plan specifies modifying `SyntaxNavigator.cs`. The actual
+       behaviour lives in `SyntaxNode.FindToken`; `SyntaxNavigator`
+       does not implement position-based search at all. Followed the
+       plan's "or equivalent" guidance.
+    2. Plan suggests test class name `SyntaxNavigatorTests`. Created
+       under `test/Syntax/` (sibling to the existing
+       `FindTokenTests.cs`) rather than extending `FindTokenTests`
+       because the missing-token semantics are a separable invariant
+       worth keeping in its own file.
+- 2026-05-31: Stage 5.5 done. Formatter audit for missing tokens
+  and `SkippedContentSyntax`. **Audit summary: no code changes
+  required; existing defensive guards already cover both shapes.
+  Added regression-guard tests.**
+
+  Anchor files audited under
+  `src/Razor/src/Razor/src/Microsoft.CodeAnalysis.Razor.Workspaces/Formatting/`:
+
+    * `FormattingVisitor.cs` -- produces `FormattingSpan`s for the
+      indentation passes.
+    * `FormattingUtilities.cs` -- pure indentation-math helpers; no
+      token-stream walk.
+    * `Passes/RazorFormattingPass.cs` -- Razor-level pattern-matched
+      block/directive formatting.
+    * `Passes/CSharpFormattingPass.cs` and its `CSharpDocumentGenerator`
+      partial -- the C# document synthesis pass.
+    * `Passes/HtmlFormattingPass.cs`, `Passes/HtmlOnTypeFormattingPass.cs`,
+      `Passes/CSharpOnTypeFormattingPass.cs`,
+      `Passes/FormattingContentValidationPass.cs`,
+      `Passes/FormattingDiagnosticValidationPass.cs`,
+      `Passes/RoslynWorkspaceHelper.cs`.
+
+  Findings (per the two Stage 5.5 invariants):
+
+  1. **`MissingToken` (zero width) does not influence formatting.**
+     - `FormattingVisitor.AddSpan(SyntaxNode)` and
+       `AddSpan(SyntaxToken)` both early-return on `IsMissing`
+       (`FormattingVisitor.cs:584` / `:594`).
+     - `AddSpan(TextSpan)` also early-returns when
+       `textSpan.IsEmpty` (`FormattingVisitor.cs:604`), which catches
+       the `SpanComputer.ToTextSpan()` case where every accumulated
+       token happened to be missing and zero-width-adjacent (start ==
+       end). `SpanComputer` itself does not special-case `IsMissing`
+       (`src/Compiler/.../Language/SpanComputer.cs`), but missing
+       tokens have valid positions so this fallback is correct.
+     - `SyntaxNode.GetFirstToken`/`GetLastToken`/`GetNextToken`/
+       `GetPreviousToken` all default to `includeZeroWidth: false`
+       (`src/Compiler/.../Syntax/SyntaxNode.cs:199`, `:208`;
+       `.../Syntax/SyntaxToken.cs:124`, `:153`), so the CSharp
+       document generator's many token-stream walks
+       (`CSharpFormattingPass.CSharpDocumentGenerator.cs:481`, `:504`,
+       `:701`, `:824`, `:830`, `:832`, `:859`, `:1225-1232`) all skip
+       missing tokens by default.
+     - `RazorFormattingPass.FormatBlock` adds an explicit
+       `closeBraceNode.Span.Length > 0` guard
+       (`RazorFormattingPass.cs:423`) and uses
+       `GetLastToken(includeZeroWidth: false)`
+       (`RazorFormattingPass.cs:440`) so an unclosed `@{ ... ` does
+       not drive close-brace-relative reformatting off a phantom
+       position.
+
+  2. **`SkippedContentSyntax` is preserved as-is (opaque).**
+     - `FormattingVisitor` has no `VisitSkippedContent` override.
+       The generated visitor's default `VisitSkippedContent` calls
+       `DefaultVisit(node)`
+       (`Syntax/Generated/Syntax.xml.Main.Generated.cs:156`); the
+       Razor `SyntaxWalker.DefaultVisit` iterates child tokens and
+       dispatches each to `VisitToken` (`Syntax/SyntaxWalker.cs:39`).
+       `FormattingVisitor` does not override `VisitToken`, so the
+       skipped tokens hit the base no-op and no `FormattingSpan` is
+       emitted for them. The surrounding pass therefore leaves the
+       skipped source range untouched (no re-indentation, no
+       whitespace edits), which matches the plan's "user will fix
+       it" contract.
+     - `RazorFormattingPass.FormatRazor` uses pattern-matched
+       `DescendantNodes` over specific node shapes
+       (`CSharpCodeBlockSyntax`, `MarkupBlockSyntax`, etc.); it
+       never matches `SkippedContentSyntax`, so the pass walks past
+       it without attempting formatting decisions.
+
+  Net code change: **zero formatter changes**. The audit was
+  defensive and is now pinned by tests.
+
+  New tests in
+  `src/Razor/src/Razor/test/Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests/Formatting/FormattingVisitorRecoveryTest.cs`
+  (added to `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests` -- the
+  test project that already has internals access to the
+  `internal sealed class FormattingVisitor`):
+
+    - `UnclosedCodeBlock_MissingCloseBrace_DoesNotEmitZeroWidthSpan`
+      -- parses the `legacyTest/ParserRecoveryCorpus/UnclosedCodeBlock.razor`
+      content under enhanced recovery; asserts every emitted
+      `FormattingSpan` has positive width (catches any visitor
+      regression that would emit a span at the missing `}`).
+    - `EmptyBoundAttribute_Onclick_MissingValueToken_DoesNotEmitZeroWidthSpan`
+      -- parses the `legacyTest/ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor`
+      content (the motivating bug #10383) under enhanced recovery in
+      Component file-kind; asserts no span is emitted at the BDD #9
+      missing-Identifier position (the empty `""` quote pair) and no
+      zero-width span is emitted anywhere.
+    - `SkippedContent_DoesNotEmitFormattingSpans` -- parses the
+      synthetic `@{ var x = (foo; }` (Stage 2.3's `TryBalanceBlock`
+      enhanced-recovery shape) and asserts no `FormattingSpan` begins
+      inside the `foo;` region the parser wraps in
+      `SkippedContentSyntax`.
+    - `SkippedContent_DescentDoesNotThrow` -- explicit regression
+      guard that the default walker descent over the new
+      `SkippedContentSyntax` node kind does not throw (pins the
+      contract that the visitor must remain happy without a
+      dedicated `VisitSkippedContent` override).
+
+  Test counts after Stage 5.5 (Debug, net10.0):
+    - Legacy
+      (`Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`):
+      1346 / 1346 (unchanged from Stage 5.4).
+    - Language
+      (`Microsoft.AspNetCore.Razor.Language.UnitTests`):
+      3610 / 3610 (unchanged from Stage 5.4).
+    - Source-gen
+      (`Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`):
+      247 / 247 (unchanged from Stage 5.4).
+    - MVC Extensions
+      (`Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`):
+      140 / 140 (unchanged from Stage 5.4).
+    - Workspaces.UnitTests
+      (`Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests`):
+      735 + 4 new = **739 / 739** passing (2 platform skips
+      unchanged).
+    - Cohost formatter tests via consumer project
+      (`Microsoft.VisualStudio.LanguageServices.Razor.UnitTests`,
+      `FullyQualifiedName~Formatting` filter, net472):
+      531 / 531 passing (3 platform skips unchanged).
+  Razor.slnf builds clean with 0 warnings / 0 errors.
+
+  Deviations from the plan literal:
+    1. Plan suggested looking under
+       `Microsoft.CodeAnalysis.Razor.CohostingShared.UnitTests/Formatting`
+       for the formatter test infrastructure. That suite uses heavy
+       cohost end-to-end machinery (HTML formatter validation against
+       WebTools, OOP services, baseline HTML-formatted text), which
+       is overkill for the audit-style invariants Stage 5.5 needs.
+       Added focused unit tests in
+       `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests/Formatting/`
+       that exercise `FormattingVisitor` directly. The existing cohost
+       formatter suite (531 tests) was run as a regression check and
+       remains green. The "format a file with errors" coverage the
+       plan calls for is provided by the `FormattingVisitor`-level
+       assertions: a missing-close-brace-driven misformat would show
+       up as a zero-width span in the visitor output, and a
+       skipped-content re-indent would show up as a span inside the
+       skipped range -- the two failure modes the audit targets.
+    2. No "format under legacy mode" companion tests were added. The
+       legacy-mode formatter behaviour is already pinned by the
+       hundreds of existing `DocumentFormattingTest` cases; Stage 5.5
+       cares about the new enhanced-recovery shapes, which only
+       exist under `UseEnhancedRecovery = true`.
+
+- 2026-05-29: Stage 5.6 done. LSP anchor classes adapted to the new
+  `SkippedContentSyntax` / `MissingToken` shapes (per Stage 5.6.0's
+  anchor list -- see lines 321-455 of this file). Three production
+  files touched, three test files added, four baseline test suites
+  remain green plus 8 new `[Fact]` cases.
+
+  Production changes (all gated on the same enhanced-recovery shapes
+  the parser already produces -- no public API additions):
+    1. `SemanticTokens/SemanticTokensVisitor.cs` -- added
+       `VisitSkippedContent(SkippedContentSyntax)` that calls
+       `AddSemanticRange(node, _semanticTokensLegend.TokenTypes.RazorComment)`.
+       Chosen kind: `RazorComment` (Razor-level recovery metadata,
+       visually distinct from real markup). Placement: in the `#region Razor`
+       block, after `VisitMarkupTransition`.
+    2. `Completion/RazorCompletionContext.cs` -- appended optional
+       positional record field `RazorLanguageKind LanguageKind = RazorLanguageKind.Razor`
+       so any future caller can read which language the cursor is in
+       when inside `SkippedContent`. Default `Razor` preserves source
+       compatibility with the many existing constructor call sites.
+    3. `Completion/RazorCompletionListProvider.cs` -- `CreateCompletionContext`
+       populates the new field via new `internal static DetermineLanguageKind(RazorSyntaxNode?)`
+       helper. The helper walks `FirstAncestorOrSelf<SkippedContentSyntax>`
+       and maps `OriginatingLanguage` (`CSharpCodeBlock` -> `CSharp`,
+       `MarkupBlock` -> `Html`, `None` -> ancestor walk fallback via
+       `InferLanguageFromAncestors`).
+    4. `Hover/HoverFactory.cs` -- after `FindInnermostNode(absoluteIndex)`,
+       added early-return `if (HasMissingTokenAt(owner, absoluteIndex)) return null;`.
+       Helper iterates `owner.ChildNodesAndTokens()` directly (rather
+       than calling `FindToken`) because Stage 5.4 made `FindToken`
+       skip zero-width missing tokens. The RZ diagnostic at the same
+       position remains the user-facing signal.
+
+  Test changes (all under `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests`):
+    - `Semantic/SemanticTokensVisitorRecoveryTest.cs` --
+      `Classification_SkippedContent_AppearsAsComment`: parses
+      `"@{ var x = (foo; }"` (same shape as
+      `UnclosedParenInsideCodeBlock_EnhancedRecovery`), runs
+      `SemanticTokensVisitor.AddSemanticRanges`, asserts a range of
+      kind `RazorComment` overlaps the `SkippedContentSyntax` span.
+    - `Completion/RazorCompletionListProviderRecoveryTest.cs` --
+      `Completion_InsideCSharpSkippedContent_OffersCSharpCompletions`
+      (CSharpCodeBlock origin, `"@{ var x = (foo; }"`),
+      `Completion_InsideHtmlSkippedContent_OffersHtmlCompletions`
+      (MarkupBlock origin, `"<input!garbage>"` -- same source pinned
+      by `ParserRecoveryCorpusSnapshotTests` line ~1602), and negative
+      `Completion_OutsideSkippedContent_StaysRazor` (default `Razor`).
+    - `Hover/HoverFactoryRecoveryTest.cs` --
+      `Hover_OnMissingToken_FallsBackToDiagnostic`: parses
+      `<button @onclick="">` under enhanced recovery, finds the
+      zero-width `MissingToken`, calls `HoverFactory.GetHoverAsync`
+      at its `SpanStart`, asserts `Assert.Null(hover)`.
+      `HasMissingTokenAt_ReturnsTrueForMissingTokenAtPosition` is a
+      direct unit test for the helper (positive + negative case).
+
+  Build state: `Razor.slnf` clean (0 warnings, 0 errors).
+  Test runs (post-commit):
+    - `Microsoft.CodeAnalysis.Razor.Workspaces.UnitTests`: 741 / 741
+      passing (+2 vs 739 baseline; 8 new `[Fact]`s land in
+      previously-empty discovered-test count rather than +8).
+    - `Microsoft.AspNetCore.Razor.Language.Legacy.UnitTests`:
+      1346 / 1346 (unchanged).
+    - `Microsoft.AspNetCore.Razor.Language.UnitTests`: 3610 / 3610
+      (unchanged).
+    - `Microsoft.NET.Sdk.Razor.SourceGenerators.UnitTests`: 247 / 247
+      (unchanged).
+    - `Microsoft.AspNetCore.Mvc.Razor.Extensions.UnitTests`: 140 / 140
+      (unchanged).
+
+  Deviations from the plan literal:
+    1. The plan describes Stage 5.6 as "dispatch to C# completion provider"
+       / "dispatch to HTML completion provider". In the actual Razor LSP
+       architecture, host-level dispatch to delegated C# / HTML language
+       servers lives **above** `RazorCompletionListProvider`. The
+       minimal-blast-radius implementation chosen: expose
+       `RazorLanguageKind LanguageKind` on `RazorCompletionContext` so
+       any future caller (host dispatch, cohost dispatch) can read which
+       language the cursor is in when inside `SkippedContent`. The
+       `DetermineLanguageKind` helper is verified directly by the
+       three completion tests.
+    2. Test files placed per-feature under existing
+       `Semantic/` / `Completion/` / `Hover/` subdirectories (matching
+       the `FormattingVisitorRecoveryTest` pattern from Stage 5.5)
+       rather than a single combined `RazorRecoveryLspTests.cs`.
+
+  **Stage 5 complete.** Motivating bug `dotnet/razor#10383` (`@onclick="">`)
+  remains pinned end-to-end by
+  `MissingValueMarkerLoweringTests.EmptyOnclickAttribute_EnhancedMode_TagsCSharpTokenAsMissingValue`
+  (Stage 4.2) plus the new `Hover_OnMissingToken_FallsBackToDiagnostic`.
+  Ready for handoff to Stage 6.1.

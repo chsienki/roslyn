@@ -468,6 +468,18 @@ internal sealed class SemanticTokensVisitor : SyntaxWalker
         }
     }
 
+    public override void VisitSkippedContent(SkippedContentSyntax node)
+    {
+        // Stage 5.6 of the parser error-recovery redesign: tokens the parser
+        // absorbed while synchronizing after an error are wrapped in a
+        // SkippedContentSyntax (see razor-recovery-redesign-plan.md, Big
+        // Design Decision #1). Classify the whole region as a Razor comment
+        // so the editor renders it visually distinct from real code/markup --
+        // the user can see "something is wrong here" at a glance, while the
+        // accompanying diagnostic explains why.
+        AddSemanticRange(node, _semanticTokensLegend.TokenTypes.RazorComment);
+    }
+
     #endregion Razor
 
     private int GetElementSemanticKind(SyntaxNode node)
