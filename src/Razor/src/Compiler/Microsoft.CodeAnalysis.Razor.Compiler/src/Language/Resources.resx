@@ -619,4 +619,7 @@
   <data name="Parent_has_not_been_set" xml:space="preserve">
     <value>Parent has not been set.</value>
   </data>
+  <data name="ParseError_UnexpectedTokenInStatement" xml:space="preserve">
+    <value>An unexpected token was encountered in a CSharp statement: '{0}'.</value>
+  </data>
 </root>

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -449,6 +449,8 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         using (var pooledResult = Pool.Allocate<RazorSyntaxNode>())
         {
             var expressionBuilder = pooledResult.Builder;
+            var balanceFailedInEnhancedMode = false;
+            SkippedContentSyntax? enhancedSkipped = null;
             using (PushSpanContextConfig(ExplicitExpressionSpanContextConfig))
             {
                 var success = Balance(
@@ -462,15 +464,61 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
 
                 if (!success)
                 {
-                    AcceptUntil(SyntaxKind.LessThan);
-                    Context.ErrorSink.OnError(
-                        RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF(
-                            new SourceSpan(block.Start, contentLength: 1 /* ( */), block.Name, ")", "("));
+                    if (Context.Options.UseEnhancedRecovery)
+                    {
+                        // ---- Enhanced recovery path (Stage 2.1 canonical migration). ----
+                        //
+                        // Replaces the legacy `AcceptUntil(LessThan)` + `ErrorSink.OnError`
+                        // pair with `Synchronize` + a `MissingToken` whose diagnostic is
+                        // attached at the precise un-matched position (see
+                        // `RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At`,
+                        // a zero-width span at the cursor rather than a 1-char span at the
+                        // opening `(`).
+                        //
+                        // After `Balance` failure with `BalancingModes.BacktrackOnFailure`
+                        // the tokenizer cursor has been rewound to immediately after the
+                        // opening `(`. The follow set is C#-side
+                        // (`RightParenthesis | LessThan | Transition`):
+                        //   - `RightParenthesis` -- a stray `)` later in the source means
+                        //     we can still close the construct;
+                        //   - `LessThan` -- the canonical handoff to the HTML parser
+                        //     (e.g. `@(foo.Bar</p>`);
+                        //   - `Transition` -- a nested `@` block transition.
+                        //
+                        // Stage 2.1 uses the convenience overload of `Synchronize` (no
+                        // `outerFollow`); Stage 4.2 will mechanically upgrade these calls
+                        // to thread the caller's outer follow set per Big Design Decision
+                        // #4.
+                        var sync = Synchronize(
+                            new FollowSet(SyntaxKind.RightParenthesis, SyntaxKind.LessThan, SyntaxKind.Transition),
+                            originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        enhancedSkipped = sync.Skipped;
+                        balanceFailedInEnhancedMode = true;
+                    }
+                    else
+                    {
+                        // ---- Legacy path: unchanged. ----
+                        AcceptUntil(SyntaxKind.LessThan);
+                        Context.ErrorSink.OnError(
+                            RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF(
+                                new SourceSpan(block.Start, contentLength: 1 /* ( */), block.Name, ")", "("));
+                    }
                 }
 
                 // If necessary, put an empty-content marker token here
                 AcceptMarkerTokenIfNecessary();
                 expressionBuilder.Add(OutputTokensAsExpressionLiteral());
+
+                if (enhancedSkipped is not null)
+                {
+                    // Insert the recovered skipped content into the expression block AFTER
+                    // any marker / accepted-token flush so positions remain monotonic. The
+                    // `SkippedContentSyntax` carries the absorbed tokens so source
+                    // positions are preserved without contaminating
+                    // `CSharpExpressionLiteral.LiteralTokens` (which codegen treats as
+                    // emittable C#).
+                    expressionBuilder.Add(enhancedSkipped);
+                }
             }
 
             var expressionBlock = SyntaxFactory.CSharpCodeBlock(expressionBuilder.ToList());
@@ -482,7 +530,23 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             }
             else
             {
-                var missingToken = SyntaxFactory.MissingToken(SyntaxKind.RightParenthesis);
+                SyntaxToken missingToken;
+                if (balanceFailedInEnhancedMode)
+                {
+                    // Attach the diagnostic directly to the missing token (the new
+                    // recovery contract -- never also push to `ErrorSink`; the
+                    // tree-attached diagnostic is the diagnostic). The span is zero-width
+                    // at `CurrentStart`, which after `Synchronize` is the first un-matched
+                    // position (the follow token or EOF) per the Stage 2.1 exit criterion.
+                    missingToken = SyntaxFactory.MissingToken(
+                        SyntaxKind.RightParenthesis,
+                        RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At(
+                            CurrentStart, block.Name, ")", "("));
+                }
+                else
+                {
+                    missingToken = SyntaxFactory.MissingToken(SyntaxKind.RightParenthesis);
+                }
                 rightParen = OutputAsMetaCode(missingToken, Context.CurrentAcceptedCharacters);
             }
             if (!EndOfFile)
@@ -554,8 +618,20 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                 // If we end within "(", whitespace is fine
                 SetAcceptedCharacters(AcceptedCharactersInternal.Any);
 
+                SyntaxKind left;
                 SyntaxKind right;
                 bool success;
+
+                // In enhanced mode the closing-bracket diagnostic is attached
+                // to a `MissingToken` produced by `Required` below (with a
+                // zero-width span at the cursor). Suppress `Balance`'s own
+                // wide RZ1027 (a 1-char span at the opening `(`/`[`) by
+                // setting `NoErrorOnFailure`; otherwise both would fire.
+                var balanceMode = BalancingModes.BacktrackOnFailure | BalancingModes.AllowCommentsAndTemplates;
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    balanceMode |= BalancingModes.NoErrorOnFailure;
+                }
 
                 using (PushSpanContextConfig((SpanEditHandlerBuilder? editHandlerBuilder, ref ISpanChunkGenerator? generator, SpanContextConfigAction? prev) =>
                 {
@@ -563,20 +639,113 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                     SetAcceptedCharacters(AcceptedCharactersInternal.Any);
                 }))
                 {
-                    right = Language.FlipBracket(CurrentToken.Kind);
-                    success = Balance(builder, BalancingModes.BacktrackOnFailure | BalancingModes.AllowCommentsAndTemplates);
+                    left = CurrentToken.Kind;
+                    right = Language.FlipBracket(left);
+                    success = Balance(builder, balanceMode);
                 }
 
                 if (!success)
                 {
-                    AcceptUntil(SyntaxKind.LessThan);
+                    if (Context.Options.UseEnhancedRecovery)
+                    {
+                        // ---- Enhanced recovery path (Stage 2.6 canonical migration). ----
+                        //
+                        // Replaces the legacy `AcceptUntil(LessThan)` panic with
+                        // `Synchronize` so absorbed garbage becomes a
+                        // `SkippedContentSyntax` rather than fat
+                        // `CSharpExpressionLiteral` content (which codegen would
+                        // otherwise dump as C# text, producing cascading CS errors).
+                        //
+                        // After `Balance` failure with `BalancingModes.BacktrackOnFailure`
+                        // the tokenizer cursor has been rewound to immediately after
+                        // the open `(`/`[`. The pending accept buffer therefore
+                        // contains the open bracket (accepted by `Balance`'s
+                        // single-arg wrapper's `AcceptAndMoveNext()`); we flush it
+                        // as a precise `CSharpExpressionLiteral` boundary before
+                        // adding the recovered `SkippedContentSyntax` so positions
+                        // remain monotonic.
+                        //
+                        // The follow set is C#-side per Big Design Decision #4
+                        // (see `RecoveryFollowSets.CSharpImplicitExpressionTrailing`):
+                        //   - `LessThan` -- the canonical handoff to the HTML parser
+                        //     (e.g. `@foo.Bar(baz</p>`);
+                        //   - `NewLine` -- a stray newline ends the line scope;
+                        //   - `Whitespace` -- whitespace marks the end of an
+                        //     implicit expression. Whitespace inside a well-formed
+                        //     `Balance`-ed bracket is consumed by `Balance` itself;
+                        //     the sync only fires after `Balance` fails, at which
+                        //     point a whitespace token is a legitimate boundary.
+                        //
+                        // Stage 2.6 uses the convenience overload of `Synchronize`;
+                        // Stage 4.2 will mechanically upgrade this call to thread
+                        // the caller's outer follow set per BDD #4.
+                        var sync = Synchronize(
+                            RecoveryFollowSets.CSharpImplicitExpressionTrailing,
+                            originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                        AcceptMarkerTokenIfNecessary();
+                        var pending = OutputTokensAsExpressionLiteral();
+                        if (pending is not null)
+                        {
+                            builder.Add(pending);
+                        }
+                        if (sync.Skipped is not null)
+                        {
+                            builder.Add(sync.Skipped);
+                        }
+                    }
+                    else
+                    {
+                        // ---- Legacy path: unchanged. ----
+                        AcceptUntil(SyntaxKind.LessThan);
+                    }
                 }
-                if (At(right))
-                {
-                    AcceptAndMoveNext();
 
-                    // At the ending brace, restore the initial accepted characters.
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // Replaces the legacy `if (At(right)) AcceptAndMoveNext()` with
+                    // `Required` so the closing bracket is always represented in the
+                    // tree: either the real token (consume path) or a zero-width
+                    // `MissingToken(right)` carrying the narrow RZ1027 diagnostic
+                    // attached at the precise cursor position.
+                    //
+                    // Recovery follow-set: in the success path `Balance` left the
+                    // cursor at `right` so `Required` takes the consume branch and
+                    // never synchronizes. In the failure path we just synchronized
+                    // to `CSharpImplicitExpressionTrailing` above, so the cursor is
+                    // already at a follow token; passing the same follow set means
+                    // `Required`'s sync (if invoked) stops immediately at the
+                    // current token without consuming anything further. Either way
+                    // `sync.Skipped` is null.
+                    var (closeToken, closeSkipped) = Required(
+                        right,
+                        RazorDiagnosticFactory.CreateParsing_ExpectedCloseBracketBeforeEOF_At(
+                            CurrentStart, Language.GetSample(left), Language.GetSample(right)),
+                        RecoveryFollowSets.CSharpImplicitExpressionTrailing,
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    Debug.Assert(closeSkipped is null,
+                        "ParseMethodCallOrArrayIndex's Required call is invoked at a follow-set token (or `right`); sync should have nothing to skip.");
+                    if (closeToken.IsMissing)
+                    {
+                        // Bypass `Accept(SyntaxToken)` so the diagnostic on the
+                        // missing token isn't copied into `ErrorSink` (Stage 1.4
+                        // contract: diagnostic on the missing token only).
+                        TokenBuilder.Add(closeToken);
+                    }
+                    else
+                    {
+                        Accept(closeToken);
+                    }
                     SetAcceptedCharacters(acceptedCharacters);
+                }
+                else
+                {
+                    if (At(right))
+                    {
+                        AcceptAndMoveNext();
+
+                        // At the ending brace, restore the initial accepted characters.
+                        SetAcceptedCharacters(acceptedCharacters);
+                    }
                 }
                 return ParseMethodCallOrArrayIndex(builder, acceptedCharacters);
             }
@@ -718,8 +887,12 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             }
             ParseCodeBlock(builder, block);
 
-            if (EndOfFile)
+            if (EndOfFile && !Context.Options.UseEnhancedRecovery)
             {
+                // ---- Legacy path: emit the diagnostic to `ErrorSink` with a 1-char
+                // span at `block.Start` (the opening `{`). The enhanced path below
+                // attaches the diagnostic directly to the missing `RightBrace`
+                // token at the precise cursor position instead.
                 Context.ErrorSink.OnError(
                     RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF(
                         new SourceSpan(block.Start, contentLength: 1 /* { OR } */), block.Name, "}", "{"));
@@ -738,7 +911,37 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
         }
 
         RazorMetaCodeSyntax? rightBrace;
-        if (At(SyntaxKind.RightBrace))
+        if (Context.Options.UseEnhancedRecovery)
+        {
+            // ---- Enhanced recovery path (Stage 2.2 canonical migration). ----
+            //
+            // Replaces the legacy `ErrorSink.OnError(...)` + `MissingToken(RightBrace)`
+            // pair with a single `Required` call that emits the missing token with
+            // the diagnostic (RZ1006) attached at the precise cursor position
+            // (`CurrentStart`, which is the EOF or the follow token), rather than a
+            // 1-char span at `block.Start` (the opening `{`).
+            //
+            // `ParseCodeBlock`'s loop invariant guarantees the cursor is either at
+            // EOF or at `RightBrace` on exit (see its `while` condition). In the
+            // RightBrace case `Required` consumes it; in the EOF case it emits the
+            // missing token and synchronizes (with `FollowSet.Empty`, since there
+            // is nothing left to skip). Skipped content is null in practice.
+            //
+            // [TODO Stage 4.2: thread the caller's outer follow set into
+            // `ParseCodeBlock` so its inner loop can synchronize on it. Stage 2.2
+            // keeps `ParseCodeBlock`'s signature unchanged because the synchronize
+            // would be functionally inert until Stage 2.3 migrates
+            // `ParseStandardStatement`'s panic.]
+            var (rightBraceToken, skipped) = Required(
+                SyntaxKind.RightBrace,
+                RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At(
+                    CurrentStart, block.Name, "}", "{"),
+                FollowSet.Empty,
+                originatingLanguage: SyntaxKind.CSharpCodeBlock);
+            Debug.Assert(skipped is null, "ParseCodeBlock leaves the cursor at EOF or RightBrace; Required has nothing to skip.");
+            rightBrace = OutputAsMetaCode(rightBraceToken, Context.CurrentAcceptedCharacters);
+        }
+        else if (At(SyntaxKind.RightBrace))
         {
             rightBrace = OutputAsMetaCode(EatCurrentToken());
         }
@@ -1115,9 +1318,65 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             }
             else
             {
-                _tokenizer.Reset(bookmark);
-                NextToken();
-                AcceptUntil(SyntaxKind.LessThan, SyntaxKind.LeftBrace, SyntaxKind.RightBrace);
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // ---- Enhanced recovery path (Stage 2.3 canonical migration). ----
+                    //
+                    // Replaces the legacy `AcceptUntil(LessThan, LeftBrace, RightBrace)`
+                    // (the canonical "fat literal" producer) with a precise
+                    // diagnostic + `Synchronize` pair. The legacy branch absorbs
+                    // every token between the bookmark and the next sync token
+                    // into `CSharpStatementLiteral.LiteralTokens`, which codegen
+                    // then dumps as C# text -- producing cascading CS errors.
+                    // The enhanced branch instead:
+                    //   1. Rewinds the tokenizer to the iteration bookmark
+                    //      (undoing the speculative `ReadWhile`) so
+                    //      `CurrentStart` points at the actual offending token.
+                    //   2. Emits a zero-width `Parsing_UnexpectedTokenInStatement`
+                    //      (RZ1046) diagnostic at the offending-token position.
+                    //   3. Flushes any tokens accepted in prior iterations of
+                    //      this loop as a `CSharpStatementLiteral` so the
+                    //      pre-recovery boundary is precise.
+                    //   4. Calls the convenience overload of `Synchronize`
+                    //      with the C#-side follow set
+                    //      `(Semicolon | RightBrace | Transition | LessThan)`
+                    //      per Big Design Decision #4 (C#-side kinds:
+                    //      `LessThan`, not the HTML-side `OpenAngle`).
+                    //      Stage 4.2 will mechanically upgrade this call to
+                    //      thread the caller's outer follow set.
+                    //   5. Inserts the resulting `SkippedContentSyntax` into
+                    //      the builder so positions are preserved without
+                    //      contaminating the next statement literal.
+                    //
+                    // Note: today this branch is unreachable for inputs in the
+                    // Stage 0.1 corpus -- `ReadWhile`'s stop set covers every
+                    // kind handled by the if-else chain above, so the
+                    // panic-else only fires on truly unexpected tokenizer
+                    // states. The migration is forward-looking; the legacy
+                    // branch is preserved for documentation symmetry and to
+                    // catch any future input that does hit this path.
+                    _tokenizer.Reset(bookmark);
+                    NextToken();
+                    Context.ErrorSink.OnError(
+                        RazorDiagnosticFactory.CreateParsing_UnexpectedTokenInStatement_At(
+                            CurrentStart, CurrentToken.Content));
+                    var sync = Synchronize(
+                        new FollowSet(SyntaxKind.Semicolon, SyntaxKind.RightBrace, SyntaxKind.Transition, SyntaxKind.LessThan),
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    builder.Add(OutputTokensAsStatementLiteral());
+                    if (sync.Skipped is not null)
+                    {
+                        builder.Add(sync.Skipped);
+                    }
+                }
+                else
+                {
+                    // ---- Legacy path: unchanged. ----
+                    _tokenizer.Reset(bookmark);
+                    NextToken();
+                    AcceptUntil(SyntaxKind.LessThan, SyntaxKind.LeftBrace, SyntaxKind.RightBrace);
+                }
                 return;
             }
         }
@@ -1131,7 +1390,38 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             else
             {
                 // Recovery
-                AcceptUntil(SyntaxKind.LessThan, SyntaxKind.RightBrace);
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // ---- Enhanced recovery path (Stage 2.3). ----
+                    //
+                    // Replaces `AcceptUntil(LessThan, RightBrace)` with
+                    // `Synchronize` so any absorbed garbage becomes a
+                    // `SkippedContentSyntax` rather than fat statement-literal
+                    // content. The `Balance` failure has already emitted
+                    // RZ1027 (`Parsing_ExpectedCloseBracketBeforeEOF`) via
+                    // ErrorSink with a 1-char span at the opening bracket;
+                    // narrowing that pre-existing diagnostic belongs to
+                    // whichever stage owns the construct's open-bracket
+                    // emission, not Stage 2.3.
+                    //
+                    // Stage 2.3 uses the convenience overload of `Synchronize`
+                    // (C#-side follow set `(LessThan, RightBrace)` per Big
+                    // Design Decision #4); Stage 4.2 will mechanically upgrade
+                    // this call to thread the caller's outer follow set.
+                    var sync = Synchronize(
+                        new FollowSet(SyntaxKind.LessThan, SyntaxKind.RightBrace),
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    builder.Add(OutputTokensAsStatementLiteral());
+                    if (sync.Skipped is not null)
+                    {
+                        builder.Add(sync.Skipped);
+                    }
+                }
+                else
+                {
+                    AcceptUntil(SyntaxKind.LessThan, SyntaxKind.RightBrace);
+                }
                 return false;
             }
 
@@ -1571,7 +1861,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                             RazorDiagnosticFactory.CreateParsing_DirectiveTokensMustBeSeparatedByWhitespace(
                                 new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
 
-                        builder.Add(BuildDirective(SyntaxKind.Whitespace));
+                        builder.Add(BuildBailedDirective(SyntaxKind.Whitespace));
                         return;
                     }
 
@@ -1625,7 +1915,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 new SourceSpan(CurrentStart, contentLength: 1),
                                 descriptor.Directive,
                                 tokenDescriptor.Kind.ToString().ToLowerInvariant()));
-                        builder.Add(BuildDirective(SyntaxKind.Identifier));
+                        builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                         return;
                     }
 
@@ -1638,7 +1928,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsTypeName(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
 
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
                             break;
@@ -1650,7 +1940,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsNamespace(
                                         new SourceSpan(CurrentStart, identifierLength), descriptor.Directive));
 
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
                             break;
@@ -1666,7 +1956,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsIdentifier(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
                             break;
@@ -1681,7 +1971,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsQuotedStringLiteral(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.StringLiteral));
+                                builder.Add(BuildBailedDirective(SyntaxKind.StringLiteral));
                                 return;
                             }
                             break;
@@ -1696,7 +1986,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsBooleanLiteral(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.CSharpExpressionLiteral));
+                                builder.Add(BuildBailedDirective(SyntaxKind.CSharpExpressionLiteral));
                                 return;
                             }
                             break;
@@ -1714,7 +2004,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                 Context.ErrorSink.OnError(
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsCSharpAttribute(
                                         new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive));
-                                builder.Add(BuildDirective(SyntaxKind.LeftBracket));
+                                builder.Add(BuildBailedDirective(SyntaxKind.LeftBracket));
                                 return;
                             }
 
@@ -1735,7 +2025,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     Context.ErrorSink.OnError(
                                         RazorDiagnosticFactory.CreateParsing_GenericTypeParameterIdentifierMismatch(
                                             new SourceSpan(CurrentStart, CurrentToken.Content.Length), descriptor.Directive, CurrentToken.Content, lastSeenMemberIdentifier ?? string.Empty));
-                                    builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                    builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                     return;
                                 }
                                 else
@@ -1768,7 +2058,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                         CurrentToken.Content,
                                         CSharpSyntaxFacts.GetText(CSharpSyntaxKind.WhereKeyword)));
 
-                                builder.Add(BuildDirective(SyntaxKind.Keyword));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Keyword));
                                 return;
                             }
 
@@ -1789,7 +2079,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     RazorDiagnosticFactory.CreateParsing_DirectiveExpectsIdentifierOrExpression(
                                         new SourceSpan(CurrentStart, identifierLength), descriptor.Directive));
 
-                                builder.Add(BuildDirective(SyntaxKind.Identifier));
+                                builder.Add(BuildBailedDirective(SyntaxKind.Identifier));
                                 return;
                             }
 
@@ -1830,6 +2120,28 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                                     new SourceSpan(CurrentStart, CurrentToken.Content.Length),
                                     descriptor.Directive,
                                     Resources.ErrorComponent_Newline));
+
+                            if (Context.Options.UseEnhancedRecovery)
+                            {
+                                // Stage 2.5: absorb the trailing junk on this
+                                // line so it doesn't leak to the outer markup
+                                // parser (which would treat it as MarkupText
+                                // / fake MarkupStartTag). The pre-existing
+                                // diagnostic above keeps its narrow span.
+                                var sync = Synchronize(
+                                    RecoveryFollowSets.CSharpDirectiveTrailing,
+                                    originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                                AcceptMarkerTokenIfNecessary();
+                                var pending = OutputTokensAsStatementLiteral();
+                                if (pending is not null)
+                                {
+                                    directiveBuilder.Add(pending);
+                                }
+                                if (sync.Skipped is not null)
+                                {
+                                    directiveBuilder.Add(sync.Skipped);
+                                }
+                            }
                         }
 
                         // This should contain the optional whitespace after the optional semicolon and the new line.
@@ -1928,6 +2240,48 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                 var diagnostics = directiveErrorSink.GetErrorsAndClear();
                 directive = directive.WithDiagnosticsGreen(diagnostics);
                 return directive;
+            }
+
+            // Stage 2.5 (enhanced recovery): wraps the legacy
+            // `builder.Add(BuildDirective(...)); return;` early-bail with a
+            // `Synchronize` call so trailing garbage on the directive's line
+            // is absorbed as `SkippedContentSyntax` inside the directive
+            // rather than leaking to the outer markup parser (which would
+            // re-process it as `MarkupTextLiteral` + fake `MarkupStartTag`,
+            // producing cascading errors). The pre-existing diagnostic on
+            // the directive (emitted to `directiveErrorSink` immediately
+            // before each call to this helper) is unchanged in span; only
+            // the cursor advancement and recovered-content shape differ.
+            //
+            // The follow set is C#-side per Big Design Decision #4 (see
+            // `RecoveryFollowSets.CSharpDirectiveTrailing`).
+            //
+            // Uses the convenience overload of `Synchronize` (no outer
+            // follow set); Stage 4.2 will mechanically upgrade this to
+            // thread the caller's outer follow set.
+            //
+            // Returns the built directive (which the caller adds to
+            // `builder`). Returning is necessary because `builder` is an
+            // `in` parameter and cannot be captured by a local function.
+            RazorDirectiveSyntax BuildBailedDirective(SyntaxKind missingKind)
+            {
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    var sync = Synchronize(
+                        RecoveryFollowSets.CSharpDirectiveTrailing,
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    var pending = OutputTokensAsStatementLiteral();
+                    if (pending is not null)
+                    {
+                        directiveBuilder.Add(pending);
+                    }
+                    if (sync.Skipped is not null)
+                    {
+                        directiveBuilder.Add(sync.Skipped);
+                    }
+                }
+                return BuildDirective(missingKind);
             }
         }
     }
@@ -2188,7 +2542,58 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             var complete = Balance(builder, BalancingModes.BacktrackOnFailure | BalancingModes.AllowCommentsAndTemplates);
             if (!complete)
             {
-                AcceptUntil(SyntaxKind.NewLine);
+                if (Context.Options.UseEnhancedRecovery)
+                {
+                    // ---- Enhanced recovery path (Stage 2.4 canonical migration). ----
+                    //
+                    // Replaces the legacy `AcceptUntil(NewLine)` panic with
+                    // `Synchronize` so any absorbed garbage becomes a
+                    // `SkippedContentSyntax` rather than fat statement-literal
+                    // content (which codegen would otherwise dump as C# text,
+                    // producing cascading CS errors).
+                    //
+                    // After `Balance` failure with `BalancingModes.BacktrackOnFailure`
+                    // the open `(` has already been accepted (by the single-arg
+                    // `Balance(builder, mode)`'s `AcceptAndMoveNext()`) and the
+                    // tokenizer cursor has been rewound to immediately after
+                    // the open `(`. The pending accept buffer therefore contains
+                    // the `(`; we flush it as a precise statement literal
+                    // boundary before adding the recovered `SkippedContentSyntax`
+                    // so positions remain monotonic.
+                    //
+                    // `Balance` itself has already emitted RZ1027
+                    // (`Parsing_ExpectedCloseBracketBeforeEOF`) via `ErrorSink`
+                    // with a 1-char span at the opening `(`; narrowing that
+                    // pre-existing diagnostic belongs to whichever stage owns
+                    // the construct's open-bracket emission, not Stage 2.4.
+                    //
+                    // The follow set is C#-side per Big Design Decision #4:
+                    //   - `NewLine` -- preserves the legacy panic boundary so
+                    //     single-line-control-flow inputs sync at end of line;
+                    //   - `RightBrace` -- the enclosing code block's closing
+                    //     brace, so `@{ for(... }` recovers at the outer `}`;
+                    //   - `LeftBrace` -- the body of the conditional, so the
+                    //     body of `@if(foo bar { ... }` can still be parsed
+                    //     even when the condition is malformed.
+                    //
+                    // Stage 2.4 uses the convenience overload of `Synchronize`;
+                    // Stage 4.2 will mechanically upgrade this call to thread
+                    // the caller's outer follow set per BDD #4.
+                    var sync = Synchronize(
+                        new FollowSet(SyntaxKind.NewLine, SyntaxKind.RightBrace, SyntaxKind.LeftBrace),
+                        originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                    AcceptMarkerTokenIfNecessary();
+                    builder.Add(OutputTokensAsStatementLiteral());
+                    if (sync.Skipped is not null)
+                    {
+                        builder.Add(sync.Skipped);
+                    }
+                }
+                else
+                {
+                    // ---- Legacy path: unchanged. ----
+                    AcceptUntil(SyntaxKind.NewLine);
+                }
             }
             else
             {
@@ -2639,6 +3044,31 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
             var keywordTokens = OutputTokensAsStatementLiteral();
             var directiveBody = SyntaxFactory.RazorDirectiveBody(keywordTokens, null);
             builder.Add(SyntaxFactory.RazorUsingDirective(transition, directiveBody));
+
+            if (Context.Options.UseEnhancedRecovery)
+            {
+                // Stage 2.5: absorb any trailing garbage on the directive's
+                // line as `SkippedContentSyntax` so the outer markup parser
+                // doesn't see leaked C# tokens as `MarkupTextLiteral` /
+                // fake markup. The legacy path falls straight through to
+                // `CaptureWhitespaceToEndOfLine`, leaving any non-whitespace
+                // (e.g. `! garbage` after `@using `) for the outer parser
+                // to mis-categorise. Stage 4.2 will mechanically upgrade
+                // this convenience-overload call to thread the caller's
+                // outer follow set per Big Design Decision #4.
+                //
+                // No new diagnostic is emitted: the legacy path is also
+                // silent for this input (no `Parsing_DirectiveMustHaveValue`
+                // for `@using`), so the recovery is purely about tree
+                // shape, not error reporting.
+                var sync = Synchronize(
+                    RecoveryFollowSets.CSharpDirectiveTrailing,
+                    originatingLanguage: SyntaxKind.CSharpCodeBlock);
+                if (sync.Skipped is not null)
+                {
+                    builder.Add(sync.Skipped);
+                }
+            }
 
             CaptureWhitespaceToEndOfLine();
             builder.Add(OutputAsMetaCode(Output(), Context.CurrentAcceptedCharacters));

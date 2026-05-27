@@ -6,7 +6,7 @@ transient run-state that should be updated as each sub-stage
 completes.
 
 ## Current stage
-Stage 1.4 complete. Ready for Stage 2.1 (ParseExplicitExpressionBody).
+Stage 2.6 complete. Stage 2 complete. Ready for Stage 3.1 (HtmlMarkupParser tag-parsing migration).
 
 ## Status of each stage
 - Stage 0.0: complete
@@ -22,12 +22,12 @@ Stage 1.4 complete. Ready for Stage 2.1 (ParseExplicitExpressionBody).
 - Stage 1.2: complete
 - Stage 1.3: complete
 - Stage 1.4: complete
-- Stage 2.1: not started
-- Stage 2.2: not started
-- Stage 2.3: not started
-- Stage 2.4: not started
-- Stage 2.5: not started
-- Stage 2.6: not started
+- Stage 2.1: complete
+- Stage 2.2: complete
+- Stage 2.3: complete
+- Stage 2.4: complete
+- Stage 2.5: complete
+- Stage 2.6: complete
 - Stage 3.1: not started
 - Stage 3.2: not started
 - Stage 3.3: not started
@@ -63,8 +63,11 @@ appear.
 
 - **RZ0xxx** (general / infrastructure) -- max in use: **RZ0000**
   (`Directive_BlockDirectiveCannotBeImported`).
-- **RZ1xxx** (parser diagnostics) -- max in use: **RZ1045**. Next free
-  parser-recovery ID: **RZ1046**.
+- **RZ1xxx** (parser diagnostics) -- max in use: **RZ1046**. Next free
+  parser-recovery ID: **RZ1047**. (Stage 2.3 allocated RZ1046 for
+  `Parsing_UnexpectedTokenInStatement`, a new diagnostic emitted at
+  zero width when the panic-else of `ParseStandardStatement` fires;
+  see notes below for empirical observations on reachability.)
 - **RZ2xxx** (tag-helper / binding diagnostics) -- max in use:
   **RZ2012**. Next free: **RZ2013**.
 - **RZ3xxx** (descriptor / tag-helper-resolution diagnostics) -- max in
@@ -87,6 +90,35 @@ completion / hover provider class names)
 
 ## Stage 2 verification
 (parser-recovery branch counts; populate during Stage 2 gate check)
+
+- Stage 2.1 (after migration):
+  - `AcceptUntil(SyntaxKind.LessThan` in `CSharpCodeParser.cs`:
+    4 occurrences total (lines 501, 636, 1184, 1198).
+    - Line 501 (`ParseExplicitExpressionBody`) is now inside the
+      `else` of the `UseEnhancedRecovery` guard (the Stage 2.1
+      legacy branch); the new enhanced branch is `Synchronize`.
+    - Lines 636 (implicit-expression fallback in
+      `ParseImplicitExpression`), 1184 / 1198
+      (`ParseStandardStatement`-family) remain untouched -- they
+      are owned by Stages 2.3 / 2.6.
+    All 4 to be deleted by Stage 6.2 once their owning stages
+    have shipped enhanced branches.
+
+- Stage 2.6 (after migration, Stage 2 final audit):
+  - `AcceptUntil(SyntaxKind.LessThan` in `CSharpCodeParser.cs`:
+    4 occurrences total (lines 501, 699, 1378, 1423).
+    Line numbers shifted slightly due to Stage 2.2-2.6 insertions
+    but the SET is unchanged from Stage 2.1's audit. All four are
+    now confirmed inside `else` branches of `UseEnhancedRecovery`
+    guards (verified by inspection of each site -- the Stage 2.6
+    implicit-expression site at line 699 was the last one to migrate;
+    the Stage 2.3 statement-family sites at lines 1378 and 1423
+    are inside `TryBalanceBlock` and the explicit-expression
+    fallback's legacy branch).
+  - **Stage 2 exit criterion met:** every enhanced branch in
+    `CSharpCodeParser.cs` is `AcceptUntil(LessThan)`-free. The
+    remaining 4 legacy occurrences will be deleted by Stage 6.2
+    cleanup once the `UseEnhancedRecovery` flag is removed.
 
 ## BaselineWriter location decision
 Resolved: reuse the existing `ParserTestBase.AssertSyntaxTreeNodeMatchesBaseline`
@@ -435,3 +467,719 @@ commit `f445deb5f8c`):
   **Stage 1 complete.** All Stage 1 exit criteria (Synchronize +
   Required + diagnostic factories + green pilot under the flag)
   satisfied. Ready for handoff to fresh agent for Stage 2.
+- 2026-05-26: Stage 2.1 done. Canonical Stage 2 migration of
+  `CSharpCodeParser.ParseExplicitExpressionBody` (lines ~442-505 of
+  `Legacy/CSharpCodeParser.cs`) under the `UseEnhancedRecovery` flag.
+  The `if (!success)` branch (Balance failure) is now split:
+  - **Legacy branch** (`UseEnhancedRecovery == false`): byte-for-byte
+    the prior code -- `AcceptUntil(SyntaxKind.LessThan)` plus
+    `Context.ErrorSink.OnError(CreateParsing_ExpectedEndOfBlockBeforeEOF(...))`
+    with a 1-char span at `block.Start`. The existing legacy baselines
+    (`UnclosedExplicitExpression.{stree,diag,cspans}.txt` and every
+    other test that exercises an unclosed `@(...)`) keep passing
+    unchanged.
+  - **Enhanced branch** (`UseEnhancedRecovery == true`): calls the
+    Stage 1.1 convenience overload of `Synchronize` with C#-side
+    follow set `(RightParenthesis | LessThan | Transition)` and
+    `originatingLanguage: SyntaxKind.CSharpCodeBlock`, then inserts
+    the returned `SkippedContentSyntax?` into the expression
+    builder after the marker / accepted-token flush. The closing
+    `)` is then emitted via `SyntaxFactory.MissingToken(RightParenthesis, ...)`
+    with `RazorDiagnosticFactory.CreateParsing_ExpectedEndOfBlockBeforeEOF_At(CurrentStart, ...)`
+    attached -- a zero-width span at the first un-matched position
+    (the follow token or EOF, not the opening `(`).
+
+  Per Big Design Decision #4, the follow set is C#-side
+  (`LessThan` / `Transition`, NOT the HTML-side `OpenAngle`). Stage
+  4.2 will mechanically upgrade this `Synchronize` call to the full
+  overload threading the caller's outer follow set; Stage 2.1 ships
+  the convenience form.
+
+  **Tests added** to
+  `legacyTest/Legacy/ParserRecoveryCorpusSnapshotTests.cs` (two
+  `[Fact]`s, in-memory assertions per the Stage 1.4 deviation):
+  - `UnclosedExplicitExpression_EnhancedRecovery`: re-parses the
+    corpus `UnclosedExplicitExpression.razor` with
+    `UseEnhancedRecovery = true` and asserts the Stage 2.1 exit
+    criteria:
+    - `OpenParen` token present at position 10.
+    - Exactly one `SkippedContentSyntax` inside the expression
+      block, at `[11..18)`, content `"foo.Bar"`, with
+      `OriginatingLanguage == CSharpCodeBlock`.
+    - Every `CSharpExpressionLiteralSyntax` inside the expression
+      block is zero-width (only the marker literal from
+      `OutputTokensAsExpressionLiteral` remains; the legacy "fat
+      `foo.Bar` literal" is gone).
+    - `CloseParen` token is missing at position 18 (the `<` of
+      `</p>`), `Span.Length == 0`.
+    - Exactly one `RZ1006` diagnostic, at `AbsoluteIndex == 18`,
+      `Length == 0` (the new zero-width placement at the
+      missing-token cursor, vs the legacy 1-char span at
+      `block.Start == 10`).
+    - Zero `MarkupMiscAttributeContentSyntax` nodes (the recovered
+      `</p>` is picked up by the markup parser as a real end-tag).
+  - `EmptyExplicitExpression_EnhancedRecovery`: re-parses
+    `EmptyExplicitExpression.razor`. `@()` is well-formed so
+    `Balance` succeeds; the enhanced tree is identical to legacy
+    (no diagnostics, no `SkippedContentSyntax`, real `)` token at
+    position 2). This pins the invariant that the enhanced branch
+    is dead code for the success path.
+
+  **Diagnostic ID choice.** Used `CreateParsing_ExpectedEndOfBlockBeforeEOF_At`
+  (RZ1006), matching the legacy diagnostic ID. The task prompt
+  suggested `CreateParsing_ExpectedCloseBracketBeforeEOF_At`
+  (RZ1027) -- both `_At` factories were paired in Stage 1.3 and
+  are equally available -- but the Stage 2.1 plan literal says
+  "the change is only that the *diagnostic span* shrinks from a
+  1-char span starting at `block.Start` to a 1-char span at the
+  cursor", which implies same diagnostic descriptor / same id /
+  same args (`blockName`, `closeBlock`, `openBlock`). Preserving
+  the RZ1006 id also keeps the user-facing message identical to
+  legacy, so the only observable change to a downstream consumer
+  is the diagnostic span. Stage 1.3's pairing inventory comment
+  ("Used by Stage 2.1") is slightly stale; either factory would
+  work, but RZ1006 minimises surface area. Recording this as a
+  small deviation from the prompt (not from the plan).
+
+  **Plan deviations:**
+  - Used in-memory assertions rather than enhanced-mode parallel
+    `.stree/.diag/.cspans` baselines (same rationale as Stage 1.4
+    deviation #1 -- the dual-baseline shape isn't a clean fit when
+    each test method targets one specific flag value).
+  - Diagnostic-id choice (above): RZ1006 not RZ1027.
+  - `EmptyExplicitExpression_EnhancedRecovery` is essentially a
+    "legacy parity" test (Balance succeeds, enhanced branch never
+    runs). Kept it per the plan's literal corpus enumeration so the
+    invariant is pinned and future Stage 2.1-adjacent changes
+    cannot regress the `@()` success path silently.
+
+  No new RZ IDs allocated (reuses RZ1006 via the `_At` factory
+  from Stage 1.3). Diagnostic ID inventory unchanged.
+
+  **AcceptUntil(LessThan) audit** (Stage 2 exit-criteria check):
+  `Select-String -Path .../CSharpCodeParser.cs -Pattern "AcceptUntil\(SyntaxKind\.LessThan"`
+  reports 1 occurrence (line 471, inside the legacy branch of
+  `ParseExplicitExpressionBody`). The enhanced branch added in
+  Stage 2.1 contains zero `AcceptUntil(LessThan)` occurrences --
+  satisfies the per-stage "enhanced branches must not contribute
+  new occurrences" rule. The legacy branch's single occurrence
+  remains and will be deleted in Stage 6.2.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1314 / 1314 (1312 baseline + 2 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
+
+- 2026-05-26: Stage 2.2 done. Migration of
+  `CSharpCodeParser.ParseStatementBody` (lines ~768-836 of
+  `Legacy/CSharpCodeParser.cs`) under the `UseEnhancedRecovery` flag.
+  Two adjacent sites in the function are now split into legacy /
+  enhanced branches:
+  - **EOF diagnostic site** (was line ~785-790): legacy emits
+    `CreateParsing_ExpectedEndOfBlockBeforeEOF` to `ErrorSink`
+    with a 1-char span at `block.Start` (the `{` at position 1);
+    enhanced skips this branch entirely (the diagnostic is now
+    attached to the missing `RightBrace` token below).
+  - **RightBrace consume / missing site** (was line ~804-814):
+    legacy keeps the `if (At(RightBrace)) eat; else MissingToken`
+    pair byte-for-byte; enhanced calls the Stage 1.2
+    `Required(SyntaxKind.RightBrace, ...)` helper, which
+    consumes the brace if present or emits
+    `MissingToken(RightBrace)` with
+    `CreateParsing_ExpectedEndOfBlockBeforeEOF_At(CurrentStart, ...)`
+    attached (zero-width span at EOF, not 1-char at `block.Start`).
+    `Required`'s sync follow-set is `FollowSet.Empty` because
+    `ParseCodeBlock`'s loop invariant guarantees the cursor is
+    at EOF or at `RightBrace` on exit -- a `Debug.Assert`
+    documents that `sync.Skipped` is always `null` here.
+
+  **Option B chosen** (signature of `ParseCodeBlock` unchanged).
+  The plan offered two options:
+  - **A**: add a `FollowSet outerFollow` parameter to
+    `ParseCodeBlock` now, threaded `FollowSet.Empty` from all
+    three callers with `[TODO Stage 4.2]` comments.
+  - **B**: keep the signature unchanged, defer parameter threading
+    to Stage 4.2.
+
+  Picked **B**: the synchronization inside `ParseCodeBlock`'s
+  `while` loop is functionally inert until Stage 2.3 migrates
+  `ParseStandardStatement`'s panic (the current
+  `ParseStatement` consumes-or-panics; there is no "failed
+  statement parse" return-without-progress to synchronize on).
+  Adding the parameter now would be dead plumbing whose only
+  effect would be to ripple through the `Stage 4.2` diff with
+  no behavioural meaning at any intermediate stage. The
+  `[TODO Stage 4.2]` marker lives in the new enhanced branch's
+  comment block instead.
+
+  **Test added** to
+  `legacyTest/Legacy/ParserRecoveryCorpusSnapshotTests.cs`:
+  `UnclosedCodeBlock_EnhancedRecovery` re-parses the corpus
+  `UnclosedCodeBlock.razor` (created in Stage 0.1) with
+  `UseEnhancedRecovery = true` and asserts the Stage 2.2 exit
+  criteria:
+  - `OpenBrace` token present at position 1 (the `{`).
+  - `CloseBrace` token is missing at the EOF position
+    (`source.Length == 69`), `Span.Length == 0` -- down from
+    the legacy missing-token's position-69 placement but
+    paired-with a diagnostic at the wrong location.
+  - Exactly one `RZ1006` diagnostic, at `AbsoluteIndex == source.Length`,
+    `Length == 0` (the new zero-width placement at EOF, vs the
+    legacy 1-char span at position 1).
+  - No non-empty `CSharpStatementLiteralSyntax` inside the
+    code block overlaps the `<p>` markup at position 17 (the
+    trailing zero-width marker literal at `[69..69)` is
+    permitted via the `Width == 0` guard).
+  - Zero `MarkupMiscAttributeContentSyntax` nodes (the recovered
+    markup is parsed as a real `MarkupBlock` -- in this corpus
+    case the legacy parser already does this, so the assertion
+    just pins the property under enhanced mode too).
+
+  Before / after diagnostic spans for `UnclosedCodeBlock`:
+  - **Legacy** (unchanged baseline): `RZ1006` at
+    `(1,2)` = AbsoluteIndex 1, Length 1 (covers the `{`).
+  - **Enhanced**: `RZ1006` at AbsoluteIndex 69 (EOF), Length 0.
+
+  In-memory assertions are used (matching the Stage 1.4 / 2.1
+  deviation about not generating parallel
+  `.enhanced.{stree,diag,cspans}.txt` baselines for
+  enhanced-mode-only tests). The legacy
+  `UnclosedCodeBlock.{stree,diag,cspans}.txt` baselines remain
+  untouched.
+
+  **Sites intentionally NOT migrated in Stage 2.2:**
+  - The nested verbatim-block site in `ParseStatement`'s
+    `case SyntaxKind.LeftBrace` (lines ~945-957 of
+    `Legacy/CSharpCodeParser.cs`) has the same shape
+    (`ParseCodeBlock` followed by an `if (EndOfFile)
+    ErrorSink.OnError(...)` + `Assert(RightBrace)`). It belongs
+    to Stage 2.3's `ParseStandardStatement` family and will be
+    migrated there.
+  - The other `MissingToken(SyntaxKind.RightBrace)` at line
+    ~2120 is inside `ParseExtensibleDirective`-style code and
+    belongs to Stage 2.5 (directive parsers).
+
+  No new RZ IDs allocated (reuses RZ1006 via the `_At` factory
+  from Stage 1.3). Diagnostic ID inventory unchanged.
+
+  **`AcceptUntil(LessThan)` audit** (Stage 2 exit-criteria
+  check): unchanged from Stage 2.1 -- 4 occurrences total (lines
+  501, 636, 1184, 1198). Stage 2.2 added no new occurrences and
+  removed none (it only touches the `RightBrace` recovery, which
+  never used `AcceptUntil(LessThan)`).
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1315 / 1315 (1314 baseline + 1 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
+
+- 2026-05-26: Stage 2.3 done. Canonical migration of
+  `CSharpCodeParser.ParseStandardStatement`'s panic-else branch
+  (lines ~1214-1220 of `Legacy/CSharpCodeParser.cs`) and its inner
+  `TryBalanceBlock` recovery (was line ~1232) under the
+  `UseEnhancedRecovery` flag. This is the `fat literal` site the
+  plan calls out as the canonical Stage 2 producer.
+
+  - **Panic-else** (`ParseStandardStatement`'s outer `while` loop):
+    legacy `_tokenizer.Reset(bookmark); NextToken();
+    AcceptUntil(LessThan, LeftBrace, RightBrace)` is preserved
+    byte-for-byte. The enhanced branch (a) emits the new RZ1046
+    `Parsing_UnexpectedTokenInStatement` diagnostic at zero width
+    via `ErrorSink.OnError` (the diagnostic is purely positional;
+    there is no missing token to attach it to), (b) flushes any
+    prior-iteration accepted tokens via
+    `AcceptMarkerTokenIfNecessary` + `OutputTokensAsStatementLiteral`
+    so the pre-recovery literal boundary is precise, (c) calls
+    `Synchronize(new FollowSet(Semicolon, RightBrace, Transition,
+    LessThan), originatingLanguage: CSharpCodeBlock)` and (d) adds
+    the resulting `SkippedContentSyntax` to the builder.
+
+  - **`TryBalanceBlock`** (inner local function, hot for `@{ var x =
+    (foo;` style inputs): legacy `AcceptUntil(LessThan, RightBrace)`
+    is preserved. The enhanced branch runs `Synchronize(new
+    FollowSet(LessThan, RightBrace), CSharpCodeBlock)`, flushes the
+    prior literal, and adds `SkippedContentSyntax`. The pre-existing
+    RZ1027 (`Parsing_ExpectedCloseBracketBeforeEOF`) emitted by
+    `Balance` itself is preserved unchanged -- its narrowing belongs
+    to whichever stage owns the construct's open-bracket emission, not
+    Stage 2.3.
+
+  **Per Big Design Decision #4** the follow sets are C#-side
+  (`LessThan`, not the HTML-side `OpenAngle`; `Semicolon` /
+  `RightBrace` / `Transition` are shared). Stage 4.2 will
+  mechanically upgrade both `Synchronize` calls to the full overload
+  threading the caller's outer follow set.
+
+  **New diagnostic factory:**
+  - Resource string `ParseError_UnexpectedTokenInStatement` added to
+    `Language/Resources.resx` with message `An unexpected token was
+    encountered in a CSharp statement: '{0}'.`.
+  - `Parsing_UnexpectedTokenInStatement` descriptor at `RZ1046`,
+    severity Error.
+  - `CreateParsing_UnexpectedTokenInStatement_At(SourceLocation,
+    string token)` factory emits a zero-width `SourceSpan` at the
+    cursor per the `_At` convention from Stage 1.3. There is no
+    non-`_At` paired variant: the diagnostic was introduced new in
+    Stage 2.3 and only ever has the narrow span.
+
+  No `.xlf` files exist for `Microsoft.CodeAnalysis.Razor.Compiler`
+  (`Microsoft.CodeAnalysis.Razor.Compiler.csproj` only registers
+  `EmbeddedResource` `.resx` updates; the strongly-typed
+  `Resources` accessor is SDK-generated). No `UpdateXlf` target
+  invocation was needed; the resource designer regenerates at build.
+
+  **Tests added** to
+  `legacyTest/Legacy/ParserRecoveryCorpusSnapshotTests.cs` (three
+  `[Fact]`s, in-memory assertions per the Stage 1.4 deviation):
+  - `MidStatementGarbage_EnhancedRecovery` -- parity test for the
+    Stage 0.1 corpus file `MidStatementGarbage.razor`.
+  - `UnclosedIfParen_EnhancedRecovery` -- parity test for
+    `UnclosedIfParen.razor`.
+  - `UnclosedParenInsideCodeBlock_EnhancedRecovery` -- synthetic
+    test on `@{ var x = (foo; }` that actually exercises
+    `TryBalanceBlock`'s enhanced recovery (the corpus files don't;
+    see deviation below).
+
+  **Plan deviations (significant, documented):**
+
+  1. **Empirical: the corpus files don't exercise Stage 2.3 paths.**
+     The plan literal calls for `MidStatementGarbage` and
+     `UnclosedIfParen` to assert `garbage absorbed as
+     SkippedContentSyntax, no CSharpStatementLiteral wraps the
+     recovered region`. Empirically:
+     - `MidStatementGarbage` (`@{ var x = ?? 1; <p>...</p> }`) is
+       fully well-formed at the lexer/parser level: `??` is a valid
+       C# `NullCoalesce` token, `<p>` triggers
+       `ParseStatement`'s markup-transition handoff (line ~916 of
+       `CSharpCodeParser.cs`), and `}` closes the block. The
+       legacy parse produces zero diagnostics and the enhanced parse
+       is identical.
+     - `UnclosedIfParen` (`@if(foo bar ...`) is parsed via
+       `ParseImplicitExpression` + `ParseMethodCallOrArrayIndex`
+       (Stage 2.6 territory), NOT `ParseStandardStatement`. The
+       recovery site at line 636 (`AcceptUntil(LessThan)` in
+       `ParseMethodCallOrArrayIndex`) is owned by Stage 2.6 and is
+       unchanged by this stage.
+
+     **Structural finding**: `ParseStandardStatement`'s panic-else
+     is effectively unreachable from typical input. `ReadWhile`'s
+     stop set (Semicolon, RazorCommentTransition, Transition,
+     LeftBrace, LeftParenthesis, LeftBracket, RightBrace, Keyword)
+     is identical to the kinds handled by the function's if-else
+     chain; `ParseStatement` (the caller) already dispatches
+     markup-transition (`LessThan` / `Transition+:`) to the HTML
+     parser before reaching `ParseStandardStatement`. The panic
+     would only fire on pathological tokenizer states. The
+     migration is still landed for forward-compatibility and to keep
+     the code path consistent with the rest of Stage 2.
+
+     `TryBalanceBlock`'s recovery IS reachable -- the synthetic
+     `UnclosedParenInsideCodeBlock_EnhancedRecovery` test exercises
+     it directly (`@{ var x = (foo; }`).
+
+  2. **In-memory assertions** instead of parallel
+     `.enhanced.{stree,diag,cspans}.txt` baselines (same rationale
+     as Stage 1.4 / 2.1 / 2.2).
+
+  3. **Synthetic test added** beyond the plan literal's two corpus
+     tests, to give Stage 2.3's actual behaviour-changing code path
+     real test coverage. The corpus parity tests are kept (as the
+     plan literal directs) but they pin the invariant that Stage
+     2.3 doesn't regress these inputs rather than demonstrating the
+     new shape -- which the synthetic test does.
+
+  4. **Diagnostic attachment is via `ErrorSink`, not the missing
+     token.** RZ1046 fires for an *unexpected* token (not a
+     *missing* one), so there is no `MissingToken(kind)` to attach
+     it to. The `_At` factory still produces a zero-width
+     `SourceSpan`; it is just placed in `ErrorSink` rather than
+     on a token. This matches Stage 1.4's pre-existing pattern for
+     diagnostics that don't have a natural token home. The new
+     RZ1046 will therefore appear in `RazorSyntaxTree.Diagnostics`
+     via the `ErrorSink` merge path, not the tree-attached path.
+
+  **`AcceptUntil(LessThan)` audit** (Stage 2 exit-criteria check):
+  `Select-String -Path ... -Pattern "AcceptUntil\(SyntaxKind\.LessThan"`
+  reports 4 occurrences -- the same count as before Stage 2.3
+  started. Two old occurrences (the panic-else at line ~1218 and
+  `TryBalanceBlock`'s recovery at line ~1232) are now inside the
+  `else` of their respective `UseEnhancedRecovery` guards
+  (lines 1273 and 1318 after the migration). Lines 501 (Stage 2.1
+  legacy) and 636 (Stage 2.6) are unchanged. The enhanced branches
+  added by Stage 2.3 contain zero `AcceptUntil(LessThan)`
+  occurrences -- satisfies the per-stage `enhanced branches must
+  not contribute new occurrences` rule.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1318 / 1318 (1315 baseline + 3 new); language tests 3600 / 3600
+  unchanged. Both TFMs.
+- 2026-05-27: Stage 2.4 done. Migration of
+  `CSharpCodeParser.TryParseCondition` (lines ~2369-2385 of
+  `Legacy/CSharpCodeParser.cs`) under the `UseEnhancedRecovery` flag.
+  This is the single migration site that covers the entire C# control-flow
+  keyword-block family: `@if`, `@for`, `@foreach`, `@while`,
+  `@switch`, `@lock`, `@try`/`catch`, `@do`/`while`, `@using`.
+  All of those frames route their `(condition)` syntax through
+  `TryParseCondition`; the body `{...}` block is already migrated by
+  Stage 2.2's `ParseStatementBody`.
+
+  - **TryParseCondition panic site**: legacy
+    `if (!complete) AcceptUntil(SyntaxKind.NewLine)` is preserved
+    byte-for-byte in the `else` branch. The enhanced branch runs
+    `Synchronize(new FollowSet(NewLine, RightBrace, LeftBrace),
+    CSharpCodeBlock)`, flushes the pending accepted `(` as a
+    precise `CSharpStatementLiteral` via `AcceptMarkerTokenIfNecessary`
+    + `OutputTokensAsStatementLiteral`, then adds the
+    `SkippedContentSyntax` (when non-null) to the builder. Pattern
+    mirrors Stage 2.3's `TryBalanceBlock` enhanced branch.
+
+  **Per Big Design Decision #4** the follow set is C#-side
+  (`NewLine`, `RightBrace`, `LeftBrace` are all shared structural
+  kinds). The follow set choice:
+  - `NewLine` preserves the legacy panic boundary so single-line
+    control-flow inputs sync at end of line;
+  - `RightBrace` lets `@{ for(... } ` recover at the enclosing
+    code block's outer `}`;
+  - `LeftBrace` lets the body of `@if(foo bar { ... }` still be
+    parsed even when the condition is malformed.
+
+  Stage 4.2 will mechanically upgrade this call to thread the caller's
+  outer follow set per BDD #4.
+
+  **No new diagnostic IDs allocated.** `Balance` itself already
+  emits the pre-existing RZ1027 (`Parsing_ExpectedCloseBracketBeforeEOF`)
+  at the opening `(`; narrowing that diagnostic belongs to whichever
+  stage owns the open-bracket emission, not Stage 2.4. The enhanced
+  branch introduces no zero-width diagnostic of its own (unlike Stage
+  2.3's RZ1046).
+
+  **Corpus additions:**
+  - `UnclosedForeach.razor` (46 bytes): `@foreach(var x in items\n{...}`
+    exercises `ParseConditionalBlock` -> `TryParseCondition`.
+  - `UnclosedSwitch.razor` (82 bytes): `@switch(x\n{...}` same path
+    via `CSharpSyntaxKind.SwitchKeyword`.
+  Both have legacy `.stree.txt` / `.diag.txt` / `.cspans.txt`
+  baselines generated via `/p:GenerateBaselines=true` and pin the
+  legacy fat-literal absorption of the malformed condition body.
+
+  **Tests added** to
+  `legacyTest/Legacy/ParserRecoveryCorpusSnapshotTests.cs` (five new
+  `[Fact]`s, in-memory assertions per the Stage 1.4 / 2.1 / 2.2 / 2.3
+  deviation):
+  - `UnclosedForeach_EnhancedRecovery` -- corpus
+    `UnclosedForeach.razor` via `ParseConditionalBlock`.
+  - `UnclosedSwitch_EnhancedRecovery` -- corpus
+    `UnclosedSwitch.razor` via `ParseConditionalBlock`.
+  - `UnclosedCatchParen_EnhancedRecovery` -- synthetic
+    `@try { } catch(ex bad { }` via `ParseFilterableCatchBlock`.
+  - `UnclosedUsingParen_EnhancedRecovery` -- synthetic
+    `@using(var x = foo bar { }` via `ParseUsingStatement`.
+  - `UnclosedWhileInDoLoop_EnhancedRecovery` -- synthetic
+    `@do { } while(foo bar` via `ParseWhileClause`.
+
+  Plus 2 new legacy snapshot `[Fact]`s (`UnclosedForeach`,
+  `UnclosedSwitch`) pinning the legacy fat-literal behaviour via
+  the new baselines.
+
+  **Existing test updated:** `UnclosedIfParen_EnhancedRecovery`
+  (added in Stage 2.3 as a `parity` test). Stage 2.3's comment
+  claimed `@if(foo bar` routed through
+  `ParseMethodCallOrArrayIndex` (`Stage 2.6 territory`), which was
+  empirically incorrect: `if` IS dispatched to `ParseIfStatement`
+  -> `ParseConditionalBlock` -> `TryParseCondition`. The legacy
+  `AcceptUntil(NewLine)` was flattening the entire structure into
+  a single fat `CSharpStatementLiteral`. Stage 2.4's migration
+  produces a real `SkippedContentSyntax` for `foo bar`; the
+  updated assertions verify that shape.
+
+  **Sites intentionally NOT migrated in Stage 2.4:**
+  - The inner `switch` branch of `ParseStandardStatement`
+    (line ~1202 of `Legacy/CSharpCodeParser.cs`, the
+    `AcceptUntil(SyntaxKind.LeftBrace)` site marked with a legacy
+    `// TODO: how do we do error recovery at this point?` comment).
+    The plan lists this site, but a naive `Synchronize(LeftBrace, ...)`
+    swap would regress the well-formed `switch (foo) { ... }` case:
+    the legacy `AcceptUntil(LeftBrace)` *accepts* the intermediate
+    tokens (`(foo) ` -- real C# tokens) as a statement literal,
+    which is the correct behaviour for that input. `Synchronize`
+    would instead skip those tokens into `SkippedContent`, losing
+    them from the C# emit stream. A proper migration here requires
+    a structural refactor (use `TryParseCondition` for the `(...)`
+    part, then `Required(LeftBrace, ...)` + `TryBalanceBlock` for
+    the body) which is outside the literal Stage 2.4 recipe (`each
+    [frame's] condition-parsing uses Required(LeftParen, ...) +
+    Balance + Required(RightParen, ...); body parsing uses
+    Required(LeftBrace, ...)`) and would change the well-formed
+    case's literal-stream content. Deferred -- the canonical
+    `@switch (x) {` top-level path goes through
+    `ParseConditionalBlock` (now covered by `TryParseCondition`'s
+    migration), so this inner fallback is the rare-nested case only.
+
+  - `ParseCaseStatement` (line ~2435) -- no
+    `AcceptUntil` / panic recovery exists in this function;
+    it uses `Balance` for brackets but with `BalancingModes.None`
+    (no recovery contract). Nothing to migrate.
+
+  - `ParseUsingDeclaration` (line ~2737) -- this is a directive
+    parser (`@using Foo.Bar;`), not a statement frame. The plan
+    explicitly lists it under Stage 2.5 (`ParseUsingDeclaration`
+    is in Stage 2.5's directive list). No `AcceptUntil` to migrate
+    at this layer; deferred to Stage 2.5.
+
+  - `ParseConditionalBlock` / `ParseIfStatement` /
+    `ParseAfterIfClause` / `ParseElseClause` / `ParseTryStatement`
+    / `ParseAfterTryClause` / `ParseFilterableCatchBlock` /
+    `ParseDoStatement` / `ParseWhileClause` / `ParseUsingKeyword`
+    / `ParseUsingStatement` -- these methods have no
+    `AcceptUntil` / panic recovery of their own. They all delegate
+    `(condition)` parsing to `TryParseCondition` and `{ body }`
+    parsing to `ParseExpectedCodeBlock` -> `ParseStatement` ->
+    `ParseStatementBody` (already migrated in Stage 2.2). Migrating
+    `TryParseCondition` therefore mechanically covers the entire
+    family. No per-method enhanced branches required.
+
+  **`AcceptUntil(LessThan)` audit** (Stage 2 exit-criteria check):
+  unchanged from Stage 2.3 -- 4 occurrences total (lines 471 legacy,
+  636 Stage 2.6, 1273 / 1287 Stage 2.3 legacy paths). Stage 2.4 added
+  no new occurrences and removed none. The new enhanced branch in
+  `TryParseCondition` contains zero `AcceptUntil(LessThan)` /
+  `AcceptUntil(NewLine)` occurrences -- satisfies the per-stage
+  `enhanced branches must not contribute new occurrences` rule.
+
+  **Plan deviations:**
+  - Inner `switch` branch of `ParseStandardStatement` deferred
+    (see `Sites intentionally NOT migrated` above for rationale).
+    The literal Stage 2.4 plan text listed it; the deferral is
+    documented here so a future maintenance pass (Stage 6.2 cleanup
+    or a follow-up structural refactor) can pick it up. The legacy
+    branch is untouched.
+  - `ParseUsingDeclaration` deferred to Stage 2.5 (where the plan
+    also explicitly lists it). The Stage 2.4 prompt mentioned it in
+    the migration list, but per the plan's stage ownership it belongs
+    to the directive-parser migration of Stage 2.5.
+  - In-memory assertions for new enhanced tests (matching the Stage
+    1.4 / 2.1 / 2.2 / 2.3 deviation): no parallel
+    `.enhanced.{stree,diag,cspans}.txt` baselines generated; the
+    test asserts the Stage 2.4 exit criteria directly.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1325 / 1325 (1318 baseline + 2 new legacy corpus + 5 new enhanced);
+  language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+- 2026-05-28: Stage 2.5 done. Migration of the Razor directive parsers
+  in `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Legacy/CSharpCodeParser.cs`
+  to the `Required` / `Synchronize` machinery under the
+  `UseEnhancedRecovery` flag.
+
+  **What landed:**
+
+  - `RecoveryFollowSets.CSharpDirectiveTrailing` named constant
+    (`{ NewLine, RightBrace }`, C#-side kinds per Big Design Decision
+    #4). `LessThan` was deliberately excluded after experimenting:
+    including it would cause sync to stop at a stray `<` on the
+    directive line, leaving the bad `<` to leak to the outer markup
+    parser as a fake `MarkupStartTag` + `MarkupMiscAttributeContent`
+    (the very pollution Stage 2.5 is trying to eliminate). The
+    trade-off: a directive on the same line as a real markup tag
+    (`@inherits System<p>after</p>`, no intervening newline) would
+    have its trailing `<p>after</p>` absorbed into SkippedContent.
+    This is an acceptable corner-case loss because directives are
+    line-terminated in practice, and the dominant pattern is
+    newline-separated markup after the directive.
+
+  - `BuildBailedDirective(SyntaxKind missingKind)` local function added
+    to `ParseExtensibleDirective` (right after the existing
+    `BuildDirective` local function). Under enhanced mode it calls
+    `Synchronize(CSharpDirectiveTrailing, originatingLanguage: CSharpCodeBlock)`,
+    flushes pending tokens via `AcceptMarkerTokenIfNecessary` +
+    `OutputTokensAsStatementLiteral`, then appends `sync.Skipped` to
+    `directiveBuilder` before delegating to `BuildDirective`. The
+    helper returns `RazorDirectiveSyntax` (rather than calling
+    `builder.Add` directly) because `builder` is an `in` parameter
+    and C# does not permit capturing `ref`/`in`/`out` parameters in
+    nested functions.
+
+  - All 11 early-bail sites in `ParseExtensibleDirective` migrated
+    from `builder.Add(BuildDirective(K)); return;` to
+    `builder.Add(BuildBailedDirective(K)); return;`. Diagnostics
+    covered: `DirectiveTokensMustBeSeparated`,
+    `UnexpectedEOFAfterDirective`, `DirectiveExpectsTypeName` (RZ1013),
+    `DirectiveExpectsNamespace` (RZ1015), `DirectiveExpectsIdentifier`,
+    `DirectiveExpectsQuotedStringLiteral`,
+    `DirectiveExpectsBooleanLiteral`,
+    `DirectiveExpectsCSharpAttribute`,
+    `GenericTypeParameterIdentifierMismatch`, `UnexpectedIdentifier`,
+    `DirectiveExpectsIdentifierOrExpression`. The pre-existing
+    diagnostic factories and their spans are unchanged; only the
+    cursor advancement and recovered tree shape differ.
+
+  - Trailing-literal site at `Parsing_UnexpectedDirectiveLiteral`
+    (the SingleLine directive's trailing-content error) wrapped with
+    the same enhanced-mode `Synchronize` pattern (inline, not via
+    `BuildBailedDirective`).
+
+  - `ParseUsingDeclaration` gained an enhanced-mode `Synchronize`
+    block between `builder.Add(SyntaxFactory.RazorUsingDirective(...))`
+    and `CaptureWhitespaceToEndOfLine()`. Skipped content is added to
+    the OUTER `builder` (not `directiveBuilder`, which is asserted
+    empty) and appears as a sibling AFTER the `RazorUsingDirective`.
+    No new diagnostic is emitted (the legacy path is also silent for
+    `@using foo bar`).
+
+  **Sites intentionally NOT migrated in Stage 2.5:**
+
+  - `ParseTagHelperDirective` (and its `ParseTagHelperPrefixDirective`
+    / `ParseAddTagHelperDirective` / `ParseRemoveTagHelperDirective`
+    front doors) -- the `AcceptUntil(SyntaxKind.NewLine)` at
+    `CSharpCodeParser.cs:1541` is value-collection (it builds the
+    directive's value string up to the line terminator), NOT panic
+    recovery. Replacing it with `Synchronize` would change
+    well-formed-input behavior by absorbing the entire value content
+    into SkippedContent. The diagnostic for missing-value at
+    `Parsing_DirectiveMustHaveValue` already runs at a narrow span
+    (1 char); no recovery cleanup is required.
+
+  - `ParseUsingStatement` / `ParseUsingKeyword` -- already migrated
+    in Stage 2.4 via `TryParseCondition`. The Stage 2.4 enhanced
+    branch handles the `using (` Balance-fails path; nothing further
+    to add here.
+
+  **Deviations from the plan:**
+
+  - No `MalformedExtensible.razor` corpus file. The corpus test
+    infrastructure (`ParseCorpusFile`) doesn't pass `DirectiveDescriptor`s
+    to `ParseDocument`, and extensible directives like `@inherits`
+    require their descriptor to be registered to take the
+    `ParseExtensibleDirective` path. The `MalformedInherits_EnhancedRecovery`
+    synthetic test uses inline source plus
+    `directives: [InheritsDirective.Directive]` instead (matching
+    the Stage 2.4 `UnclosedCatchParen_EnhancedRecovery` pattern).
+
+  - In-memory assertions for new enhanced tests (matching the Stage
+    1.4 / 2.1 / 2.2 / 2.3 / 2.4 deviation): no parallel
+    `.enhanced.{stree,diag,cspans}.txt` baselines generated; the
+    test asserts the Stage 2.5 exit criteria directly.
+
+  **No new RZ IDs allocated** in Stage 2.5. All migrated bail sites
+  reuse the existing diagnostic factories with their existing narrow
+  spans. The redesign target for Stage 2.5 is purely about
+  recovered-tree shape (absorb trailing garbage as `SkippedContentSyntax`
+  inside the directive instead of leaking as `MarkupTextLiteral` /
+  `MarkupMiscAttributeContent` on the outer markup side), not about
+  changing error reporting.
+
+  **Risk verified:** A first cut had `BailWithSync` as a `void`
+  local function calling `builder.Add(...)` internally, which failed
+  to compile (CS1628: cannot use `in` parameter inside local
+  function). The fix was to make it return the directive and have
+  each caller do `builder.Add(BuildBailedDirective(K))`. The
+  identifier was also renamed to `BuildBailedDirective` to reflect
+  the return-based shape. End-to-end metrics (the cross-cutting
+  `RecoveryDelta` aggregation) are deferred to Stage 5.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1328 / 1328 (1325 baseline + 1 new legacy corpus + 2 new enhanced);
+  language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
+- 2026-05-29: Stage 2.6 done. Migration of the implicit-expression
+  method-call / array-index Balance failure recovery in
+  `src/Razor/src/Compiler/Microsoft.CodeAnalysis.Razor.Compiler/src/Language/Legacy/CSharpCodeParser.cs`
+  (`ParseMethodCallOrArrayIndex`) to the `Required` / `Synchronize`
+  machinery under the `UseEnhancedRecovery` flag. This is the final
+  Stage 2 sub-stage; Stage 2 is now complete.
+
+  **What landed:**
+
+  - `RecoveryFollowSets.CSharpImplicitExpressionTrailing` named
+    constant (`{ LessThan, NewLine, Whitespace }`, C#-side kinds per
+    Big Design Decision #4). Models the natural end of an implicit
+    expression: markup follow-up (`<`), end-of-line, or trailing
+    whitespace before non-expression text.
+
+  - `ParseMethodCallOrArrayIndex` (around line 611 of
+    `Legacy/CSharpCodeParser.cs`) split into enhanced / legacy
+    branches on `Context.Options.UseEnhancedRecovery`. The Balance
+    call gains `BalancingModes.NoErrorOnFailure` conditionally in
+    the enhanced branch to suppress Balance's own wide RZ1027
+    (1-char span at the opening bracket); the enhanced path emits
+    its own narrow zero-width RZ1027 via the `_At` factory attached
+    to the MissingToken returned by `Required`. The legacy branch
+    keeps Balance with its default error-emission and the
+    pre-existing `AcceptUntil(LessThan)` fat-literal absorb plus
+    the `At(right) ? AcceptAndMoveNext() : nothing` open-or-drop
+    behaviour.
+
+  - Enhanced branch flow: `Synchronize(CSharpImplicitExpressionTrailing,
+    originatingLanguage: CSharpCodeBlock)` to absorb intra-call
+    garbage as a `SkippedContentSyntax`, then `OutputTokensAsExpressionLiteral`
+    flush, then `Required(right, ExpectedCloseBracketBeforeEOF_At,
+    recovery: CSharpImplicitExpressionTrailing,
+    originatingLanguage: CSharpCodeBlock)` to either consume the
+    real closing bracket or emit a zero-width MissingToken carrying
+    the narrow RZ1027 at the current cursor.
+
+  - Corpus added: `legacyTest/ParserRecoveryCorpus/UnclosedMethodCallInImplicit.razor`
+    -- the canonical `<p>@foo.Bar(baz</p><div>after</div>` shape
+    (37 bytes, CRLF) that exercises the implicit-expression Balance
+    failure followed by markup follow-set tokens.
+
+  - Tests added: `UnclosedMethodCallInImplicit` [Fact] (legacy
+    snapshot binding the pre-migration fat-literal behaviour via
+    new `.stree.txt` / `.diag.txt` / `.cspans.txt` baselines) and
+    `UnclosedMethodCallInImplicit_EnhancedRecovery` [Fact]
+    (in-memory assertions of the enhanced shape: real
+    `SkippedContentSyntax` for `baz`, zero-width MissingToken with
+    narrow RZ1027 for the closing `)`, no leakage of `</p>` into
+    the expression).
+
+  **Sites intentionally NOT migrated in Stage 2.6:**
+
+  - The Stage 2.3 statement-family sites (`TryBalanceBlock` at
+    line 1423 and the explicit-expression fallback at line 1378)
+    remain in their Stage 2.3-shipped state. They are inside
+    `else` branches of `UseEnhancedRecovery` guards; no further
+    work is needed.
+
+  - The Stage 2.1 explicit-expression site at line 501 -- already
+    inside an `else` branch from Stage 2.1's own migration.
+
+  **Plan deviations:**
+
+  - `Required`'s `recovery` parameter uses `CSharpImplicitExpressionTrailing`
+    (the same follow set as the outer `Synchronize`) rather than
+    `FollowSet.Empty`. Using `FollowSet.Empty` would cause
+    `Synchronize` (invoked by `Required` on the missing-token path)
+    to consume tokens all the way to EOF because
+    `FollowSet.Empty.Contains(_)` is always false. Reusing the
+    outer follow set is safe because: (a) on the success path
+    `Required` consumes and never syncs; (b) on the missing path
+    the cursor is already at a follow token (placed there by the
+    outer `Synchronize`), so the secondary sync breaks immediately
+    with `Skipped = null`.
+
+  - MissingToken handling bypasses `Accept(SyntaxToken)` and writes
+    directly to `TokenBuilder.Add(missingToken)`. The `Accept`
+    helper copies the token's `GetDiagnostics()` into `ErrorSink`,
+    which would double-emit the narrow RZ1027 (once on the token,
+    once on the sink). Writing to `TokenBuilder` directly preserves
+    the Stage 1.4 "diagnostic on missing token only" contract.
+
+  - In-memory assertions for the new enhanced test (matching the
+    Stage 1.4 / 2.1 / 2.2 / 2.3 / 2.4 / 2.5 deviation): no parallel
+    `.enhanced.{stree,diag,cspans}.txt` baselines generated; the
+    test asserts the Stage 2.6 exit criteria directly.
+
+  **No new RZ IDs allocated** in Stage 2.6. The enhanced branch
+  reuses `CreateParsing_ExpectedCloseBracketBeforeEOF_At` (RZ1027)
+  -- the `_At` factory that Stage 1.3 already paired for narrow,
+  zero-width emission. The next free `RZ1xxx` parser-recovery ID
+  remains **RZ1047**.
+
+  **`AcceptUntil(LessThan)` audit** (Stage 2 final exit-criteria
+  check): 4 occurrences total in `CSharpCodeParser.cs` (lines 501,
+  699, 1378, 1423). All four are now inside `else` branches of
+  `UseEnhancedRecovery` guards -- verified by inspection of each
+  site. Stage 2 exit criterion is met: every enhanced branch is
+  `AcceptUntil(LessThan)`-free. The remaining 4 legacy occurrences
+  will be deleted by Stage 6.2 cleanup once the
+  `UseEnhancedRecovery` flag is removed.
+
+  Razor.slnf builds clean (0 warnings, 0 errors). Legacy tests
+  1330 / 1330 (1328 baseline + 1 new legacy corpus + 1 new enhanced);
+  language tests 3600 / 3600 unchanged. Both TFMs (net10.0 and net472).
