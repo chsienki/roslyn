@@ -3,25 +3,22 @@
 
 #nullable enable
 
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Roslyn.Test.Utilities;
 using Xunit;
 
 namespace Microsoft.NET.Sdk.Razor.SourceGenerators;
 
 /// <summary>
-/// Stage 5.1 end-to-end coverage for the parser-recovery placeholder matrix.
-/// Each corpus .razor file (committed under
+/// End-to-end coverage for the parser-recovery placeholder matrix. Each
+/// corpus .razor file (committed under
 /// <c>src/Razor/src/Compiler/Microsoft.AspNetCore.Razor.Language/legacyTest/ParserRecoveryCorpus/</c>)
-/// is run through the source generator under <c>use-enhanced-recovery=true</c>;
-/// the test asserts the generated C# parses cleanly under Roslyn for the
-/// "wall of red" cases. The corpus-driven assertions cover the motivating bug
+/// is run through the source generator and the test asserts the generated
+/// C# parses cleanly under Roslyn for the "wall of red" cases. The
+/// corpus-driven assertions cover the motivating bug
 /// <see href="https://github.com/dotnet/razor/issues/10383"/>.
 /// </summary>
 /// <remarks>
@@ -66,7 +63,7 @@ public sealed class ParserRecoveryCorpus_CodegenSafetyTests : RazorSourceGenerat
     // C# parses cleanly under Roslyn (zero CS diagnostics from the source
     // generator's output compilation).
     [Fact, WorkItem("https://github.com/dotnet/razor/issues/10383")]
-    public async Task EmptyBoundAttribute_Onclick_EnhancedMode_NoCascadingCSharpDiagnostics()
+    public async Task EmptyBoundAttribute_Onclick_NoCascadingCSharpDiagnostics()
     {
         var componentSource = ReadCorpusComponent("EmptyBoundAttribute_Onclick.razor");
         await RunCorpusCaseAndAssertCleanCSharp(
@@ -74,35 +71,14 @@ public sealed class ParserRecoveryCorpus_CodegenSafetyTests : RazorSourceGenerat
             componentSource);
     }
 
-    [Fact, WorkItem("https://github.com/dotnet/razor/issues/10383")]
-    public async Task EmptyBoundAttribute_Onclick_LegacyMode_NoCascadingCSharpDiagnostics()
-    {
-        // Stage 5.0 unified the legacy and enhanced parser shapes via the
-        // missing-value marker. Stage 5.1's codegen placeholder must therefore
-        // also fix the wall-of-red under the default (legacy) parser. This is
-        // the user-visible default code path today.
-        var componentSource = ReadCorpusComponent("EmptyBoundAttribute_Onclick.razor");
-        await RunCorpusCaseAndAssertCleanCSharp(
-            "EmptyBoundAttribute_Onclick.legacy",
-            componentSource,
-            useEnhancedRecovery: null);
-    }
-
     private async Task RunCorpusCaseAndAssertCleanCSharp(
         string caseName,
-        string componentSource,
-        string? useEnhancedRecovery = "true")
+        string componentSource)
     {
-        var parseOptions = CSharpParseOptions.Default;
-        if (useEnhancedRecovery is not null)
-        {
-            parseOptions = parseOptions.WithFeatures([new("use-enhanced-recovery", useEnhancedRecovery)]);
-        }
-
         var project = CreateTestProject(new()
         {
             ["Shared/Component1.razor"] = componentSource,
-        }, cSharpParseOptions: parseOptions);
+        });
 
         var compilation = await project.GetCompilationAsync();
         var driver = await GetDriverAsync(project);

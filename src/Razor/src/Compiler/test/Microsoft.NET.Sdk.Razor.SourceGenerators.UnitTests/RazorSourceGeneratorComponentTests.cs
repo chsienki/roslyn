@@ -1860,34 +1860,15 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         Assert.Single(result.GeneratedSources);
     }
 
-    // Stage 5.0.0 codegen-site spike (razor-recovery-redesign-plan.md).
-    //
-    // This test is INVESTIGATION-ONLY: it dumps the generated C# for
-    // <button @onclick=""> under three configurations and asserts true.
-    // Its purpose is to record (in plan-state.md) the exact codegen site
-    // that produces the user-visible CS1525 for dotnet/razor#10383 today,
-    // and to confirm whether Stage 3.2's BDD #9 tree shape
-    // (GenericBlock([CSharpExpressionLiteral([MissingToken(Identifier)])]))
-    // is enough on its own (it isn't -- see Stage 5.1) or needs codegen
-    // changes too.
-    //
-    // The three artifacts written under
-    //   artifacts/razor-recovery-spike/
-    // are inspected by hand. Stage 5.1 will replace this with a real
-    // assertion-driven corpus harness; until then this test exists so a
-    // fresh agent can reproduce the spike without rebuilding the harness.
+    // Assertion-driven coverage: the codegen for `<button @onclick="">`
+    // must reach the EventCallback.Factory.Create<TEventArgs>(this, ...)
+    // wrapping instead of silently dropping the directive into
+    // AddMarkupContent. Stage 5.1 refined the empty argument into a safe
+    // default so the CS1525 from an empty placeholder no longer appears.
+    // See razor-recovery-redesign-plan.md.
     [Fact, WorkItem("https://github.com/dotnet/razor/issues/10383")]
-    public async Task Spike_EmptyOnclickAttribute_DumpsGeneratedSource()
+    public async Task EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping()
     {
-        // Canonical reproducer from
-        // legacyTest/ParserRecoveryCorpus/EmptyBoundAttribute_Onclick.razor.
-        // Includes the surrounding markup and an @code block so that the
-        // EventHandler tag-helper / component pipeline actually fires on
-        // `@onclick`. Without `@using Microsoft.AspNetCore.Components.Web`
-        // the `EventHandlerTagHelperProducer` does not discover `onclick`
-        // as a bound event-handler attribute and the bug's codegen path is
-        // never reached -- the markup falls back to AddMarkupContent and
-        // no CS1525 appears in the output.
         const string ComponentSource = """
             @using Microsoft.AspNetCore.Components.Web
 
@@ -1907,117 +1888,10 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
             }
             """;
 
-        var artifactsDir = Path.Combine(
-            TestProject.GetRepoRoot(),
-            "artifacts",
-            "razor-recovery-spike");
-        Directory.CreateDirectory(artifactsDir);
-
-        // ------------------------------------------------------------------
-        // 1. Source-generator path (legacy mode -- exactly what users see).
-        // ------------------------------------------------------------------
         var project = CreateTestProject(new()
         {
             ["Shared/Component1.razor"] = ComponentSource,
         });
-        var compilation = await project.GetCompilationAsync();
-        var driver = await GetDriverAsync(project);
-        var result = RunGenerator(compilation!, ref driver, out _, verify: static _ => { });
-        var generatorSource = Assert.Single(result.GeneratedSources);
-        File.WriteAllText(
-            Path.Combine(artifactsDir, "empty-onclick.sourcegen.razor.g.cs"),
-            generatorSource.SourceText.ToString());
-
-        // ------------------------------------------------------------------
-        // 2. Direct RazorProjectEngine path -- legacy mode (UseEnhancedRecovery = false).
-        //    Replicates the source generator's component pipeline so we can
-        //    flip the parser flag for the third configuration. Should match
-        //    the source-generator output above modulo headers / checksums.
-        // ------------------------------------------------------------------
-        var legacyCSharp = ProcessSingleComponent(ComponentSource, useEnhancedRecovery: false);
-        File.WriteAllText(
-            Path.Combine(artifactsDir, "empty-onclick.legacy.razor.g.cs"),
-            legacyCSharp.Text.ToString());
-
-        // ------------------------------------------------------------------
-        // 3. Direct RazorProjectEngine path -- enhanced mode
-        //    (UseEnhancedRecovery = true). Stage 3.2 reshapes the parse
-        //    tree into BDD #9's GenericBlock([CSharpExpressionLiteral([
-        //    MissingToken(Identifier)])]); this artifact shows what codegen
-        //    does with that shape today (before Stage 5.0 / 5.1 land).
-        // ------------------------------------------------------------------
-        var enhancedCSharp = ProcessSingleComponent(ComponentSource, useEnhancedRecovery: true);
-        File.WriteAllText(
-            Path.Combine(artifactsDir, "empty-onclick.enhanced.razor.g.cs"),
-            enhancedCSharp.Text.ToString());
-
-        // Also record the Razor-side diagnostics for each mode so the spike
-        // report can correlate parser diagnostics with codegen output.
-        var diagnosticsReport = new StringBuilder();
-        diagnosticsReport.AppendLine("Legacy mode Razor diagnostics:");
-        foreach (var d in legacyCSharp.Diagnostics)
-        {
-            diagnosticsReport.AppendLine($"  {d.Id} @ {d.Span} : {d.GetMessage()}");
-        }
-        diagnosticsReport.AppendLine();
-        diagnosticsReport.AppendLine("Enhanced mode Razor diagnostics:");
-        foreach (var d in enhancedCSharp.Diagnostics)
-        {
-            diagnosticsReport.AppendLine($"  {d.Id} @ {d.Span} : {d.GetMessage()}");
-        }
-        File.WriteAllText(
-            Path.Combine(artifactsDir, "empty-onclick.razor-diagnostics.txt"),
-            diagnosticsReport.ToString());
-
-        // Investigation-only -- always passes. Stage 5.1 will replace this
-        // with a proper assertion-driven harness.
-        Assert.True(true);
-    }
-
-    // Stage 5.0 assertion-driven coverage: with `use-enhanced-recovery=true`
-    // surfaced through the source generator's ParseOptions and the
-    // ComponentEventHandlerLoweringPass bail-out replaced by missing-value
-    // placeholder substitution, the codegen for `<button @onclick="">`
-    // must reach the EventCallback.Factory.Create<TEventArgs>(this, ...)
-    // wrapping instead of silently dropping the directive into
-    // AddMarkupContent. Stage 5.1 will refine the empty argument into a
-    // safe default (e.g. `default!`) so the CS1525 produced by the empty
-    // placeholder goes away. See razor-recovery-redesign-plan.md.
-    [Theory, WorkItem("https://github.com/dotnet/razor/issues/10383")]
-    [InlineData(null)]
-    [InlineData("false")]
-    [InlineData("true")]
-    public async Task EmptyOnclickAttribute_SourceGenerator_ReachesEventCallbackWrapping(string useEnhancedRecovery)
-    {
-        var parseOptions = CSharpParseOptions.Default;
-        if (useEnhancedRecovery is not null)
-        {
-            parseOptions = parseOptions.WithFeatures([new("use-enhanced-recovery", useEnhancedRecovery)]);
-        }
-
-        const string ComponentSource = """
-            @using Microsoft.AspNetCore.Components.Web
-
-            <h1>Counter</h1>
-
-            <p>Current count: @currentCount</p>
-
-            <button class="btn btn-primary" @onclick="">Click me</button>
-
-            @code {
-                private int currentCount = 0;
-
-                private void IncrementCount()
-                {
-                    currentCount++;
-                }
-            }
-            """;
-
-        var project = CreateTestProject(new()
-        {
-            ["Shared/Component1.razor"] = ComponentSource,
-        }, cSharpParseOptions: parseOptions);
 
         var compilation = await project.GetCompilationAsync();
         var driver = await GetDriverAsync(project);
@@ -2037,55 +1911,14 @@ public sealed class RazorSourceGeneratorComponentTests : RazorSourceGeneratorTes
         // fell through to `AddMarkupContent(..., "...<button ... @onclick>...</button>")`.
         Assert.DoesNotContain("@onclick>Click me", source);
 
-        // Stage 5.0 guarantee: the EventCallback wrapping is now applied
-        // uniformly for both empty-array (legacy) and single-missing-token
-        // (enhanced) input shapes. The presence of the wrapping call
-        // proves the bail-out has been replaced with placeholder substitution.
+        // Stage 5.0 guarantee: the EventCallback wrapping is applied. The
+        // presence of the wrapping call proves the bail-out has been
+        // replaced with placeholder substitution.
         Assert.Contains("EventCallback.Factory.Create", source);
         Assert.Contains("AddAttribute(7, \"onclick\"", source);
 
         // Stage 5.1 guarantee: the placeholder for the missing C# value is
         // emitted in the inner expression slot of Create<TEventArgs>(this, ...).
         Assert.Contains("default(global::System.Action<global::Microsoft.AspNetCore.Components.Web.MouseEventArgs>)", source);
-    }
-
-    private static RazorCSharpDocument ProcessSingleComponent(string componentSource, bool useEnhancedRecovery)
-    {
-        // Mirror the source generator's component-generation pipeline
-        // (RazorSourceGenerator.Helpers.GetGenerationProjectEngine) closely
-        // enough to reproduce the codegen output. The only knob the spike
-        // toggles is UseEnhancedRecovery on the parser options.
-        var configuration = new RazorConfiguration(
-            RazorLanguageVersion.Latest,
-            ConfigurationName: "default",
-            Extensions: [],
-            UseConsolidatedMvcViews: true,
-            SuppressAddComponentParameter: false);
-
-        var fileSystem = new VirtualRazorProjectFileSystem();
-        var item = new SourceGeneratorProjectItem(
-            basePath: "/",
-            filePath: "/Shared/Component1.razor",
-            relativePhysicalPath: "Shared/Component1.razor",
-            fileKind: RazorFileKind.Component,
-            additionalText: new TestAdditionalText(path: "/Shared/Component1.razor", text: SourceText.From(componentSource)),
-            cssScope: null);
-        fileSystem.Add(item);
-
-        var projectEngine = RazorProjectEngine.Create(configuration, fileSystem, b =>
-        {
-            b.SetRootNamespace("MyApp");
-
-            b.ConfigureParserOptions(builder =>
-            {
-                builder.UseEnhancedRecovery = useEnhancedRecovery;
-            });
-
-            CompilerFeatures.Register(b);
-            RazorExtensions.Register(b);
-        });
-
-        var codeDocument = projectEngine.Process(item);
-        return codeDocument.GetRequiredCSharpDocument();
     }
 }

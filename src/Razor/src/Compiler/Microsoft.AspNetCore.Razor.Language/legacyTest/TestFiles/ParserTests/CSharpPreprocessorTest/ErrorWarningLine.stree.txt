@@ -74,8 +74,6 @@
                             Whitespace;[ ];
                             StringLiteral;["partial-class.cs"];
                             NewLine;[LF];
-                    RazorMetaCode - [151..152)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [151..152)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [152..152)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

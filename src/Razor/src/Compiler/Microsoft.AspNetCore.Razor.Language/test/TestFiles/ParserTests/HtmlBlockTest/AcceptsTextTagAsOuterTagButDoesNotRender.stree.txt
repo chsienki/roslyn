@@ -39,6 +39,4 @@
                             Identifier;[zoop];
                     RazorMetaCode - [37..38)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [38..38)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

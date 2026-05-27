@@ -107,8 +107,7 @@ public class RazorCompletionListProviderRecoveryTest
             RazorSourceDocumentProperties.Default);
         var options = RazorParserOptions.Create(
             RazorLanguageVersion.Latest,
-            RazorFileKind.Legacy,
-            configure: builder => builder.UseEnhancedRecovery = true);
+            RazorFileKind.Legacy);
         return RazorSyntaxTree.Parse(sourceDocument, options);
     }
 }

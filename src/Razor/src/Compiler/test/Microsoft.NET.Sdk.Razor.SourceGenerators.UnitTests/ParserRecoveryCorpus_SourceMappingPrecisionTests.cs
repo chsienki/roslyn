@@ -115,11 +115,11 @@ public sealed class ParserRecoveryCorpus_SourceMappingPrecisionTests : RazorSour
             componentSource = componentsWebUsing + componentSource;
         }
 
-        var csharpDoc = ProcessSingleCorpusFile(componentSource, kind, useEnhancedRecovery: true);
+        var csharpDoc = ProcessSingleCorpusFile(componentSource, kind);
         var (max, total, count) = MeasureMappingWidths(csharpDoc);
 
         // Record widths so plan-state.md can be updated from the test output.
-        _output.WriteLine($"corpus={fileName} mode=enhanced max={max} total={total} count={count}");
+        _output.WriteLine($"corpus={fileName} max={max} total={total} count={count}");
 
         // Always dump the widest mapping (where present) to give investigation
         // a starting point if Stage 5.3's 50-char target is broken later. The
@@ -144,8 +144,7 @@ public sealed class ParserRecoveryCorpus_SourceMappingPrecisionTests : RazorSour
 
     private static RazorCSharpDocument ProcessSingleCorpusFile(
         string componentSource,
-        RazorFileKind fileKind,
-        bool useEnhancedRecovery)
+        RazorFileKind fileKind)
     {
         var configuration = new RazorConfiguration(
             RazorLanguageVersion.Latest,
@@ -172,11 +171,6 @@ public sealed class ParserRecoveryCorpus_SourceMappingPrecisionTests : RazorSour
         var projectEngine = RazorProjectEngine.Create(configuration, fileSystem, b =>
         {
             b.SetRootNamespace("MyApp");
-
-            b.ConfigureParserOptions(builder =>
-            {
-                builder.UseEnhancedRecovery = useEnhancedRecovery;
-            });
 
             CompilerFeatures.Register(b);
             RazorExtensions.Register(b);

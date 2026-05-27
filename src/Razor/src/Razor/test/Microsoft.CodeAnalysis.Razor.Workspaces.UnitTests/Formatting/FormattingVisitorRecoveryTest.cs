@@ -163,8 +163,7 @@ public class FormattingVisitorRecoveryTest
         var sourceDocument = RazorSourceDocument.Create(source, Encoding.UTF8, RazorSourceDocumentProperties.Default);
         var options = RazorParserOptions.Create(
             RazorLanguageVersion.Latest,
-            fileKind,
-            configure: builder => builder.UseEnhancedRecovery = true);
+            fileKind);
 
         var tree = RazorSyntaxTree.Parse(sourceDocument, options);
 

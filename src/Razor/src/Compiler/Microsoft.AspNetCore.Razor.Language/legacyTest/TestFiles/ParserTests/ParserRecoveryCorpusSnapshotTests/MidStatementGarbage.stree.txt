@@ -52,7 +52,7 @@
                                 NewLine;[LF];
                         CSharpStatementLiteral - [72..72)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
-                    RazorMetaCode - [72..73)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [72..73)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [73..75)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];

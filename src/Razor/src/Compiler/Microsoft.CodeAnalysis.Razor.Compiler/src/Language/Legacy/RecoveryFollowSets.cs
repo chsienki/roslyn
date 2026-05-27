@@ -157,8 +157,7 @@ internal static class RecoveryFollowSets
     ///   <item><description>
     ///     <see cref="SyntaxKind.OpenAngle"/>, <see cref="SyntaxKind.CloseAngle"/>,
     ///     <see cref="SyntaxKind.ForwardSlash"/> -- tag terminators (next-tag
-    ///     start, end of current tag, self-closing slash). Match
-    ///     <see cref="HtmlMarkupParser.IsTagRecoveryStopPoint"/>.
+    ///     start, end of current tag, self-closing slash).
     ///   </description></item>
     ///   <item><description>
     ///     <see cref="SyntaxKind.DoubleQuote"/>, <see cref="SyntaxKind.SingleQuote"/>

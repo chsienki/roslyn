@@ -8,7 +8,7 @@
             MarkupElement - [3..4)::1
                 MarkupStartTag - [3..4)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(4:0,4 [0] )
                     CloseAngle;[<Missing>];
             MarkupTagHelperEndTag - [4..8)::4 - [</p>]
                 OpenAngle;[<];

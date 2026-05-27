@@ -31,8 +31,6 @@
                         CSharpStatementLiteral - [21..23)::2 - [; ] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Semicolon;[;];
                             Whitespace;[ ];
-                    RazorMetaCode - [23..24)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [23..24)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [24..24)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

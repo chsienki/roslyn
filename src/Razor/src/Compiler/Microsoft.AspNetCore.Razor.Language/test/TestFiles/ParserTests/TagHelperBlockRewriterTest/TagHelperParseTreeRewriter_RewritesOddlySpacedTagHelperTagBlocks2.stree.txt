@@ -54,9 +54,8 @@
                                 Whitespace;[   ];
                     MarkupTextLiteral - [56..57)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [57..61)::4
-                    MarkupTextLiteral - [57..61)::4 - [    ] - Gen<Markup>
-                        Whitespace;[    ];
+                MarkupTextLiteral - [57..61)::4 - [    ] - Gen<Markup>
+                    Whitespace;[    ];
                 CloseAngle;[>];
             MarkupTextLiteral - [62..73)::11 - [Hello World] - Gen<Markup>
                 Text;[Hello];

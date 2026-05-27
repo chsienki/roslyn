@@ -28,9 +28,8 @@
                                                 Identifier;[Year];
                     MarkupTextLiteral - [31..32)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [32..33)::1
-                    MarkupTextLiteral - [32..33)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [32..33)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

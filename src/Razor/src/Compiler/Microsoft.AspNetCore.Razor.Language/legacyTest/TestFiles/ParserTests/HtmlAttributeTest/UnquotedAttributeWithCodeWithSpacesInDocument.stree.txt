@@ -21,9 +21,8 @@
                                             CSharpCodeBlock - [14..17)::3
                                                 CSharpExpressionLiteral - [14..17)::3 - [foo] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
                                                     Identifier;[foo];
-                MarkupMiscAttributeContent - [17..18)::1
-                    MarkupTextLiteral - [17..18)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [17..18)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
         MarkupTextLiteral - [20..21)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any

@@ -20,5 +20,5 @@
                                 MarkupTextLiteral - [6..7)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                     Text;[}];
                     RazorMetaCode - [7..7)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(7:0,7 [0] )
     EndOfFile;[];

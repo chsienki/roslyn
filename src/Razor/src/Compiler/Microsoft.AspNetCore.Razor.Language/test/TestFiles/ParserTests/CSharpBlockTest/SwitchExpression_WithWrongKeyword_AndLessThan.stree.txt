@@ -32,7 +32,7 @@
                             MarkupElement - [43..75)::32
                                 MarkupStartTag - [43..49)::6 - [< 9 =>] - Gen<Markup>
                                     OpenAngle;[<];
-                                    Text;[<Missing>];
+                                    Text;[<Missing>];RZ1047(44:3,10 [0] )
                                     MarkupAttributeBlock - [44..48)::4 - [ 9 =]
                                         MarkupTextLiteral - [44..45)::1 - [ ] - Gen<Markup>
                                             Whitespace;[ ];
@@ -57,5 +57,5 @@
                                     NewLine;[LF];
                                     Text;[}];
                     RazorMetaCode - [75..75)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(75:5,1 [0] )
     EndOfFile;[];

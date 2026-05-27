@@ -21,11 +21,10 @@ namespace Microsoft.AspNetCore.Razor.Language.Legacy;
 /// <c>StartingBlock</c> call already fires automatically when C# is
 /// re-entered via <c>ParseBlock</c>.
 ///
-/// Tests run with both <c>UseRoslynTokenizer = true</c> (default for
-/// this class -- <c>useLegacyTokenizer: false</c>) and
-/// <c>UseEnhancedRecovery = true</c>. The native tokenizer's
-/// <c>StartingBlock</c>/<c>EndingBlock</c> are no-ops, so the matching
-/// legacy-tokenizer coverage already lives in
+/// Tests run with <c>UseRoslynTokenizer = true</c> (default for
+/// this class -- <c>useLegacyTokenizer: false</c>). The native
+/// tokenizer's <c>StartingBlock</c>/<c>EndingBlock</c> are no-ops,
+/// so the matching legacy-tokenizer coverage already lives in
 /// <see cref="ParserRecoveryCorpusSnapshotTests"/>; the third test
 /// here pins the legacy/Roslyn tree-equality invariant explicitly.
 /// </summary>
@@ -43,9 +42,7 @@ public class RoslynCSharpTokenizerRecoveryTests() : ParserTestBase(layer: TestPr
         // subsequent re-entries into C# remain aligned.
         const string source = "<div>@if(foo bar baz<p>still html</p></div>";
 
-        var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+        var tree = ParseDocument(source);
 
         // The skipped C# garbage `foo bar baz` is wrapped in a single
         // `SkippedContentSyntax` (Stage 4.2 invariant -- preserved here
@@ -89,9 +86,7 @@ public class RoslynCSharpTokenizerRecoveryTests() : ParserTestBase(layer: TestPr
         // then start from a clean Roslyn state.
         const string source = "<div>@if(foo bar baz<p>@bar</p></div>";
 
-        var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+        var tree = ParseDocument(source);
 
         // The `foo bar baz` garbage is in a single `SkippedContentSyntax`.
         var skipped = tree.Root.DescendantNodes().OfType<SkippedContentSyntax>().Single();
@@ -160,18 +155,12 @@ public class RoslynCSharpTokenizerRecoveryTests() : ParserTestBase(layer: TestPr
 
         foreach (var source in sources)
         {
-            var roslynTree = ParseDocument(
-                source,
-                configureParserOptions: builder =>
-                {
-                    builder.UseEnhancedRecovery = true;
-                });
+            var roslynTree = ParseDocument(source);
 
             var legacyTree = ParseDocument(
                 source,
                 configureParserOptions: builder =>
                 {
-                    builder.UseEnhancedRecovery = true;
                     builder.UseRoslynTokenizer = false;
                 });
 

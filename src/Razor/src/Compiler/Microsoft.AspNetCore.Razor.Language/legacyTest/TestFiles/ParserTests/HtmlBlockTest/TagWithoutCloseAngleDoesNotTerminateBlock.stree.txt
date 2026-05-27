@@ -14,13 +14,12 @@
                             MarkupElement - [2..30)::28
                                 MarkupStartTag - [2..30)::28 - [<                      LF   ] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                     OpenAngle;[<];
-                                    Text;[<Missing>];
-                                    MarkupMiscAttributeContent - [3..30)::27
-                                        MarkupTextLiteral - [3..30)::27 - [                      LF   ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[                      ];
-                                            NewLine;[LF];
-                                            Whitespace;[   ];
-                                    CloseAngle;[<Missing>];
+                                    Text;[<Missing>];RZ1047(3:0,3 [0] )
+                                    MarkupTextLiteral - [3..30)::27 - [                      LF   ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[                      ];
+                                        NewLine;[LF];
+                                        Whitespace;[   ];
+                                    CloseAngle;[<Missing>];RZ1024(30:1,3 [0] )
                     RazorMetaCode - [30..30)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(30:1,3 [0] )
     EndOfFile;[];

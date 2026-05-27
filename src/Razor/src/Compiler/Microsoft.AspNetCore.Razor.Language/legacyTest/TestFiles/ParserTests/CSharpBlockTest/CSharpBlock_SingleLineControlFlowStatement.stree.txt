@@ -53,8 +53,6 @@
                                             Identifier;[time];
                         CSharpStatementLiteral - [73..75)::2 - [LF] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             NewLine;[LF];
-                    RazorMetaCode - [75..76)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [75..76)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [76..76)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

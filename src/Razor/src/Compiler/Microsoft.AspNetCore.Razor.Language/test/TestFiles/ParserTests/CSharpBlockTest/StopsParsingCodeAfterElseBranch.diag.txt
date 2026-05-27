@@ -1,1 +1,2 @@
-﻿(6,22): Error RZ1005: ""bar } baz"" is not valid at the start of a code block.  Only identifiers, keywords, comments, "(" and "{" are valid.
+﻿(5,65): Error RZ1047: Expected an HTML tag name.
+(6,22): Error RZ1005: ""bar } baz"" is not valid at the start of a code block.  Only identifiers, keywords, comments, "(" and "{" are valid.

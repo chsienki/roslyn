@@ -30,9 +30,8 @@
                         Whitespace;[ ];
                     MarkupTextLiteral - [37..44)::7 - [checked] - Gen<Markup>
                         Text;[checked];
-                MarkupMiscAttributeContent - [44..45)::1
-                    MarkupTextLiteral - [44..45)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [44..45)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

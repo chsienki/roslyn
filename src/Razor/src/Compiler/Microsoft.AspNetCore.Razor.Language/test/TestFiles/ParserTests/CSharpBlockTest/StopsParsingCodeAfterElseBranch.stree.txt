@@ -130,7 +130,7 @@
         MarkupElement - [243..314)::71
             MarkupStartTag - [243..314)::71 - [< 10; new Foo { Bar = "baz" }) {LF    Debug.WriteLine(@"bar } baz");LF}] - Gen<Markup>
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(244:4,64 [0] )
                 MarkupMinimizedAttributeBlock - [244..248)::4 - [ 10;]
                     MarkupTextLiteral - [244..245)::1 - [ ] - Gen<Markup>
                         Whitespace;[ ];

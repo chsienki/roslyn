@@ -35,8 +35,8 @@
                                                 Identifier;[Bar];
                                             UnclassifiedTextLiteral - [28..29)::1 - [ ] - Gen<None>
                                                 Whitespace;[ ];
-                            MarkupTextLiteral - [29..29)::0 - [] - Gen<Markup>
-                                Marker;[];
+                                            CSharpStatementLiteral - [29..29)::0 - [] - Gen<Stmt>
+                                                Marker;[];
                         RazorMetaCode - [29..30)::1 - Gen<None>
                             RightBrace;[}];
         MarkupTextLiteral - [30..30)::0 - [] - Gen<Markup>

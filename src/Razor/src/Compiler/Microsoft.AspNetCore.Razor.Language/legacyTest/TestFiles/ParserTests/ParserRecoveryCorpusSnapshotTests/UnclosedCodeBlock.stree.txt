@@ -52,5 +52,5 @@
                         CSharpStatementLiteral - [69..69)::0 - [] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Marker;[];
                     RazorMetaCode - [69..69)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(69:3,0 [0] )
     EndOfFile;[];

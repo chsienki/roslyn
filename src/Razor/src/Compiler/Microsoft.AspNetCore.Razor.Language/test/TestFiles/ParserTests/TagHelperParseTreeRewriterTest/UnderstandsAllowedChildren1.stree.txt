@@ -9,9 +9,8 @@
                 MarkupTagHelperStartTag - [3..9)::6 - [<br />] - Gen<Markup>
                     OpenAngle;[<];
                     Text;[br];
-                    MarkupMiscAttributeContent - [6..7)::1
-                        MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup>
-                            Whitespace;[ ];
+                    MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup>
+                        Whitespace;[ ];
                     ForwardSlash;[/];
                     CloseAngle;[>];
             MarkupTagHelperEndTag - [9..13)::4 - [</p>]

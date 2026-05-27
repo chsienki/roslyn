@@ -54,9 +54,8 @@
                                 Whitespace;[   ];
                     MarkupTextLiteral - [56..57)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [57..61)::4
-                    MarkupTextLiteral - [57..61)::4 - [    ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[    ];
+                MarkupTextLiteral - [57..61)::4 - [    ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[    ];
                 CloseAngle;[>];
             MarkupTextLiteral - [62..73)::11 - [Hello World] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 Text;[Hello];

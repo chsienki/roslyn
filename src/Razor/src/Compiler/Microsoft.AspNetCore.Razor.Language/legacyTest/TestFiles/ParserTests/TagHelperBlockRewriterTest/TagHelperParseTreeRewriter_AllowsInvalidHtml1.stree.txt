@@ -3,12 +3,12 @@
         MarkupElement - [0..1)::1
             MarkupStartTag - [0..1)::1 - [<] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(1:0,1 [0] )
                 CloseAngle;[<Missing>];
         MarkupElement - [1..2)::1
             MarkupStartTag - [1..2)::1 - [<] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(2:0,2 [0] )
                 CloseAngle;[<Missing>];
         MarkupTagHelperElement - [2..11)::9 - p[StartTagAndEndTag] - ptaghelper
             MarkupTagHelperStartTag - [2..5)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any

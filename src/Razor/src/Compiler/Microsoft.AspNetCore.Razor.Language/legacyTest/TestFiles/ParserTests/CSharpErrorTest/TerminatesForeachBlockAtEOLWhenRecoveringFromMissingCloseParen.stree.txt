@@ -5,12 +5,14 @@
         CSharpCodeBlock - [0..18)::18
             CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                 Transition;[@];
-            CSharpStatementLiteral - [1..18)::17 - [foreach(foo barLF] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+            CSharpStatementLiteral - [1..9)::8 - [foreach(] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 Keyword;[foreach];
                 LeftParenthesis;[(];
+            SkippedContent - [9..16)::7
                 Identifier;[foo];
                 Whitespace;[ ];
                 Identifier;[bar];
+            CSharpStatementLiteral - [16..18)::2 - [LF] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 NewLine;[LF];
         MarkupTextLiteral - [18..21)::3 - [baz] - Gen<Markup> - SpanEditHandler;Accepts:Any
             Text;[baz];

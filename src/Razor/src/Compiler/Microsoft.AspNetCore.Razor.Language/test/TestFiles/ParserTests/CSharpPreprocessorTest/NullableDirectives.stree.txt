@@ -23,6 +23,4 @@
                             CSharpDirective;[#nullable restore warningsLF];
                     RazorMetaCode - [235..236)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [236..236)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

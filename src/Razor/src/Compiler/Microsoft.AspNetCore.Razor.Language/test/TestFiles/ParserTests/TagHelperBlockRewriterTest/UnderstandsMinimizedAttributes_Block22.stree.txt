@@ -34,15 +34,12 @@
                                             Whitespace;[ ];
                                         MarkupTextLiteral - [21..37)::16 - [unbound-required] - Gen<Markup>
                                             Text;[unbound-required];
-                                    MarkupMiscAttributeContent - [37..38)::1
-                                        MarkupTextLiteral - [37..38)::1 - [ ] - Gen<Markup>
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [37..38)::1 - [ ] - Gen<Markup>
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [40..40)::0 - [] - Gen<Stmt>
                             Marker;[];
                     RazorMetaCode - [40..41)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [41..41)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

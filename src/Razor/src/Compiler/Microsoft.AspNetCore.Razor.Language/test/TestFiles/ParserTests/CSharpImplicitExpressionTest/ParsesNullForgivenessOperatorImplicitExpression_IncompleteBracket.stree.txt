@@ -12,4 +12,8 @@
                             Identifier;[val];
                             Not;[!];
                             LeftBracket;[[];
+                        CSharpExpressionLiteral - [6..6)::0 - [] - Gen<Expr>
+                            RightBracket;[<Missing>];RZ1027(6:0,6 [0] )
+        MarkupTextLiteral - [6..6)::0 - [] - Gen<Markup>
+            Marker;[];
     EndOfFile;[];

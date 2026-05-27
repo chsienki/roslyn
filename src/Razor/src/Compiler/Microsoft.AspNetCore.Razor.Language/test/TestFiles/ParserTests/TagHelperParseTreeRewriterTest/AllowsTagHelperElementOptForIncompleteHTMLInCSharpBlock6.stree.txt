@@ -36,7 +36,7 @@
                                             MarkupLiteralAttributeValue - [18..19)::1 - [}]
                                                 MarkupTextLiteral - [18..19)::1 - [}] - Gen<Markup>
                                                     Text;[}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(19:0,19 [0] )
                     RazorMetaCode - [19..19)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(19:0,19 [0] )
     EndOfFile;[];

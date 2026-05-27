@@ -24,18 +24,12 @@ namespace Microsoft.AspNetCore.Razor.Language;
 /// </summary>
 public sealed class MissingValueMarkerLoweringTests
 {
-    private static RazorProjectEngine CreateComponentEngine(bool useEnhancedRecovery = false)
+    private static RazorProjectEngine CreateComponentEngine()
     {
         return RazorProjectEngine.Create(
             RazorConfiguration.Default,
             RazorProjectFileSystem.Create(Environment.CurrentDirectory),
-            builder =>
-            {
-                builder.ConfigureParserOptions(b =>
-                {
-                    b.UseEnhancedRecovery = useEnhancedRecovery;
-                });
-            });
+            builder => { });
     }
 
     private static DocumentIntermediateNode LowerComponent(RazorProjectEngine engine, string content)
@@ -60,15 +54,15 @@ public sealed class MissingValueMarkerLoweringTests
     }
 
     [Fact, WorkItem("https://github.com/dotnet/razor/issues/10383")]
-    public void EmptyOnclickAttribute_EnhancedMode_TagsCSharpTokenAsMissingValue()
+    public void EmptyOnclickAttribute_TagsCSharpTokenAsMissingValue()
     {
-        // Arrange: under enhanced recovery (Stage 3.2 / BDD #9) the parser
-        // surfaces the missing value as a single MissingToken-bearing
+        // Under the recovery model (Stage 3.2 / BDD #9) the parser surfaces
+        // the missing value as a single MissingToken-bearing
         // CSharpExpressionLiteral. The lowering visitor tags the IR token with
         // IsMissingValue, so downstream passes (ComponentEventHandlerLoweringPass
         // in particular) can distinguish a real empty C# value from one the
         // user simply did not write.
-        var engine = CreateComponentEngine(useEnhancedRecovery: true);
+        var engine = CreateComponentEngine();
 
         const string Source = """
             @using Microsoft.AspNetCore.Components.Web
@@ -104,7 +98,7 @@ public sealed class MissingValueMarkerLoweringTests
     }
 
     [Fact]
-    public void LegacyMode_BoundNonStringAttributeWithEmptyValue_TagsSyntheticToken()
+    public void BoundNonStringAttributeWithEmptyValue_TagsSyntheticToken()
     {
         // The LegacyTagHelperResolver synthesises an empty CSharpIntermediateToken
         // for non-string-bound attributes with an empty value (e.g. checked="" on

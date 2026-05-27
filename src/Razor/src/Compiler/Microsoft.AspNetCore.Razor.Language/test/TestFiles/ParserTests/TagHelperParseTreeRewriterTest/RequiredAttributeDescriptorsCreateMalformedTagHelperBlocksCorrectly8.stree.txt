@@ -32,9 +32,8 @@
                                 Text;[btn];
                     MarkupTextLiteral - [30..31)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [31..32)::1
-                    MarkupTextLiteral - [31..32)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [31..32)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 CloseAngle;[<Missing>];
             MarkupElement - [32..35)::3
                 MarkupStartTag - [32..35)::3 - [<p>] - Gen<Markup>

@@ -20,9 +20,8 @@
                                     MarkupStartTag - [7..14)::7 - [<bar />] - Gen<Markup>
                                         OpenAngle;[<];
                                         Text;[bar];
-                                        MarkupMiscAttributeContent - [11..12)::1
-                                            MarkupTextLiteral - [11..12)::1 - [ ] - Gen<Markup>
-                                                Whitespace;[ ];
+                                        MarkupTextLiteral - [11..12)::1 - [ ] - Gen<Markup>
+                                            Whitespace;[ ];
                                         ForwardSlash;[/];
                                         CloseAngle;[>];
                                 MarkupEndTag - [14..20)::6 - [</foo>] - Gen<Markup>
@@ -34,6 +33,4 @@
                             Marker;[];
                     RazorMetaCode - [20..21)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [21..21)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

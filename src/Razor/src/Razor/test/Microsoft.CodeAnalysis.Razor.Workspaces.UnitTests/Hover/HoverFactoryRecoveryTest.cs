@@ -103,8 +103,7 @@ public class HoverFactoryRecoveryTest
             RazorSourceDocumentProperties.Default);
         var options = RazorParserOptions.Create(
             RazorLanguageVersion.Latest,
-            fileKind,
-            configure: builder => builder.UseEnhancedRecovery = true);
+            fileKind);
 
         var syntaxTree = RazorSyntaxTree.Parse(sourceDocument, options);
 

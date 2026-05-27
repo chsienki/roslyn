@@ -15,15 +15,12 @@
                                 MarkupStartTag - [2..9)::7 - [<foo />] - Gen<Markup>
                                     OpenAngle;[<];
                                     Text;[foo];
-                                    MarkupMiscAttributeContent - [6..7)::1
-                                        MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup>
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [6..7)::1 - [ ] - Gen<Markup>
+                                        Whitespace;[ ];
                                     ForwardSlash;[/];
                                     CloseAngle;[>];
                         CSharpStatementLiteral - [9..9)::0 - [] - Gen<Stmt>
                             Marker;[];
                     RazorMetaCode - [9..10)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [10..10)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

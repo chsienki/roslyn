@@ -173,9 +173,8 @@
                                                     Identifier;[Now];
                     MarkupTextLiteral - [115..116)::1 - ['] - Gen<Markup>
                         SingleQuote;['];
-                MarkupMiscAttributeContent - [116..117)::1
-                    MarkupTextLiteral - [116..117)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [116..117)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
         MarkupTextLiteral - [119..120)::1 - [}] - Gen<Markup>

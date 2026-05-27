@@ -36,9 +36,8 @@
                                 CSharpCodeBlock - [15..16)::1
                                     CSharpExpressionLiteral - [15..16)::1 - [x] - Gen<Expr>
                                         Identifier;[x];
-                MarkupMiscAttributeContent - [16..17)::1
-                    MarkupTextLiteral - [16..17)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [16..17)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

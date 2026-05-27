@@ -1,1 +1,8 @@
 ﻿(1,5): Error RZ1005: "<<" is not valid at the start of a code block.  Only identifiers, keywords, comments, "(" and "{" are valid.
+(1,6): Error RZ1047: Expected an HTML tag name.
+(1,7): Error RZ1047: Expected an HTML tag name.
+(1,8): Error RZ1047: Expected an HTML tag name.
+(1,9): Error RZ1047: Expected an HTML tag name.
+(1,10): Error RZ1047: Expected an HTML tag name.
+(1,11): Error RZ1047: Expected an HTML tag name.
+(1,12): Error RZ1047: Expected an HTML tag name.

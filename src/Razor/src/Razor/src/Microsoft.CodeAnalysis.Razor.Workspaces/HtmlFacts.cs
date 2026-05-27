@@ -285,6 +285,19 @@ internal static class HtmlFacts
             return true;
         }
 
+        // Enhanced recovery emits whitespace in the attribute area as a
+        // direct MarkupTextLiteralSyntax child of the start/end tag, rather
+        // than wrapping it in a MarkupMiscAttributeContentSyntax. Treat the
+        // two shapes equivalently: the cursor is in the attribute area but
+        // no attribute name is selected.
+        if (attribute is MarkupTextLiteralSyntax textLiteral && textLiteral.ContainsOnlyWhitespace())
+        {
+            prefixLocation = null;
+            selectedAttributeName = null;
+            selectedAttributeNameLocation = null;
+            return true;
+        }
+
         // Not an attribute type that we know of
         prefixLocation = null;
         selectedAttributeName = null;

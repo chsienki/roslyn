@@ -14,14 +14,16 @@
                         MarkupLiteralAttributeValue - [9..13)::4 - [some]
                             MarkupTextLiteral - [9..13)::4 - [some] - Gen<Markup>
                                 Text;[some];
-                MarkupMiscAttributeContent - [13..33)::20
-                    MarkupTextLiteral - [13..26)::13 - [=thing attr="] - Gen<Markup>
-                        Equals;[=];
-                        Text;[thing];
-                        Whitespace;[ ];
-                        Text;[attr];
-                        Equals;[=];
+                SkippedContent - [13..25)::12
+                    Equals;[=];
+                    Text;[thing];
+                    Whitespace;[ ];
+                    Text;[attr];
+                    Equals;[=];
+                MarkupMinimizedTagHelperAttribute - [25..26)::1 - " - Minimized - Unbound - ["]
+                    MarkupTextLiteral - [25..26)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
+                MarkupMiscAttributeContent - [26..32)::6
                     CSharpCodeBlock - [26..32)::6
                         CSharpImplicitExpression - [26..32)::6
                             CSharpTransition - [26..27)::1 - Gen<None>
@@ -30,6 +32,7 @@
                                 CSharpCodeBlock - [27..32)::5
                                     CSharpExpressionLiteral - [27..32)::5 - [value] - Gen<Expr>
                                         Identifier;[value];
+                MarkupMinimizedAttributeBlock - [32..33)::1 - ["]
                     MarkupTextLiteral - [32..33)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
                 CloseAngle;[>];

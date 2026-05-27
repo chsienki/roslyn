@@ -46,5 +46,5 @@
                             NewLine;[LF];
                             RightBrace;[}];
                     RazorMetaCode - [86..86)::0 - Gen<None>
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(86:6,1 [0] )
     EndOfFile;[];

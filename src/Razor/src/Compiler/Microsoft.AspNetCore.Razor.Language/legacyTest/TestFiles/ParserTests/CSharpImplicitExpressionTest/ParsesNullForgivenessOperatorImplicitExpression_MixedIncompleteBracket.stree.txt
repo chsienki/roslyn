@@ -8,12 +8,15 @@
                     Transition;[@];
                 CSharpImplicitExpressionBody - [1..11)::10
                     CSharpCodeBlock - [1..11)::10
-                        CSharpExpressionLiteral - [1..11)::10 - [val![more.] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
+                        CSharpExpressionLiteral - [1..6)::5 - [val![] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
                             Identifier;[val];
                             Not;[!];
                             LeftBracket;[[];
+                        SkippedContent - [6..11)::5
                             Identifier;[more];
                             Dot;[.];
+                        CSharpExpressionLiteral - [11..11)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightBracket;[<Missing>];RZ1027(11:0,11 [0] )
         MarkupElement - [11..14)::3
             MarkupStartTag - [11..14)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];

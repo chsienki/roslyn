@@ -10,12 +10,14 @@
                     RazorMetaCode - [1..2)::1 - Gen<None>
                         LeftParenthesis;[(];
                     CSharpCodeBlock - [2..14)::12
-                        CSharpExpressionLiteral - [2..14)::12 - [foo barLFbaz] - Gen<Expr>
+                        CSharpExpressionLiteral - [2..2)::0 - [] - Gen<Expr>
+                            Marker;[];
+                        SkippedContent - [2..14)::12
                             Identifier;[foo];
                             Whitespace;[ ];
                             Identifier;[bar];
                             NewLine;[LF];
                             Identifier;[baz];
                     RazorMetaCode - [14..14)::0 - Gen<None>
-                        RightParenthesis;[<Missing>];
+                        RightParenthesis;[<Missing>];RZ1006(14:1,3 [0] )
     EndOfFile;[];

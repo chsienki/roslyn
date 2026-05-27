@@ -25,7 +25,7 @@ namespace AspNetCoreGeneratedDocument
         public async override global::System.Threading.Tasks.Task ExecuteAsync()
         {
             WriteLiteral("\r\n");
-            WriteLiteral("\"\r\n\r\n");
+            WriteLiteral("\r\n\r\n");
             WriteLiteral("\r\n");
             WriteLiteral("\r\n\r\n");
             WriteLiteral("\r\n");

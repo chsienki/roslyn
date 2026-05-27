@@ -9,9 +9,8 @@
                         Whitespace;[ ];
                     MarkupTextLiteral - [7..26)::19 - [string-prefix-value] - Gen<Markup>
                         Text;[string-prefix-value];
-                MarkupMiscAttributeContent - [26..27)::1
-                    MarkupTextLiteral - [26..27)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [26..27)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

@@ -17,7 +17,7 @@
                             Whitespace;[ ];
                             Keyword;[true];
                             NewLine;[LF];
-                    RazorMetaCode - [14..15)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [14..15)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [15..17)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -63,7 +63,7 @@
                             Hash;[#];
                             Keyword;[else];
                             Whitespace;[ ];
-                    RazorMetaCode - [61..62)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [61..62)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
         MarkupEphemeralTextLiteral - [62..64)::2 - [LF] - Gen<None> - SpanEditHandler;Accepts:Any
             NewLine;[LF];
@@ -109,8 +109,6 @@
                             Hash;[#];
                             Identifier;[endif];
                             NewLine;[LF];
-                    RazorMetaCode - [112..113)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [112..113)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [113..113)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

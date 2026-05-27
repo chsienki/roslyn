@@ -51,9 +51,8 @@
                         MarkupTagHelperStartTag - [53..62)::9 - [<input />] - Gen<Markup>
                             OpenAngle;[<];
                             Text;[input];
-                            MarkupMiscAttributeContent - [59..60)::1
-                                MarkupTextLiteral - [59..60)::1 - [ ] - Gen<Markup>
-                                    Whitespace;[ ];
+                            MarkupTextLiteral - [59..60)::1 - [ ] - Gen<Markup>
+                                Whitespace;[ ];
                             ForwardSlash;[/];
                             CloseAngle;[>];
                     MarkupEndTag - [62..71)::9 - [</script>] - Gen<Markup>

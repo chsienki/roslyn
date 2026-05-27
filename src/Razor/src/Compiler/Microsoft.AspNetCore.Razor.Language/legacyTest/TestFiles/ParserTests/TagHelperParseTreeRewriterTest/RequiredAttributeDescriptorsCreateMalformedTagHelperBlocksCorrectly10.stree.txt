@@ -32,13 +32,12 @@
                                 Text;[btn];
                     MarkupTextLiteral - [30..31)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [31..32)::1
-                    MarkupTextLiteral - [31..32)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[ ];
+                MarkupTextLiteral - [31..32)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[ ];
                 CloseAngle;[<Missing>];
             MarkupTagHelperEndTag - [32..35)::3 - [</p]
                 OpenAngle;[<];
                 ForwardSlash;[/];
                 Text;[p];
-                CloseAngle;[<Missing>];
+                CloseAngle;[<Missing>];RZ1024(35:0,35 [0] )
     EndOfFile;[];

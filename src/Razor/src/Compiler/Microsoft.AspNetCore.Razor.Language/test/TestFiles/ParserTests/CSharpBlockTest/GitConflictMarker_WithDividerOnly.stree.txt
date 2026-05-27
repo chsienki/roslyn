@@ -10,45 +10,44 @@
             MarkupElement - [7..8)::1
                 MarkupStartTag - [7..8)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(8:1,1 [0] )
                     CloseAngle;[<Missing>];
             MarkupElement - [8..9)::1
                 MarkupStartTag - [8..9)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(9:1,2 [0] )
                     CloseAngle;[<Missing>];
             MarkupElement - [9..10)::1
                 MarkupStartTag - [9..10)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(10:1,3 [0] )
                     CloseAngle;[<Missing>];
             MarkupElement - [10..11)::1
                 MarkupStartTag - [10..11)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(11:1,4 [0] )
                     CloseAngle;[<Missing>];
             MarkupElement - [11..12)::1
                 MarkupStartTag - [11..12)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(12:1,5 [0] )
                     CloseAngle;[<Missing>];
             MarkupElement - [12..13)::1
                 MarkupStartTag - [12..13)::1 - [<] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(13:1,6 [0] )
                     CloseAngle;[<Missing>];
             MarkupElement - [13..21)::8
                 MarkupStartTag - [13..21)::8 - [< HEADLF] - Gen<Markup>
                     OpenAngle;[<];
-                    Text;[<Missing>];
+                    Text;[<Missing>];RZ1047(14:1,7 [0] )
                     MarkupMinimizedAttributeBlock - [14..19)::5 - [ HEAD]
                         MarkupTextLiteral - [14..15)::1 - [ ] - Gen<Markup>
                             Whitespace;[ ];
                         MarkupTextLiteral - [15..19)::4 - [HEAD] - Gen<Markup>
                             Text;[HEAD];
-                    MarkupMiscAttributeContent - [19..21)::2
-                        MarkupTextLiteral - [19..21)::2 - [LF] - Gen<Markup>
-                            NewLine;[LF];
+                    MarkupTextLiteral - [19..21)::2 - [LF] - Gen<Markup>
+                        NewLine;[LF];
                     CloseAngle;[<Missing>];
             MarkupElement - [21..43)::22
                 MarkupStartTag - [21..24)::3 - [<p>] - Gen<Markup>

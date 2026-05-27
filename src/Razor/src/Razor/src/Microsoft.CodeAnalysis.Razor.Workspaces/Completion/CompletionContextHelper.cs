@@ -21,6 +21,13 @@ internal static class CompletionContextHelper
             MarkupStartTagSyntax or MarkupEndTagSyntax or MarkupTagHelperStartTagSyntax or MarkupTagHelperEndTagSyntax or MarkupTagHelperAttributeSyntax => owner,
             // Invoking completion in an empty file will give us RazorDocumentSyntax which always has null parent
             RazorDocumentSyntax => owner,
+            // Enhanced recovery places whitespace inside an attribute area as a
+            // direct MarkupTextLiteralSyntax child of the start/end tag, rather
+            // than wrapping it in a MarkupMiscAttributeContentSyntax. Keep the
+            // literal as the owner so the downstream attribute-area completion
+            // logic (which expects an "attribute"-shaped node, not the tag
+            // itself) can recognize it via HtmlFacts.TryGetAttributeInfo.
+            MarkupTextLiteralSyntax { Parent: BaseMarkupStartTagSyntax or BaseMarkupEndTagSyntax } textLiteral when textLiteral.ContainsOnlyWhitespace() => owner,
             // Either the parent is a context we can handle, or it's not and we shouldn't show completions.
             _ => owner?.Parent
         };

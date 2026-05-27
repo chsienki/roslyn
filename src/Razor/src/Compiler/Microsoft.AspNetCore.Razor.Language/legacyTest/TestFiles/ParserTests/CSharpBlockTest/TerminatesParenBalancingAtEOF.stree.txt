@@ -8,12 +8,17 @@
                     Transition;[@];
                 CSharpImplicitExpressionBody - [1..15)::14
                     CSharpCodeBlock - [1..15)::14
-                        CSharpExpressionLiteral - [1..15)::14 - [Html.En(code()] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
+                        CSharpExpressionLiteral - [1..9)::8 - [Html.En(] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:Any;ImplicitExpression[RTD];K14
                             Identifier;[Html];
                             Dot;[.];
                             Identifier;[En];
                             LeftParenthesis;[(];
+                        SkippedContent - [9..15)::6
                             Identifier;[code];
                             LeftParenthesis;[(];
                             RightParenthesis;[)];
+                        CSharpExpressionLiteral - [15..15)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightParenthesis;[<Missing>];RZ1027(15:0,15 [0] )
+        MarkupTextLiteral - [15..15)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Marker;[];
     EndOfFile;[];

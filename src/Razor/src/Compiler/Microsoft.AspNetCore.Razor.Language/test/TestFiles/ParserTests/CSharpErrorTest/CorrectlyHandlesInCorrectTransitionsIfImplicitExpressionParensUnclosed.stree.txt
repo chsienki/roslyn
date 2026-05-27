@@ -2,16 +2,19 @@
     MarkupBlock - [0..34)::34
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup>
             Marker;[];
-        CSharpCodeBlock - [0..8)::8
-            CSharpImplicitExpression - [0..8)::8
+        CSharpCodeBlock - [0..6)::6
+            CSharpImplicitExpression - [0..6)::6
                 CSharpTransition - [0..1)::1 - Gen<None>
                     Transition;[@];
-                CSharpImplicitExpressionBody - [1..8)::7
-                    CSharpCodeBlock - [1..8)::7
-                        CSharpExpressionLiteral - [1..8)::7 - [Href(LF] - Gen<Expr>
+                CSharpImplicitExpressionBody - [1..6)::5
+                    CSharpCodeBlock - [1..6)::5
+                        CSharpExpressionLiteral - [1..6)::5 - [Href(] - Gen<Expr>
                             Identifier;[Href];
                             LeftParenthesis;[(];
-                            NewLine;[LF];
+                        CSharpExpressionLiteral - [6..6)::0 - [] - Gen<Expr>
+                            RightParenthesis;[<Missing>];RZ1027(6:0,6 [0] )
+        MarkupTextLiteral - [6..8)::2 - [LF] - Gen<Markup>
+            NewLine;[LF];
         MarkupElement - [8..32)::24
             MarkupStartTag - [8..12)::4 - [<h1>] - Gen<Markup>
                 OpenAngle;[<];

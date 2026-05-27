@@ -22,9 +22,8 @@
                                 Transition;[@];
                     MarkupTextLiteral - [14..15)::1 - ['] - Gen<Markup>
                         SingleQuote;['];
-                MarkupMiscAttributeContent - [15..16)::1
-                    MarkupTextLiteral - [15..16)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [15..16)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
         MarkupTextLiteral - [18..19)::1 - [}] - Gen<Markup>

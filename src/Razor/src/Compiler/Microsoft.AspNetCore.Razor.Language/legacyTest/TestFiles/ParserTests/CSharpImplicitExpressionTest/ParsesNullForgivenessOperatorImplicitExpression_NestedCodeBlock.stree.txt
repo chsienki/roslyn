@@ -33,8 +33,6 @@
                                             Identifier;[Bar];
                         CSharpStatementLiteral - [23..24)::1 - [ ] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Whitespace;[ ];
-                    RazorMetaCode - [24..25)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [24..25)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [25..25)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

@@ -12,4 +12,8 @@
                             Identifier;[val];
                             QuestionMark;[?];
                             LeftBracket;[[];
+                        CSharpExpressionLiteral - [6..6)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightBracket;[<Missing>];RZ1027(6:0,6 [0] )
+        MarkupTextLiteral - [6..6)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Marker;[];
     EndOfFile;[];

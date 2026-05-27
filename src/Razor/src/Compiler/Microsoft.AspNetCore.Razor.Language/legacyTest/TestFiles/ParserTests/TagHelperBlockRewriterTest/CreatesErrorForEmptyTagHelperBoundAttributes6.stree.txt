@@ -25,9 +25,8 @@
                     Equals;[=];
                     MarkupTagHelperAttributeValue - [25..25)::0
                         CSharpExpressionLiteral - [25..25)::0 - [] - Gen<None> - ImplicitExpressionEditHandler;Accepts:AnyExceptNewline;ImplicitExpression[ATD];K15
-                MarkupMiscAttributeContent - [25..27)::2
-                    MarkupTextLiteral - [25..27)::2 - [  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[  ];
+                MarkupTextLiteral - [25..27)::2 - [  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[  ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

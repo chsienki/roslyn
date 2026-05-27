@@ -148,37 +148,20 @@ This is a comment
     }
 
     // ----------------------------------------------------------------
-    // Stage 1.4 pilot: enhanced-recovery counterpart to
-    // `UnterminatedRazorComment` above. The legacy test (line 13) drives
-    // `ParseDocumentTest` against the baseline harness and locks in
-    // today's diagnostic shape (RZ1028 with `(start, contentLength: 2)`
-    // span; the source-code-level double `ErrorSink.OnError` plus
-    // token-attached diagnostic dedupe to one user-visible entry).
-    //
-    // This test exercises the new `UseEnhancedRecovery` code path in
-    // `TokenizerBackedParser.ParseRazorComment` introduced by Stage 1.4
-    // and asserts:
-    //   1. The tree still has `MissingToken(RazorCommentStar)` and
-    //      `MissingToken(RazorCommentTransition)` at the EOF cursor.
-    //   2. The enhanced-mode diagnostic count does not exceed the legacy
-    //      baseline for the same input. Empirically (see invariant
-    //      below) both modes produce exactly one RZ1028 diagnostic.
-    //
-    // The test is in-memory (no .stree/.diag baseline) per the plan's
-    // note that the snapshot harness isn't a clean fit for an
-    // enhanced-mode-only test running alongside its legacy twin.
+    // Originally a Stage 1.4 pilot pair to the snapshot-harness
+    // `UnterminatedRazorComment` test (line 13). With enhanced
+    // recovery now the only mode, this asserts the in-memory tree
+    // shape:
+    //   1. `MissingToken(RazorCommentStar)` and `MissingToken(RazorCommentTransition)`
+    //      at the EOF cursor.
+    //   2. Exactly one RZ1028 diagnostic at the missing-terminator span.
     // ----------------------------------------------------------------
     [Fact]
     public void ParseRazorComment_Unterminated_EnhancedRecovery()
     {
         const string source = "@*";
 
-        var legacyTree = ParseDocument(source);
-        var legacyDiagnosticCount = legacyTree.Diagnostics.Length;
-
-        var enhancedTree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+        var enhancedTree = ParseDocument(source);
 
         var razorComment = enhancedTree.Root
             .DescendantNodes()
@@ -207,11 +190,5 @@ This is a comment
         Assert.Single(rz1028);
         Assert.Equal(2, rz1028[0].Span.AbsoluteIndex);
         Assert.Equal(0, rz1028[0].Span.Length);
-
-        // Plan exit criterion: enhanced-mode diagnostic count must not
-        // exceed the legacy baseline for the same input.
-        Assert.True(
-            enhancedTree.Diagnostics.Length <= legacyDiagnosticCount,
-            $"Enhanced-mode produced {enhancedTree.Diagnostics.Length} diagnostics; legacy baseline was {legacyDiagnosticCount}.");
     }
 }

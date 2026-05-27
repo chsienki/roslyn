@@ -10,11 +10,12 @@
                     CSharpCodeBlock - [3..33)::30
                         CSharpTransition - [3..4)::1 - Gen<None>
                             Transition;[@];
-                        CSharpStatementLiteral - [4..29)::25 - [do { someattribute="btn">] - Gen<Stmt>
+                        CSharpStatementLiteral - [4..9)::5 - [do { ] - Gen<Stmt>
                             Keyword;[do];
                             Whitespace;[ ];
                             LeftBrace;[{];
                             Whitespace;[ ];
+                        SkippedContent - [9..29)::20
                             Identifier;[someattribute];
                             Assign;[=];
                             StringLiteral;["btn"];

@@ -11,7 +11,7 @@
                         Identifier;[section];
                     CSharpCodeBlock - [8..8)::0
                         CSharpStatementLiteral - [8..8)::0 - [] - Gen<Stmt>
-                            Identifier;[<Missing>];
+                            Marker;[];
         MarkupTextLiteral - [8..10)::2 - [LF] - Gen<Markup>
             NewLine;[LF];
     EndOfFile;[];

@@ -1,1 +1,2 @@
 ﻿TestFiles/IntegrationTests/CodeGenerationIntegrationTest/MalformedPageDirective.cshtml(1,7): Error RZ1016: The 'page' directive expects a string surrounded by double quotes.
+TestFiles/IntegrationTests/CodeGenerationIntegrationTest/MalformedPageDirective.cshtml(1,7): Error RZ1000: Unterminated string literal.  Strings that start with a quotation mark (") must be terminated before the end of the line.  However, strings that start with @ and a quotation mark (@") can span multiple lines.

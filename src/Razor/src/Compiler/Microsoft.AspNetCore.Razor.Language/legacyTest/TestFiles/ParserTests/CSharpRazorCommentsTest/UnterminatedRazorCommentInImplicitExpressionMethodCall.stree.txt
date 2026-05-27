@@ -15,6 +15,10 @@
                             RazorCommentTransition;[@];
                             RazorCommentStar;[*];
                             RazorCommentLiteral;[<Missing>];
-                            RazorCommentStar;[<Missing>];RZ1028(5:0,5 [2] )
+                            RazorCommentStar;[<Missing>];RZ1028(7:0,7 [0] )
                             RazorCommentTransition;[<Missing>];
+                        CSharpExpressionLiteral - [7..7)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightParenthesis;[<Missing>];RZ1027(7:0,7 [0] )
+        MarkupTextLiteral - [7..7)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
+            Marker;[];
     EndOfFile;[];

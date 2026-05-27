@@ -23,9 +23,8 @@
                         Whitespace;[ ];
                     MarkupTextLiteral - [19..35)::16 - [unbound-required] - Gen<Markup>
                         Text;[unbound-required];
-                MarkupMiscAttributeContent - [35..36)::1
-                    MarkupTextLiteral - [35..36)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [35..36)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

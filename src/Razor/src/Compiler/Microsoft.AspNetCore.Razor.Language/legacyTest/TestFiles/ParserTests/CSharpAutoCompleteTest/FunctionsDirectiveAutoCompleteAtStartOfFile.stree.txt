@@ -3,7 +3,7 @@
         MarkupTextLiteral - [0..0)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
             Marker;[];
         CSharpCodeBlock - [0..16)::16
-            RazorDirective - [0..16)::16 - Directive:{functions;CodeBlock;Unrestricted} [RZ1006(10:0,10 [1] )]
+            RazorDirective - [0..16)::16 - Directive:{functions;CodeBlock;Unrestricted} [RZ1046(13:1,0 [0] ), RZ1006(10:0,10 [1] )]
                 CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                     Transition;[@];
                 RazorDirectiveBody - [1..16)::15
@@ -13,8 +13,9 @@
                         RazorMetaCode - [10..11)::1 - Gen<None> - AutoCompleteEditHandler;Accepts:None,AutoComplete:[}];AtEnd
                             LeftBrace;[{];
                         CSharpCodeBlock - [11..16)::5
-                            CSharpStatementLiteral - [11..16)::5 - [LFfoo] - Gen<Stmt> - CodeBlockEditHandler;Accepts:Any;CodeBlock
+                            CSharpStatementLiteral - [11..13)::2 - [LF] - Gen<Stmt> - CodeBlockEditHandler;Accepts:Any;CodeBlock
                                 NewLine;[LF];
+                            SkippedContent - [13..16)::3
                                 Identifier;[foo];
                         RazorMetaCode - [16..16)::0 - Gen<None> - SpanEditHandler;Accepts:Any
                             RightBrace;[<Missing>];

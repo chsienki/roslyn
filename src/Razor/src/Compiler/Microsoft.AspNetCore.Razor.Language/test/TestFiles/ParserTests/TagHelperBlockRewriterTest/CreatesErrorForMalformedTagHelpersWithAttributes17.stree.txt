@@ -18,10 +18,11 @@
                                 CSharpCodeBlock - [10..21)::11
                                     CSharpTransition - [10..11)::1 - Gen<None>
                                         Transition;[@];
-                                    CSharpStatementLiteral - [11..21)::10 - [do {"></p>] - Gen<Stmt>
+                                    CSharpStatementLiteral - [11..15)::4 - [do {] - Gen<Stmt>
                                         Keyword;[do];
                                         Whitespace;[ ];
                                         LeftBrace;[{];
+                                    SkippedContent - [15..21)::6
                                         StringLiteral;["></p>];RZ1000(15:0,15 [1] )
                 CloseAngle;[<Missing>];
     EndOfFile;[];

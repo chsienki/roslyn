@@ -5,7 +5,7 @@
         MarkupElement - [2..3)::1
             MarkupStartTag - [2..3)::1 - [<] - Gen<Markup>
                 OpenAngle;[<];
-                Text;[<Missing>];
+                Text;[<Missing>];RZ1047(3:1,1 [0] )
                 CloseAngle;[<Missing>];
         MarkupElement - [3..20)::17
             MarkupStartTag - [3..8)::5 - [<div>] - Gen<Markup>
@@ -19,8 +19,8 @@
                 MarkupEndTag - [12..14)::2 - [</] - Gen<Markup>
                     OpenAngle;[<];
                     ForwardSlash;[/];
-                    Text;[<Missing>];
-                    CloseAngle;[<Missing>];
+                    Text;[<Missing>];RZ1047(14:1,12 [0] )
+                    CloseAngle;[<Missing>];RZ1024(14:1,12 [0] )
             MarkupEndTag - [14..20)::6 - [</div>] - Gen<Markup>
                 OpenAngle;[<];
                 ForwardSlash;[/];
@@ -29,10 +29,9 @@
         MarkupElement - [20..27)::7
             MarkupStartTag - [20..25)::5 - [<   >] - Gen<Markup>
                 OpenAngle;[<];
-                Text;[<Missing>];
-                MarkupMiscAttributeContent - [21..24)::3
-                    MarkupTextLiteral - [21..24)::3 - [   ] - Gen<Markup>
-                        Whitespace;[   ];
+                Text;[<Missing>];RZ1047(21:1,19 [0] )
+                MarkupTextLiteral - [21..24)::3 - [   ] - Gen<Markup>
+                    Whitespace;[   ];
                 CloseAngle;[>];
             MarkupTextLiteral - [25..27)::2 - [LF] - Gen<Markup>
                 NewLine;[LF];

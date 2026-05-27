@@ -14,8 +14,3 @@ Generated Location: (1083:33,0 [10] )
 #endif
 |
 
-Source Location: (52:7,1 [0] x:\dir\subdir\Test\TestComponent.razor)
-||
-Generated Location: (1302:44,0 [0] )
-||
-

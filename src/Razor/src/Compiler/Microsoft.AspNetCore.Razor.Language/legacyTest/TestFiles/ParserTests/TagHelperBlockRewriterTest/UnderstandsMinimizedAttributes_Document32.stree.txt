@@ -85,9 +85,8 @@
                         Whitespace;[  ];
                     MarkupTextLiteral - [106..122)::16 - [unbound-required] - Gen<Markup> - SpanEditHandler;Accepts:Any
                         Text;[unbound-required];
-                MarkupMiscAttributeContent - [122..124)::2
-                    MarkupTextLiteral - [122..124)::2 - [  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                        Whitespace;[  ];
+                MarkupTextLiteral - [122..124)::2 - [  ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                    Whitespace;[  ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

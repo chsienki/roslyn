@@ -9,5 +9,4 @@ Markup span at (20:0,20 [3] ) (Accepts:None) - Parent: HtmlComment block at (10:
 Markup span at (23:0,23 [3] ) (Accepts:None) - Parent: Markup block at (2:0,2 [30] )
 Markup span at (26:0,26 [6] ) (Accepts:None) - Parent: Tag block at (26:0,26 [6] )
 Code span at (32:0,32 [0] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [33] )
-MetaCode span at (32:0,32 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [33] )
-Markup span at (33:0,33 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [33] )
+MetaCode span at (32:0,32 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [33] )

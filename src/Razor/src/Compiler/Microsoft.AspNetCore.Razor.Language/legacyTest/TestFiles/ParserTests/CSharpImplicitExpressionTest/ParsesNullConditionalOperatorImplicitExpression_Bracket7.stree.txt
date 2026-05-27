@@ -12,6 +12,8 @@
                             Identifier;[val];
                             QuestionMark;[?];
                             LeftBracket;[[];
+                        CSharpExpressionLiteral - [6..6)::0 - [] - Gen<Expr> - ImplicitExpressionEditHandler;Accepts:NonWhitespace;ImplicitExpression[RTD];K14
+                            RightBracket;[<Missing>];RZ1027(6:0,6 [0] )
         MarkupElement - [6..9)::3
             MarkupStartTag - [6..9)::3 - [<p>] - Gen<Markup> - SpanEditHandler;Accepts:Any
                 OpenAngle;[<];

@@ -30,16 +30,15 @@
                                                     Text;[btn];
                                         MarkupTextLiteral - [19..20)::1 - ["] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             DoubleQuote;["];
-                                    MarkupMiscAttributeContent - [20..21)::1
-                                        MarkupTextLiteral - [20..21)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
-                                            Whitespace;[ ];
+                                    MarkupTextLiteral - [20..21)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:Any
+                                        Whitespace;[ ];
                                     MarkupMiscAttributeContent - [21..22)::1
                                         MarkupTextLiteral - [21..22)::1 - [/] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             ForwardSlash;[/];
                                     MarkupMinimizedAttributeBlock - [22..23)::1 - [}]
                                         MarkupTextLiteral - [22..23)::1 - [}] - Gen<Markup> - SpanEditHandler;Accepts:Any
                                             Text;[}];
-                                    CloseAngle;[<Missing>];
+                                    CloseAngle;[<Missing>];RZ1024(23:0,23 [0] )
                     RazorMetaCode - [23..23)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightBrace;[<Missing>];
+                        RightBrace;[<Missing>];RZ1006(23:0,23 [0] )
     EndOfFile;[];

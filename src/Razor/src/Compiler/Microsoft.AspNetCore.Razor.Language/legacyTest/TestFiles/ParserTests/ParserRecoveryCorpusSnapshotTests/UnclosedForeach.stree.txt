@@ -5,9 +5,10 @@
         CSharpCodeBlock - [0..25)::25
             CSharpTransition - [0..1)::1 - Gen<None> - SpanEditHandler;Accepts:None
                 Transition;[@];
-            CSharpStatementLiteral - [1..25)::24 - [foreach(var x in itemsLF] - Gen<Stmt> - SpanEditHandler;Accepts:Any
+            CSharpStatementLiteral - [1..9)::8 - [foreach(] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 Keyword;[foreach];
                 LeftParenthesis;[(];
+            SkippedContent - [9..23)::14
                 Identifier;[var];
                 Whitespace;[ ];
                 Identifier;[x];
@@ -15,6 +16,7 @@
                 Keyword;[in];
                 Whitespace;[ ];
                 Identifier;[items];
+            CSharpStatementLiteral - [23..25)::2 - [LF] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                 NewLine;[LF];
         MarkupTextLiteral - [25..32)::7 - [{LF    ] - Gen<Markup> - SpanEditHandler;Accepts:Any
             Text;[{];

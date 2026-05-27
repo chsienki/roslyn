@@ -14,12 +14,12 @@
                             MarkupElement - [2..7)::5
                                 MarkupStartTag - [2..4)::2 - [<>] - Gen<Markup>
                                     OpenAngle;[<];
-                                    Text;[<Missing>];
+                                    Text;[<Missing>];RZ1047(3:0,3 [0] )
                                     CloseAngle;[>];
                                 MarkupEndTag - [4..7)::3 - [</>] - Gen<Markup>
                                     OpenAngle;[<];
                                     ForwardSlash;[/];
-                                    Text;[<Missing>];
+                                    Text;[<Missing>];RZ1047(6:0,6 [0] )
                                     CloseAngle;[>];
                             MarkupTextLiteral - [7..8)::1 - [ ] - Gen<Markup>
                                 Whitespace;[ ];
@@ -27,6 +27,4 @@
                             Identifier;[Bar];
                     RazorMetaCode - [11..12)::1 - Gen<None>
                         RightBrace;[}];
-        MarkupTextLiteral - [12..12)::0 - [] - Gen<Markup>
-            Marker;[];
     EndOfFile;[];

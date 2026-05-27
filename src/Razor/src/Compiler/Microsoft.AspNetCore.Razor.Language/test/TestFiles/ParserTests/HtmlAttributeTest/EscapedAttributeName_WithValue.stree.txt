@@ -21,9 +21,8 @@
                                 Text;[value];
                     MarkupTextLiteral - [16..17)::1 - ["] - Gen<Markup>
                         DoubleQuote;["];
-                MarkupMiscAttributeContent - [17..18)::1
-                    MarkupTextLiteral - [17..18)::1 - [ ] - Gen<Markup>
-                        Whitespace;[ ];
+                MarkupTextLiteral - [17..18)::1 - [ ] - Gen<Markup>
+                    Whitespace;[ ];
                 ForwardSlash;[/];
                 CloseAngle;[>];
     EndOfFile;[];

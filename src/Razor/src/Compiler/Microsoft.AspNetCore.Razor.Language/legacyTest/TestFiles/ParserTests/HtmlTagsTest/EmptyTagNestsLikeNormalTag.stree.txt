@@ -20,14 +20,12 @@
                                     MarkupEndTag - [5..8)::3 - [</>] - Gen<Markup> - SpanEditHandler;Accepts:None
                                         OpenAngle;[<];
                                         ForwardSlash;[/];
-                                        Text;[<Missing>];
+                                        Text;[<Missing>];RZ1047(7:0,7 [0] )
                                         CloseAngle;[>];
                             MarkupTextLiteral - [8..9)::1 - [ ] - Gen<Markup> - SpanEditHandler;Accepts:None
                                 Whitespace;[ ];
                         CSharpStatementLiteral - [9..12)::3 - [Bar] - Gen<Stmt> - SpanEditHandler;Accepts:Any
                             Identifier;[Bar];
-                    RazorMetaCode - [12..13)::1 - Gen<None> - SpanEditHandler;Accepts:None
+                    RazorMetaCode - [12..13)::1 - Gen<None> - SpanEditHandler;Accepts:Any
                         RightBrace;[}];
-        MarkupTextLiteral - [13..13)::0 - [] - Gen<Markup> - SpanEditHandler;Accepts:Any
-            Marker;[];
     EndOfFile;[];

@@ -185,8 +185,7 @@ public class TagHelperRewriter_EnhancedRecoveryTests : TagHelperRewritingTestBas
         // then drives the full rewriter to verify forward-compat.
         var syntaxTree = ParseDocument(
             document: @"<input @attr=""x"" @onclick="""" />",
-            fileKind: RazorFileKind.Component,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            fileKind: RazorFileKind.Component);
 
         var startTag = syntaxTree.Root
             .DescendantNodes()
@@ -260,17 +259,15 @@ public class TagHelperRewriter_EnhancedRecoveryTests : TagHelperRewritingTestBas
     }
 
     /// <summary>
-    /// Parses the document (optionally under enhanced recovery) and runs
-    /// the tag-helper rewriter, returning the rewritten tree and the
-    /// original (pre-rewrite) syntax tree. Mirrors the work that
-    /// <see cref="TagHelperRewritingTestBase.EvaluateData"/> does, minus
-    /// the baseline comparison -- Stage 5.2's tests use structural
+    /// Parses the document and runs the tag-helper rewriter, returning the
+    /// rewritten tree and the original (pre-rewrite) syntax tree. Mirrors
+    /// the work that <see cref="TagHelperRewritingTestBase.EvaluateData"/>
+    /// does, minus the baseline comparison -- these tests use structural
     /// assertions instead of golden baselines.
     /// </summary>
     private (RazorSyntaxTree Rewritten, RazorSyntaxTree Original) ParseAndRewrite(
         string content,
         TagHelperCollection tagHelpers,
-        bool useEnhancedRecovery = true,
         RazorFileKind? fileKind = RazorFileKind.Component)
     {
         // Default to Component mode so the parser treats `@onclick`
@@ -278,10 +275,7 @@ public class TagHelperRewriter_EnhancedRecoveryTests : TagHelperRewritingTestBas
         // transition into a C# implicit expression).
         var syntaxTree = ParseDocument(
             document: content,
-            fileKind: fileKind,
-            configureParserOptions: useEnhancedRecovery
-                ? builder => builder.UseEnhancedRecovery = true
-                : null);
+            fileKind: fileKind);
 
         var binder = new TagHelperBinder(tagNamePrefix: null, tagHelpers);
         var rewrittenTree = TagHelperParseTreeRewriter.Rewrite(syntaxTree, binder);

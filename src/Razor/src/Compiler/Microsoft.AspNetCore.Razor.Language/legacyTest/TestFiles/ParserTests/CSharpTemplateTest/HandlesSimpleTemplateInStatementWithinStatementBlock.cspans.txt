@@ -9,5 +9,4 @@ Transition span at (53:0,53 [1] ) (Accepts:None) - Parent: Expression block at (
 Code span at (54:0,54 [4] ) (Accepts:NonWhitespace) - Parent: Expression block at (53:0,53 [5] )
 Markup span at (58:0,58 [4] ) (Accepts:None) - Parent: Tag block at (58:0,58 [4] )
 Code span at (62:0,62 [3] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [66] )
-MetaCode span at (65:0,65 [1] ) (Accepts:None) - Parent: Statement block at (0:0,0 [66] )
-Markup span at (66:0,66 [0] ) (Accepts:Any) - Parent: Markup block at (0:0,0 [66] )
+MetaCode span at (65:0,65 [1] ) (Accepts:Any) - Parent: Statement block at (0:0,0 [66] )

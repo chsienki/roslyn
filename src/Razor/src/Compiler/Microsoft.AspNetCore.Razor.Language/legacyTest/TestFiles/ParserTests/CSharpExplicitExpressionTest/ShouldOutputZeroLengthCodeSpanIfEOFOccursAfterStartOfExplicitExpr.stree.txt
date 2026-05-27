@@ -13,5 +13,5 @@
                         CSharpExpressionLiteral - [2..2)::0 - [] - Gen<Expr> - SpanEditHandler;Accepts:Any
                             Marker;[];
                     RazorMetaCode - [2..2)::0 - Gen<None> - SpanEditHandler;Accepts:Any
-                        RightParenthesis;[<Missing>];
+                        RightParenthesis;[<Missing>];RZ1006(2:0,2 [0] )
     EndOfFile;[];

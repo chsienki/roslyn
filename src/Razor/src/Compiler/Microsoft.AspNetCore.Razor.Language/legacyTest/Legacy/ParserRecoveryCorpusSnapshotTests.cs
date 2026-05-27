@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Immutable;
@@ -32,10 +32,10 @@ namespace Microsoft.AspNetCore.Razor.Language.Legacy;
 /// <c>dotnet test ...Legacy.UnitTests.csproj /p:GenerateBaselines=true --filter ParserRecoveryCorpusSnapshotTests</c>.
 ///
 /// Enhanced-mode tests (suffix <c>_EnhancedRecovery</c>) re-parse the
-/// same corpus file with <c>UseEnhancedRecovery = true</c> and use
-/// in-memory assertions rather than a parallel set of baselines
-/// (per the Stage 1.4 pilot deviation). Each enhanced test asserts the
-/// Stage 2.x exit criteria for the function being migrated.
+/// same corpus file and use in-memory assertions rather than a parallel
+/// set of baselines (per the Stage 1.4 pilot deviation). Each enhanced
+/// test asserts the recovery-model exit criteria for the function being
+/// migrated.
 /// </summary>
 public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestProject.Layer.Compiler, validateSpanEditHandlers: true, useLegacyTokenizer: true)
 {
@@ -110,8 +110,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     // ----------------------------------------------------------------
     // Stage 2.1: ParseExplicitExpressionBody enhanced-recovery tests.
     //
-    // These exercise the new `Context.Options.UseEnhancedRecovery == true`
-    // branch of `CSharpCodeParser.ParseExplicitExpressionBody` added in
+    // These exercise the recovery branch in `CSharpCodeParser.ParseExplicitExpressionBody` added in
     // Stage 2.1. The legacy [Fact]s above continue to pin the old
     // behaviour via the existing .stree/.diag/.cspans baselines.
     //
@@ -131,8 +130,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         var explicitBody = tree.Root
             .DescendantNodes()
@@ -198,8 +196,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // `@()` is well-formed: `Balance` succeeds, so the recovery branch
         // is never entered and the enhanced tree is identical to the
@@ -223,8 +220,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     // ----------------------------------------------------------------
     // Stage 2.2: ParseStatementBody enhanced-recovery test.
     //
-    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
-    // branch of `CSharpCodeParser.ParseStatementBody` added in Stage 2.2.
+    // Exercises the recovery branch in `CSharpCodeParser.ParseStatementBody` added in Stage 2.2.
     // The legacy `UnclosedCodeBlock` [Fact] above continues to pin the
     // old behaviour via the existing baselines (diagnostic at position
     // 1 with span length 1 covering the `{`).
@@ -248,8 +244,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         var statementBody = tree.Root
             .DescendantNodes()
@@ -310,8 +305,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     // ----------------------------------------------------------------
     // Stage 2.3: ParseStandardStatement enhanced-recovery tests.
     //
-    // Exercise the new `Context.Options.UseEnhancedRecovery == true`
-    // branches added in Stage 2.3 to:
+    // Exercise the recovery branches in:
     //   - `ParseStandardStatement`'s panic-else (the canonical "fat
     //     literal" producer at the end of the function's while loop);
     //   - `TryBalanceBlock`'s recovery after a failed `Balance` with
@@ -347,8 +341,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // The corpus input `@{ var x = ?? 1; <p>...</p> }` is fully
         // recognised by the lexer/parser: `??` is a valid C# NullCoalesce
@@ -383,8 +376,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // Stage 2.4 update: `@if(foo bar` IS exercised by Stage 2.4's
         // migrated `TryParseCondition` (the Stage 2.3 comment that
@@ -446,8 +438,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         const string source = "@{ var x = (foo; }";
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // Exactly one `SkippedContentSyntax`, with `OriginatingLanguage ==
         // CSharpCodeBlock`, covering `foo;` (plus the trailing whitespace
@@ -541,8 +532,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // RZ1027 from `Balance` is preserved. No new RZ1046.
         var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
@@ -584,8 +574,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // RZ1027 from `Balance` is preserved. No new RZ1046.
         var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
@@ -624,8 +613,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         const string source = "@try { } catch(ex bad { }";
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
         Assert.Single(rz1027);
@@ -652,8 +640,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         const string source = "@using(var x = foo bar { }";
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
         Assert.Single(rz1027);
@@ -680,8 +667,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         const string source = "@do { } while(foo bar";
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         var rz1027 = tree.Diagnostics.Where(d => d.Id == "RZ1027").ToArray();
         Assert.Single(rz1027);
@@ -732,8 +718,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // `@using foo bar` produces no diagnostic on either path; the
         // enhanced branch is purely shape-cleanup.
@@ -789,8 +774,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
 
         var tree = ParseDocument(
             source,
-            directives: [InheritsDirective.Directive],
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            directives: [InheritsDirective.Directive]);
 
         // RZ1013 (DirectiveExpectsTypeName) is preserved -- the
         // pre-existing diagnostic's span is unchanged.
@@ -829,8 +813,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     // ----------------------------------------------------------------
     // Stage 2.6: ParseMethodCallOrArrayIndex enhanced-recovery test.
     //
-    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
-    // branches added in Stage 2.6 to:
+    // Exercises the recovery branches in:
     //   - The `Balance` failure path in `ParseMethodCallOrArrayIndex`
     //     (the canonical implicit-expression unclosed-call producer);
     //   - The closing-bracket emission, which now uses `Required(right, ...)`
@@ -856,8 +839,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // Position layout for the corpus input `<p>@foo.Bar(baz</p><div>after</div>\r\n`:
         //   0..2   `<p>`
@@ -968,8 +950,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // Position layout for the corpus input `@foo.<p>after</p>\r\n`:
         //   0      `@`
@@ -1026,8 +1007,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     // ----------------------------------------------------------------
     // Stage 3.1: ParseStartTag / ParseEndTag enhanced-recovery test.
     //
-    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
-    // branches added in Stage 3.1 to:
+    // Exercises the recovery branches in:
     //   - The tag-name slot in `ParseStartTag` and `ParseEndTag`, which
     //     now uses `Required(SyntaxKind.Text, ...)` so the missing tag
     //     name is represented as a zero-width `MissingToken(Text)` with
@@ -1063,8 +1043,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // Position layout for the corpus input `<>foo</>\r\n<p>after</p>\r\n`:
         //   0      `<` (start tag open angle)
@@ -1157,8 +1136,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     // Stage 3.2: ParseRemainingAttribute enhanced-recovery test for the
     // motivating bug (`<button @onclick="">`, dotnet/razor#10383).
     //
-    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
-    // branch added in Stage 3.2 to `HtmlMarkupParser.ParseRemainingAttribute`,
+    // Exercises the recovery branch in `HtmlMarkupParser.ParseRemainingAttribute`,
     // which detects an empty C#-bound attribute value (i.e. the attribute
     // name starts with `@` and the value parse produced nothing) and
     // synthesises the "missing C# expression" tree shape mandated by
@@ -1203,8 +1181,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
 
         var tree = ParseDocument(
             source,
-            fileKind: RazorFileKind.Component,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            fileKind: RazorFileKind.Component);
 
         // Locate the `@onclick=""` attribute. In Component mode the
         // attribute name is parsed as `@onclick` (the `@` is just the
@@ -1264,8 +1241,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
     // Stage 3.3: TryRecoverStartTag / CompleteEndTag enhanced-recovery
     // test.
     //
-    // Exercises the new `Context.Options.UseEnhancedRecovery == true`
-    // branches added in Stage 3.3 to `HtmlMarkupParser`:
+    // Exercises the recovery branches in `HtmlMarkupParser`:
     //   - `CompleteMarkupInCodeBlock` (the markup-in-code-block EOF
     //     cleanup loop): emits a narrow zero-width RZ1025
     //     (Parsing_MissingEndTag) at the precise cursor position (EOF
@@ -1305,8 +1281,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // The corpus file `<div>\r\n    <span>\r\n        <p>text</div>\r\n\r\n<section>after the mismatch</section>\r\n`
         // parses to:
@@ -1396,8 +1371,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         {
             var unexpectedSource = "@{ </div> }";
             var unexpectedTree = ParseDocument(
-                unexpectedSource,
-                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+                unexpectedSource);
 
             var rz1026 = unexpectedTree.Diagnostics
                 .Where(d => d.Id == "RZ1026")
@@ -1421,8 +1395,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         {
             var unclosedSource = "@{ <div> }";
             var unclosedTree = ParseDocument(
-                unclosedSource,
-                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+                unclosedSource);
 
             var rz1025 = unclosedTree.Diagnostics
                 .Where(d => d.Id == "RZ1025")
@@ -1451,8 +1424,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         {
             var mixedSource = "@{ <div></span> }";
             var mixedTree = ParseDocument(
-                mixedSource,
-                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+                mixedSource);
 
             var rz1025 = mixedTree.Diagnostics
                 .Where(d => d.Id == "RZ1025")
@@ -1501,8 +1473,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // Position layout for `<input @bind=>\r\n\r\n<p>after the malformed bind</p>\r\n`:
         //   0      `<`
@@ -1601,8 +1572,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         {
             var immediateSource = "<input!garbage>";
             var immediateTree = ParseDocument(
-                immediateSource,
-                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+                immediateSource);
 
             var immediateRz1048 = immediateTree.Diagnostics
                 .Where(d => d.Id == "RZ1048")
@@ -1643,8 +1613,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         {
             var wellFormedSource = "<p></p>";
             var wellFormedTree = ParseDocument(
-                wellFormedSource,
-                configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+                wellFormedSource);
 
             // No RZ1048 and no SkippedContentSyntax: cursor was already
             // at the follow-set boundary (`>`), so the enhanced branch
@@ -1702,8 +1671,7 @@ public class ParserRecoveryCorpusSnapshotTests() : ParserTestBase(layer: TestPro
         var source = testFile.ReadAllText();
 
         var tree = ParseDocument(
-            source,
-            configureParserOptions: builder => builder.UseEnhancedRecovery = true);
+            source);
 
         // The C# parser must bail at `<` (the outer-follow token from
         // HTML's `ParseCodeTransition`), even though `<` is NOT in
