@@ -66,7 +66,7 @@ internal sealed class RemoteRenameService(in ServiceArgs args) : RazorDocumentSe
         var positionInfo = GetPositionInfo(codeDocument, hostDocumentIndex, preferCSharpOverHtml: true);
 
         var generatedDocument = await context.Snapshot
-            .GetGeneratedDocumentAsync(cancellationToken)
+            .GetGeneratedDocumentForPositionAsync(positionInfo, cancellationToken)
             .ConfigureAwait(false);
 
         var razorEdit = await _renameService
@@ -80,6 +80,12 @@ internal sealed class RemoteRenameService(in ServiceArgs args) : RazorDocumentSe
 
         if (razorEdit.Edit is null && !razorEdit.FallbackToCSharp)
         {
+            return NoFurtherHandling;
+        }
+
+        if (generatedDocument is null)
+        {
+            // Position was syntactically C# inside the decl half but the document doesn't have one.
             return NoFurtherHandling;
         }
 
@@ -135,7 +141,11 @@ internal sealed class RemoteRenameService(in ServiceArgs args) : RazorDocumentSe
             return RemoteResponse<LspRange?>.CallHtml;
         }
 
-        var generatedDocument = await context.Snapshot.GetGeneratedDocumentAsync(cancellationToken).ConfigureAwait(false);
+        var generatedDocument = await context.Snapshot.GetGeneratedDocumentForPositionAsync(positionInfo, cancellationToken).ConfigureAwait(false);
+        if (generatedDocument is null)
+        {
+            return RemoteResponse<LspRange?>.NoFurtherHandling;
+        }
 
         var csharpRange = await ExternalHandlers.Rename.GetRenameRangeAsync(generatedDocument, positionInfo.Position.ToLinePosition(), cancellationToken).ConfigureAwait(false);
 
@@ -144,7 +154,12 @@ internal sealed class RemoteRenameService(in ServiceArgs args) : RazorDocumentSe
             return RemoteResponse<LspRange?>.NoFurtherHandling;
         }
 
-        if (!DocumentMappingService.TryMapToRazorDocumentRange(codeDocument.GetRequiredImplCSharpDocument(), csharpRange, out var mappedRange))
+        var csharpDocumentForMapping = positionInfo.IsInDeclHalf
+            ? codeDocument.GetDeclCSharpDocument()
+            : codeDocument.GetRequiredImplCSharpDocument();
+
+        if (csharpDocumentForMapping is null ||
+            !DocumentMappingService.TryMapToRazorDocumentRange(csharpDocumentForMapping, csharpRange, out var mappedRange))
         {
             return RemoteResponse<LspRange?>.NoFurtherHandling;
         }

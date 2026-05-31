@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -23,7 +23,7 @@ namespace Microsoft.VisualStudio.Razor.LanguageClient.Cohost;
 
 public class CohostInlineCompletionEndpointTest(ITestOutputHelper testOutputHelper) : CohostEndpointTestBase(testOutputHelper)
 {
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact(Skip = "PROTOTYPE(sonic): snippet triggers like 'ctor' aren't valid C# tokens, so neither impl nor decl half emit source mappings for them. GetPositionInfo therefore can't classify the cursor as C# and inline completion returns null. Needs a code path that bypasses position mapping for snippet triggers in @code blocks.")]
     public Task Constructor()
         => VerifyInlineCompletionAsync(
             input: """
@@ -46,7 +46,7 @@ public class CohostInlineCompletionEndpointTest(ITestOutputHelper testOutputHelp
                 }
                 """);
 
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact(Skip = "PROTOTYPE(sonic): snippet triggers like 'ctor' aren't valid C# tokens, so neither impl nor decl half emit source mappings for them. Inline completion returns null. Needs a code path that bypasses position mapping for snippet triggers in @code blocks.")]
     public Task Constructor_SmallIndent()
         => VerifyInlineCompletionAsync(
             input: """

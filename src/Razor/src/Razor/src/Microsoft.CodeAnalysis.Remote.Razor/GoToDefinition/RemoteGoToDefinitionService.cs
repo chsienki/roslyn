@@ -97,8 +97,15 @@ internal sealed class RemoteGoToDefinitionService(in ServiceArgs args) : RazorDo
 
         // Finally, call into C#.
         var generatedDocument = await context.Snapshot
-            .GetGeneratedDocumentAsync(cancellationToken)
+            .GetGeneratedDocumentForPositionAsync(positionInfo, cancellationToken)
             .ConfigureAwait(false);
+
+        if (generatedDocument is null)
+        {
+            // Cursor was syntactically C# inside the decl half (e.g. @code method body), but
+            // the source generator didn't emit a decl half for this document. Nothing to navigate to.
+            return NoFurtherHandling;
+        }
 
         var locations = await ExternalHandlers.GoToDefinition
             .GetDefinitionsAsync(

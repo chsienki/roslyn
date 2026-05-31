@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.ExternalAccess.Razor;
 using Microsoft.CodeAnalysis.Razor.DocumentMapping;
 using Microsoft.CodeAnalysis.Razor.Formatting;
+using Microsoft.CodeAnalysis.Razor.Protocol;
 using Microsoft.CodeAnalysis.Razor.Remote;
 using Microsoft.CodeAnalysis.Remote.Razor.ProjectSystem;
 using Microsoft.CodeAnalysis.Text;
@@ -32,22 +33,31 @@ internal sealed class RemoteInlineCompletionService(in ServiceArgs args) : Razor
     public async ValueTask<InlineCompletionRequestInfo?> GetInlineCompletionInfoAsync(RemoteDocumentContext context, LinePosition linePosition, CancellationToken cancellationToken)
     {
         var codeDocument = await context.GetCodeDocumentAsync(cancellationToken).ConfigureAwait(false);
-        var csharpDocument = codeDocument.GetRequiredImplCSharpDocument();
 
         if (!codeDocument.Source.Text.TryGetAbsoluteIndex(linePosition, out var hostDocumentPosition))
         {
             return null;
         }
 
-        if (!_documentMappingService.TryMapToCSharpDocumentPosition(csharpDocument, hostDocumentPosition, out var mappedPosition, out _))
+        // Use GetPositionInfo so we pick up the impl/decl-aware mapping (a cursor inside an
+        // @code method body is only present in the decl half, not the impl half).
+        var positionInfo = GetPositionInfo(codeDocument, hostDocumentPosition, preferCSharpOverHtml: true);
+        if (positionInfo.LanguageKind != RazorLanguageKind.CSharp)
         {
             return null;
         }
 
-        var generatedDocument = await context.Snapshot.GetGeneratedDocumentAsync(cancellationToken).ConfigureAwait(false);
+        var generatedDocument = await context.Snapshot
+            .GetGeneratedDocumentForPositionAsync(positionInfo, cancellationToken)
+            .ConfigureAwait(false);
+        if (generatedDocument is null)
+        {
+            return null;
+        }
+
         return new InlineCompletionRequestInfo(
             GeneratedDocumentUri: generatedDocument.CreateUri(),
-            Position: mappedPosition);
+            Position: positionInfo.Position.ToLinePosition());
     }
 
     public ValueTask<FormattedInlineCompletionInfo?> FormatInlineCompletionAsync(RazorPinnedSolutionInfoWrapper solutionInfo, DocumentId documentId, RazorFormattingOptions options, LinePositionSpan span, string text, CancellationToken cancellationToken)

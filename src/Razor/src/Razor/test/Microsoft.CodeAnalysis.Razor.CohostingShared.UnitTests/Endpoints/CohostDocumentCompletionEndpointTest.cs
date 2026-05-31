@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -274,7 +274,7 @@ public partial class CohostDocumentCompletionEndpointTest(ITestOutputHelper test
             expectedItemLabels: ["DaysInMonth", "IsLeapYear", "Now"]);
     }
 
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact]
     public async Task CSharpClassesInCodeBlock()
     {
         await VerifyCompletionListAsync(
@@ -296,7 +296,7 @@ public partial class CohostDocumentCompletionEndpointTest(ITestOutputHelper test
             expectedItemLabels: ["char", "DateTime", "Exception"]);
     }
 
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact]
     public async Task CSharpClassMembersInCodeBlock()
     {
         await VerifyCompletionListAsync(
@@ -323,7 +323,7 @@ public partial class CohostDocumentCompletionEndpointTest(ITestOutputHelper test
             expectedItemLabels: ["DaysInMonth", "IsLeapYear", "Now"]);
     }
 
-    [RoslynConditionalFact(typeof(IsEnglishLocal), AlwaysSkip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [RoslynConditionalFact(typeof(IsEnglishLocal), AlwaysSkip = "PROTOTYPE(sonic): completion resolve snippet expansion (e.g. override methods) lands at wrong position. The completion item was computed against the decl half but RazorFormattingService is impl-only, so the inserted text is interleaved with impl-half render code. Needs a decl-aware overload of TryGetCSharpSnippetFormattingEditAsync.")]
     public async Task CSharpOverrideMethods()
     {
         await VerifyCompletionListAsync(

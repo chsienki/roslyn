@@ -140,12 +140,19 @@ internal sealed class RemoteCompletionService(in ServiceArgs args) : RazorDocume
             var mappedPosition = documentPositionInfo.Position;
 
             var csharpGeneratedDocument = await GetCSharpGeneratedDocumentAsync(
-                documentSnapshot, positionInfo.ProvisionalTextEdit, cancellationToken).ConfigureAwait(false);
+                documentSnapshot, documentPositionInfo, positionInfo.ProvisionalTextEdit, cancellationToken).ConfigureAwait(false);
+
+            if (csharpGeneratedDocument is null)
+            {
+                // Cursor was syntactically C# inside the decl half but the document doesn't have one.
+                return CompletionResults.CallHtml;
+            }
 
             csharpCompletionList = await GetCSharpCompletionAsync(
                 csharpGeneratedDocument,
                 codeDocument,
                 documentPositionInfo.HostDocumentIndex,
+                documentPositionInfo.IsInDeclHalf,
                 mappedPosition,
                 completionContext,
                 razorCompletionOptions,
@@ -234,6 +241,7 @@ internal sealed class RemoteCompletionService(in ServiceArgs args) : RazorDocume
         SourceGeneratedDocument generatedDocument,
         RazorCodeDocument codeDocument,
         int documentIndex,
+        bool isInDeclHalf,
         Position mappedPosition,
         CompletionContext completionContext,
         RazorCompletionOptions razorCompletionOptions,
@@ -284,16 +292,20 @@ internal sealed class RemoteCompletionService(in ServiceArgs args) : RazorDocume
             mappedPosition,
             razorCompletionOptions);
 
-        var resolutionContext = new DelegatedCompletionResolutionContext(RazorLanguageKind.CSharp, rewrittenResponse.Data ?? rewrittenResponse.ItemDefaults?.Data, provisionalTextEdit);
+        var resolutionContext = new DelegatedCompletionResolutionContext(RazorLanguageKind.CSharp, rewrittenResponse.Data ?? rewrittenResponse.ItemDefaults?.Data, provisionalTextEdit, isInDeclHalf);
         var resultId = _completionListCache.Add(rewrittenResponse, resolutionContext);
         rewrittenResponse.SetResultId(resultId, clientCapabilities);
 
         return rewrittenResponse;
     }
 
-    private static async Task<SourceGeneratedDocument> GetCSharpGeneratedDocumentAsync(RemoteDocumentSnapshot documentSnapshot, TextEdit? provisionalTextEdit, CancellationToken cancellationToken)
+    private static async Task<SourceGeneratedDocument?> GetCSharpGeneratedDocumentAsync(RemoteDocumentSnapshot documentSnapshot, DocumentPositionInfo positionInfo, TextEdit? provisionalTextEdit, CancellationToken cancellationToken)
     {
-        var generatedDocument = await documentSnapshot.GetGeneratedDocumentAsync(cancellationToken).ConfigureAwait(false);
+        var generatedDocument = await documentSnapshot.GetGeneratedDocumentForPositionAsync(positionInfo, cancellationToken).ConfigureAwait(false);
+        if (generatedDocument is null)
+        {
+            return null;
+        }
 
         if (provisionalTextEdit is not null)
         {
@@ -372,7 +384,19 @@ internal sealed class RemoteCompletionService(in ServiceArgs args) : RazorDocume
             }
 
             var documentSnapshot = context.Snapshot;
-            var generatedDocument = await GetCSharpGeneratedDocumentAsync(documentSnapshot, resolutionContext.ProvisionalTextEdit, cancellationToken).ConfigureAwait(false);
+            // Synthesize a DocumentPositionInfo carrying just the IsInDeclHalf flag so the
+            // generated-document fetcher routes to the same half the initial request used.
+            var resolvePositionInfo = new DocumentPositionInfo(
+                RazorLanguageKind.CSharp,
+                Position: new Position(0, 0),
+                HostDocumentIndex: 0,
+                IsInDeclHalf: resolutionContext.IsInDeclHalf);
+            var generatedDocument = await GetCSharpGeneratedDocumentAsync(documentSnapshot, resolvePositionInfo, resolutionContext.ProvisionalTextEdit, cancellationToken).ConfigureAwait(false);
+            if (generatedDocument is null)
+            {
+                // The decl half was used at request time but no longer exists on this snapshot.
+                return request;
+            }
 
             var clientCapabilities = _clientCapabilitiesService.ClientCapabilities;
             var completionListSetting = clientCapabilities.TextDocument?.Completion;

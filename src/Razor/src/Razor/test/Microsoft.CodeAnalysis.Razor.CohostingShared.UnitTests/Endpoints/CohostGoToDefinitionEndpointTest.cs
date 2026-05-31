@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -40,7 +40,7 @@ public class CohostGoToDefinitionEndpointTest(ITestOutputHelper testOutputHelper
         await VerifyGoToDefinitionAsync(input);
     }
 
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact]
     public async Task CSharp_Local()
     {
         var input = """
@@ -61,7 +61,7 @@ public class CohostGoToDefinitionEndpointTest(ITestOutputHelper testOutputHelper
         await VerifyGoToDefinitionAsync(input);
     }
 
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact]
     public async Task CSharp_MetadataReference()
     {
         var input = """
@@ -160,7 +160,7 @@ public class CohostGoToDefinitionEndpointTest(ITestOutputHelper testOutputHelper
         Assert.Equal(range, location.Range);
     }
 
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact(Skip = "PROTOTYPE(sonic): component navigation goes through tag helper resolution, not GetPositionInfo. With the decl/impl split active, the component lookup returns duplicate locations (impl half + decl half) for the same .razor file. Needs decl-aware deduplication in the component definition path.")]
     public async Task Component_FromCSharp()
     {
         TestCode input = """

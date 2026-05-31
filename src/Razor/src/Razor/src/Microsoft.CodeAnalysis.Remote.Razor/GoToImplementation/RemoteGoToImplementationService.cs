@@ -65,8 +65,15 @@ internal sealed class RemoteGoToImplementationService(in ServiceArgs args) : Raz
 
         // Finally, call into C#.
         var generatedDocument = await context.Snapshot
-            .GetGeneratedDocumentAsync(cancellationToken)
+            .GetGeneratedDocumentForPositionAsync(positionInfo, cancellationToken)
             .ConfigureAwait(false);
+
+        if (generatedDocument is null)
+        {
+            // Cursor was syntactically C# inside the decl half (e.g. @code method body), but
+            // the source generator didn't emit a decl half for this document.
+            return NoFurtherHandling;
+        }
 
         var supportsVisualStudioExtensions = _clientCapabilitiesService.ClientCapabilities.SupportsVisualStudioExtensions;
 

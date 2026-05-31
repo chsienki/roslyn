@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
@@ -17,7 +17,7 @@ namespace Microsoft.VisualStudio.Razor.LanguageClient.Cohost;
 
 public class CohostRoslynGoToDefTest(ITestOutputHelper testOutputHelper) : CohostEndpointTestBase(testOutputHelper)
 {
-    [Fact(Skip = "PROTOTYPE(sonic): cohosting feature not yet decl/impl split aware; see PR #83887")]
+    [Fact(Skip = "PROTOTYPE(sonic): component navigation goes through tag helper resolution, not GetPositionInfo. Returns duplicate locations (impl + decl) for the same .razor file. Needs decl-aware deduplication in the component definition path.")]
     public Task Component()
         => VerifyGoToDefinitionAsync(
             csharpFile: """
