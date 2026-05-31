@@ -37,6 +37,7 @@ internal static class IDocumentMappingServiceExtensions
         var position = sourceText.GetPosition(razorIndex);
 
         var languageKind = codeDocument.GetLanguageKind(razorIndex, rightAssociative: false);
+        var isInDeclHalf = false;
         if (languageKind is RazorLanguageKind.CSharp)
         {
             if (service.TryMapToCSharpDocumentPosition(codeDocument.GetRequiredImplCSharpDocument(), razorIndex, out Position? mappedPosition, out _))
@@ -45,16 +46,30 @@ internal static class IDocumentMappingServiceExtensions
                 // within the projected document
                 position = mappedPosition;
             }
+            else if (codeDocument.GetDeclCSharpDocument() is { } declCSharpDocument &&
+                     service.TryMapToCSharpDocumentPosition(declCSharpDocument, razorIndex, out Position? declMappedPosition, out _))
+            {
+                // The Razor source generator now splits a component's generated C# into two
+                // documents: an impl half (BuildRenderTree + render plumbing) and a decl half
+                // (the partial class declaration plus @code/@functions method bodies). Content
+                // inside @code/@functions lives only in the decl half, so when the impl mapping
+                // fails for a syntactically-C# position we fall back to the decl half before
+                // giving up. Callers that fetch a generated document for Roslyn calls must look
+                // at IsInDeclHalf to pick the right half (see
+                // IDocumentSnapshotExtensions.GetGeneratedDocumentForPositionAsync).
+                position = declMappedPosition;
+                isInDeclHalf = true;
+            }
             else
             {
-                // Some locations are classified as C# but do not correspond to a position in the
-                // projected document. This currently happens for some Razor directive content,
-                // like the assembly name in @addTagHelper, so fall back to Razor.
+                // Some locations are classified as C# but do not correspond to a position in
+                // either generated document. This currently happens for some Razor directive
+                // content, like the assembly name in @addTagHelper, so fall back to Razor.
                 languageKind = RazorLanguageKind.Razor;
             }
         }
 
-        return new DocumentPositionInfo(languageKind, position, razorIndex);
+        return new DocumentPositionInfo(languageKind, position, razorIndex, isInDeclHalf);
     }
 
     public static bool TryMapToRazorDocumentRange(this IDocumentMappingService service, RazorCSharpDocument csharpDocument, LspRange csharpRange, MappingBehavior mappingBehavior, [NotNullWhen(true)] out LspRange? razorRange)

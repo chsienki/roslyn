@@ -8,10 +8,13 @@ namespace Microsoft.CodeAnalysis.Razor.DocumentMapping;
 
 /// <summary>
 /// Represents a position in a document. If <see cref="LanguageKind"/> is Razor then the position will be
-/// in the host document, otherwise it will be in the corresponding generated document.
+/// in the host document, otherwise it will be in the corresponding generated document. When
+/// <see cref="IsInDeclHalf"/> is <see langword="true"/>, the position is in the decl-half generated
+/// document (e.g. inside an <c>@code</c> method body); otherwise it is in the impl-half.
 /// </summary>
 internal readonly record struct DocumentPositionInfo(
     [property: JsonPropertyName("languageKind")] RazorLanguageKind LanguageKind,
     [property: JsonPropertyName("position")] Position Position,
-    [property: JsonPropertyName("hostDocumentIndex")] int HostDocumentIndex);
+    [property: JsonPropertyName("hostDocumentIndex")] int HostDocumentIndex,
+    [property: JsonPropertyName("isInDeclHalf")] bool IsInDeclHalf = false);
 

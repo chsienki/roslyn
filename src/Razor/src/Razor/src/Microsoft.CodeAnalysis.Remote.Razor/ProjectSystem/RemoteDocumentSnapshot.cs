@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Razor;
 using Microsoft.AspNetCore.Razor.Language;
+using Microsoft.CodeAnalysis.Razor.DocumentMapping;
 using Microsoft.CodeAnalysis.Razor.ProjectSystem;
 using Microsoft.CodeAnalysis.Text;
 
@@ -114,6 +115,22 @@ internal sealed class RemoteDocumentSnapshot : IDocumentSnapshot
         _declGeneratedDocument = declDocument;
         Volatile.Write(ref _declGeneratedDocumentInitialized, true);
         return declDocument;
+    }
+
+    /// <summary>
+    /// Returns the generated document that <paramref name="positionInfo"/>'s position refers to:
+    /// the decl half if <see cref="DocumentPositionInfo.IsInDeclHalf"/> is <see langword="true"/>,
+    /// otherwise the impl half. Returns <see langword="null"/> only if a decl half was requested
+    /// but the source generator did not emit one for this document.
+    /// </summary>
+    public async ValueTask<SourceGeneratedDocument?> GetGeneratedDocumentForPositionAsync(DocumentPositionInfo positionInfo, CancellationToken cancellationToken)
+    {
+        if (positionInfo.IsInDeclHalf)
+        {
+            return await TryGetDeclGeneratedDocumentAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return await GetGeneratedDocumentAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public ValueTask<SyntaxTree> GetCSharpSyntaxTreeAsync(CancellationToken cancellationToken)
