@@ -200,14 +200,59 @@ Cold compilation kept the full ~40% win and `Edit_DependentIgnorable`
 flipped from a 4.6x regression to a 21% win -- the cache now short-circuits
 correctly when the decl content is unchanged.
 
-`Edit_Dependent` (where the parameter is genuinely removed) still trails
-the baseline by ~14ms. The work has to be done -- the decl really did
-change, so the compilation must rebuild and tag-helper discovery must
-re-walk -- so this gap is per-file engine cost in `ProcessForDecl` (parse +
-IR lowering + classifier + decl C# lowering) being slightly more than the
-old split (two separate stripped engines parsing the file twice). It's a
-secondary optimization to revisit; the headline trade-off (cold win at the
-cost of per-edit work) is no longer in play.
+`Edit_Dependent` (where the parameter is genuinely removed) still trailed
+the baseline by ~14ms.
+
+### Second fix: rebuild IR from cached syntax tree on material tag helper change
+
+`Edit_Dependent`'s remaining regression came from the second
+`ProcessTagHelpers` call's material-change replay path. When the new tag
+helpers genuinely differ for a document, we previously re-created the
+`RazorCodeDocument` from scratch by re-parsing the source item and
+replaying phases 0..decl-lowering (~6 phases per affected file).
+
+The fix replaces that with `RebuildUnresolvedIrFromCachedSyntax`, which
+re-runs only IR-lowering + document-classifier + directive-classifier
+(~3 phases) against the cached syntax tree. IR lowering always allocates
+a fresh `DocumentIntermediateNode`, so subsequent classifier mutations
+don't touch any shared state. We also skip re-running discovery because
+the idempotency probe already produced the new `TagHelperContext` on the
+doc.
+
+### Final numbers (after both fixes)
+
+| Benchmark                       | Baseline (`features/sonic`) | Sonic-4 final | Delta vs baseline |
+|----------------------------------|------------------------------|---------------|-------------------|
+| `ColdBenchmarks.Cold_Compilation` Mean         | 116.30 ms | 68.16 ms | **-41.4%** :white_check_mark: |
+| `ColdBenchmarks.Cold_Compilation` Allocated    |  20.89 MB | 14.34 MB | **-31.4%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Independent`        |   7.72 ms |  7.01 ms |  **-9.2%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_DependentIgnorable` |   1.70 ms |  1.35 ms | **-20.6%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Dependent`          |  35.58 ms | 32.55 ms |  **-8.5%** :white_check_mark: |
+
+Sonic-4 is faster than `features/sonic` on every microbenchmark.
+
+### Comparison vs `upstream/main` (the published baseline)
+
+`features/sonic` already contains the decl/impl split from Sonic 1/2/3,
+which adds incremental work (every component now produces two C# files
+instead of one). `upstream/main` doesn't have that split yet. To verify
+sonic-4 is also faster than what ships today, we ran the same benchmarks
+against `upstream/main` (commit `d1b80d180de`):
+
+| Benchmark                       | `upstream/main` | Sonic-4 final | Delta vs main |
+|----------------------------------|------------------|---------------|---------------|
+| `ColdBenchmarks.Cold_Compilation` Mean         | 114.00 ms | 68.16 ms | **-40.2%** :white_check_mark: |
+| `ColdBenchmarks.Cold_Compilation` Allocated    |  19.77 MB | 14.34 MB | **-27.5%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Independent`        |   7.55 ms |  7.01 ms |  **-7.2%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_DependentIgnorable` |   1.55 ms |  1.35 ms | **-12.9%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Dependent`          |  31.72 ms | 32.55 ms |    +2.6% :large_yellow_circle: |
+
+Sonic-4 wins or ties on every benchmark. `Edit_Dependent` is +0.83 ms
+(+2.6%) which is within ~1.5σ of either branch's std-dev -- statistically
+borderline. Notably, `features/sonic` was already +3.86 ms (+12%) slower
+than main on `Edit_Dependent`, so sonic-4 has not just recovered the
+sonic-1/2/3 regression but moved Razor SG perf to within noise of (and
+better than for cold) the pre-split codebase.
 
 How to reproduce:
 
