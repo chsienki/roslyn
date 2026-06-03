@@ -137,56 +137,77 @@ both branches. (The project's `Release_Nuget` baseline job is pinned to an
 old published toolset, so it isn't meaningful for sonic-3 vs sonic-4 -- we
 ran a `Release`-only job on each branch in turn and compared.)
 
-| Benchmark                       | Baseline (`features/sonic`) | New (`sonic/4_decl_pipeline_front`) | Delta |
-|----------------------------------|------------------------------|-------------------------------------|-------|
-| `ColdBenchmarks.Cold_Compilation` (Mean)      | 116.30 ms | 73.87 ms | **-36.5%** :white_check_mark: |
-| `ColdBenchmarks.Cold_Compilation` (Median)    | 102.00 ms | 72.39 ms | **-29.0%** :white_check_mark: |
-| `ColdBenchmarks.Cold_Compilation` (Allocated) |  20.89 MB | 14.46 MB | **-30.8%** :white_check_mark: |
-| `RazorBenchmarks.Razor_Edit_Independent`         |   7.72 ms | 10.96 ms |     +42.0% :x: |
+### Initial sonic-4 numbers (before fix)
+
+| Benchmark                       | Baseline (`features/sonic`) | Sonic-4 raw | Delta |
+|----------------------------------|------------------------------|-------------|-------|
+| `ColdBenchmarks.Cold_Compilation` Mean         | 116.30 ms | 73.87 ms | **-36.5%** :white_check_mark: |
+| `ColdBenchmarks.Cold_Compilation` Allocated    |  20.89 MB | 14.46 MB | **-30.8%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Independent`        |   7.72 ms | 10.96 ms |     +42.0% :x: |
 | `RazorBenchmarks.Razor_Edit_DependentIgnorable` |   1.70 ms |  7.89 ms |    +363.5% :x: |
-| `RazorBenchmarks.Razor_Edit_Dependent`           |  35.58 ms | 51.38 ms |     +44.4% :x: |
+| `RazorBenchmarks.Razor_Edit_Dependent`          |  35.58 ms | 51.38 ms |     +44.4% :x: |
 
-**Cold compilation: significant win**, matching the prototype's expected
-benefit from eliminating the second compilation. Mean -36.5%, median -29%,
-allocations -30%.
+The cold win was expected and matched the prototype's promise. But the
+incremental edits regressed sharply -- especially `Edit_DependentIgnorable`
+(a markup-only edit that doesn't change anything decl-relevant) ran 4.6x
+slower.
 
-**Incremental edits: significant regression** -- especially
-`Edit_DependentIgnorable` (4.6x slower). Root cause: in the old pipeline
-`tagHelpersFromCompilation` ran against a small purpose-built
-`declCompilation` (just the decl trees added to the original compilation).
-In the new pipeline it runs against the full user compilation whose
-`Assembly` symbol is rebuilt on every edit, missing the
-`SymbolCache.GetAssemblySymbolData(...).TryGetTagHelpers(...)` cache. The
-underlying type walk in `TagHelperDiscoverer.GetTagHelpers` (the
-`while (!stack.IsEmpty)` namespace traversal) then re-runs over the entire
-project's namespaces every edit.
+### Root cause: decl `#pragma checksum` invalidating the pre-comp cache
 
-**Net for an end-to-end build**: cold savings of ~42 ms versus
-per-incremental overhead of 3-15 ms balance out to roughly a wash for
-single-compile workflows like a `dotnet build` of MudBlazor (which matches
-our end-to-end numbers above). For long-lived IDE scenarios with many
-incremental edits, the regression dominates.
+The pre-compilation source output (`RegisterPreCompilationSourceOutput`)
+fans into a `CompilationCache` keyed on a `PreCompCacheKey` whose `Text`
+component is compared via `ReferenceEquals` (see
+`src/Compilers/Core/Portable/SourceGeneration/CompilationCache.cs:200`).
+That cache reuses the previous `Compilation` reference when every per-key
+text reference matches, which keeps `tagHelpersFromCompilation` (which
+walks `compilation.Assembly` for source-declared tag helpers) cached.
 
-**Why IR caching alone wouldn't fix this**: the IR snapshot/replay scheme
-discussed during planning helps per-document costs (re-parsing, re-lowering
-the IR up through phase 5). The bottleneck shown here is per-compilation
-tag helper discovery, which IR caching doesn't touch.
+In the new pipeline `DefaultRazorDeclCSharpLoweringPhase` uses the full
+engine's `RazorCodeGenerationOptions`, which has `SuppressChecksum = false`.
+The decl writer therefore emits a `#pragma checksum "file" "{algo}"
+"{hash}"` line at the top, derived from the source file's full byte
+content. Any markup edit changes those bytes -> different checksum ->
+different decl text -> `declSources` content comparer says different ->
+new `SourceText` reference -> pre-comp cache key changes -> compilation
+is rebuilt -> tag helper discovery re-walks the entire assembly's
+namespace tree (`TagHelperDiscoverer.GetTagHelpers`).
 
-**Follow-up needed**: scope a fix that keeps the cold win and recovers the
-incremental cost. Candidate approaches:
+The old pipeline's decl-only stripped engine set `SuppressChecksum = true`
+on its `GetDeclarationProjectEngine`, so its `SourceGeneratorText` (which
+implements content-based `Equals`) compared byte-equal for markup-only
+edits and the cache held.
 
-1. Have the SG run tag helper discovery against a narrower, purpose-built
-   compilation containing only the decl trees + necessary references --
-   mirrors the old `declCompilation` but built explicitly in the new
-   pipeline.
-2. Cache tag helper discovery results by syntax tree, so unchanged trees
-   don't re-walk on a compilation rebuild.
-3. Provide a Roslyn-side hook that distinguishes compilation changes that
-   add/remove syntax trees from those that mutate existing ones, letting
-   discovery skip unchanged trees.
+### Fix
 
-Recommend (1) as the cheapest unblock. It's a small, contained change to
-`RazorSourceGenerator.Initialize`.
+`DefaultRazorDeclCSharpLoweringPhase` now applies
+`WithFlags(suppressChecksum: true)` to the decl synthetic doc-node's
+`Options` before handing it to `RazorCSharpDocumentWriter.Write`. The impl
+half keeps its checksum (debuggers need it). The test helper
+`RazorSourceGeneratorTestsBase.TrimChecksum` was relaxed to tolerate decl
+files that no longer have a `#pragma` header.
+
+### Numbers after the fix
+
+| Benchmark                       | Baseline (`features/sonic`) | Sonic-4 + fix | Delta vs baseline |
+|----------------------------------|------------------------------|---------------|-------------------|
+| `ColdBenchmarks.Cold_Compilation` Mean         | 116.30 ms | 70.03 ms | **-39.8%** :white_check_mark: |
+| `ColdBenchmarks.Cold_Compilation` Allocated    |  20.89 MB | 14.36 MB | **-31.3%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Independent`        |   7.72 ms |  8.57 ms |     +11.0% :large_yellow_circle: |
+| `RazorBenchmarks.Razor_Edit_DependentIgnorable` |   1.70 ms |  1.34 ms | **-21.2%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Dependent`          |  35.58 ms | 49.57 ms |     +39.3% :x: |
+
+Cold compilation kept the full ~40% win and `Edit_DependentIgnorable`
+flipped from a 4.6x regression to a 21% win -- the cache now short-circuits
+correctly when the decl content is unchanged.
+
+`Edit_Dependent` (where the parameter is genuinely removed) still trails
+the baseline by ~14ms. The work has to be done -- the decl really did
+change, so the compilation must rebuild and tag-helper discovery must
+re-walk -- so this gap is per-file engine cost in `ProcessForDecl` (parse +
+IR lowering + classifier + decl C# lowering) being slightly more than the
+old split (two separate stripped engines parsing the file twice). It's a
+secondary optimization to revisit; the headline trade-off (cold win at the
+cost of per-edit work) is no longer in play.
 
 How to reproduce:
 
