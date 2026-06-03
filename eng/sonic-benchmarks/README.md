@@ -127,3 +127,80 @@ with 10+ iterations if you need to defend a precise number.
 - The `Microsoft.Net.Compilers.Razor.Toolset` build step is fairly slow
   (~30-60s); the pack step is fast. Use `-SkipPack` once you've packed for
   a given branch and just want to redo timings.
+
+## SG-only microbenchmarks (2026-06-03)
+
+End-to-end MudBlazor build is dominated by C# compilation of the generated
+files and the user code. To isolate the actual Razor SG cost, we ran the
+existing `Microsoft.AspNetCore.Razor.Microbenchmarks.Generator` project on
+both branches. (The project's `Release_Nuget` baseline job is pinned to an
+old published toolset, so it isn't meaningful for sonic-3 vs sonic-4 -- we
+ran a `Release`-only job on each branch in turn and compared.)
+
+| Benchmark                       | Baseline (`features/sonic`) | New (`sonic/4_decl_pipeline_front`) | Delta |
+|----------------------------------|------------------------------|-------------------------------------|-------|
+| `ColdBenchmarks.Cold_Compilation` (Mean)      | 116.30 ms | 73.87 ms | **-36.5%** :white_check_mark: |
+| `ColdBenchmarks.Cold_Compilation` (Median)    | 102.00 ms | 72.39 ms | **-29.0%** :white_check_mark: |
+| `ColdBenchmarks.Cold_Compilation` (Allocated) |  20.89 MB | 14.46 MB | **-30.8%** :white_check_mark: |
+| `RazorBenchmarks.Razor_Edit_Independent`         |   7.72 ms | 10.96 ms |     +42.0% :x: |
+| `RazorBenchmarks.Razor_Edit_DependentIgnorable` |   1.70 ms |  7.89 ms |    +363.5% :x: |
+| `RazorBenchmarks.Razor_Edit_Dependent`           |  35.58 ms | 51.38 ms |     +44.4% :x: |
+
+**Cold compilation: significant win**, matching the prototype's expected
+benefit from eliminating the second compilation. Mean -36.5%, median -29%,
+allocations -30%.
+
+**Incremental edits: significant regression** -- especially
+`Edit_DependentIgnorable` (4.6x slower). Root cause: in the old pipeline
+`tagHelpersFromCompilation` ran against a small purpose-built
+`declCompilation` (just the decl trees added to the original compilation).
+In the new pipeline it runs against the full user compilation whose
+`Assembly` symbol is rebuilt on every edit, missing the
+`SymbolCache.GetAssemblySymbolData(...).TryGetTagHelpers(...)` cache. The
+underlying type walk in `TagHelperDiscoverer.GetTagHelpers` (the
+`while (!stack.IsEmpty)` namespace traversal) then re-runs over the entire
+project's namespaces every edit.
+
+**Net for an end-to-end build**: cold savings of ~42 ms versus
+per-incremental overhead of 3-15 ms balance out to roughly a wash for
+single-compile workflows like a `dotnet build` of MudBlazor (which matches
+our end-to-end numbers above). For long-lived IDE scenarios with many
+incremental edits, the regression dominates.
+
+**Why IR caching alone wouldn't fix this**: the IR snapshot/replay scheme
+discussed during planning helps per-document costs (re-parsing, re-lowering
+the IR up through phase 5). The bottleneck shown here is per-compilation
+tag helper discovery, which IR caching doesn't touch.
+
+**Follow-up needed**: scope a fix that keeps the cold win and recovers the
+incremental cost. Candidate approaches:
+
+1. Have the SG run tag helper discovery against a narrower, purpose-built
+   compilation containing only the decl trees + necessary references --
+   mirrors the old `declCompilation` but built explicitly in the new
+   pipeline.
+2. Cache tag helper discovery results by syntax tree, so unchanged trees
+   don't re-walk on a compilation rebuild.
+3. Provide a Roslyn-side hook that distinguishes compilation changes that
+   add/remove syntax trees from those that mutate existing ones, letting
+   discovery skip unchanged trees.
+
+Recommend (1) as the cheapest unblock. It's a small, contained change to
+`RazorSourceGenerator.Initialize`.
+
+How to reproduce:
+
+```powershell
+# On either branch:
+cd src\Razor\src\Compiler\perf\Microsoft.AspNetCore.Razor.Microbenchmarks.Generator
+# Temporarily edit Program.cs to:
+#   (a) skip the Release_Nuget Baseline job (it's not a useful baseline)
+#   (b) force InProcessEmitToolchain always (BDN's normal rebuild path
+#       fails on the Razor source tree)
+# Then:
+dotnet build -c Release
+cd D:\projects\roslyn2\artifacts\bin\Microsoft.AspNetCore.Razor.Microbenchmarks.Generator\Release\net10.0
+.\Microsoft.AspNetCore.Razor.Microbenchmarks.Generator.exe --filter "*ColdBenchmarks*"
+.\Microsoft.AspNetCore.Razor.Microbenchmarks.Generator.exe --filter "*RazorBenchmarks.Razor_Edit*"
+# Discard the Program.cs edits before committing.
+```
