@@ -353,10 +353,8 @@ public sealed class RazorProjectEngine
         // Document Classifier
         builder.Features.Add(new ComponentDocumentClassifierPass());
 
-        // Directive Classifier
-        builder.Features.Add(new ComponentWhitespacePass());
-
         // Optimization
+        builder.Features.Add(new ComponentWhitespacePass());
         builder.Features.Add(new ComponentComplexAttributeContentPass());
         builder.Features.Add(new ComponentLoweringPass());
         builder.Features.Add(new ComponentEventHandlerLoweringPass());
