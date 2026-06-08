@@ -14,7 +14,7 @@ public class TagHelperHtmlAttributeRuntimeNodeWriterTest : RazorProjectEngineTes
 
     protected override void ConfigureCodeDocumentProcessor(RazorCodeDocumentProcessor processor)
     {
-        processor.ExecutePhasesThrough<DefaultTagHelperResolutionPhase>();
+        processor.ExecutePhasesThrough<DefaultRazorTagHelperRewritePhase>();
     }
 
     [Fact]

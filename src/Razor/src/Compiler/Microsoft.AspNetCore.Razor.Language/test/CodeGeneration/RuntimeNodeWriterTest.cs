@@ -15,7 +15,7 @@ public class RuntimeNodeWriterTest : RazorProjectEngineTestBase
 
     protected override void ConfigureCodeDocumentProcessor(RazorCodeDocumentProcessor processor)
     {
-        processor.ExecutePhasesThrough<DefaultTagHelperResolutionPhase>();
+        processor.ExecutePhasesThrough<DefaultRazorTagHelperRewritePhase>();
     }
 
     [Fact]
