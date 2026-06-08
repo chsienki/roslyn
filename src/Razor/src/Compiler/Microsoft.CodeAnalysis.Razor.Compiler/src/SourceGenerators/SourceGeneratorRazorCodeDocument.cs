@@ -20,21 +20,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators;
 /// return the original wrapper class. If the underlying  document is changed, we return a new instance
 /// of the wrapper.
 /// </remarks>
-internal sealed class SourceGeneratorRazorCodeDocument(RazorCodeDocument razorCodeDocument, RazorProjectItem? sourceItem = null)
+internal sealed class SourceGeneratorRazorCodeDocument(RazorCodeDocument razorCodeDocument)
 {
     public RazorCodeDocument CodeDocument { get; } = razorCodeDocument;
-
-    /// <summary>
-    /// The <see cref="RazorProjectItem"/> that produced <see cref="CodeDocument"/>, retained so
-    /// that <see cref="SourceGeneratorProjectEngine.ProcessTagHelpers"/> can re-create the
-    /// document from scratch when a tag-helper change forces a rewrite. We can't snapshot the
-    /// unresolved IR directly because <see cref="RazorCodeDocument"/> is only shallowly immutable
-    /// -- its <c>With*</c> methods share the underlying mutable IR, which the resolution phase
-    /// mutates in place.
-    /// </summary>
-    /// <remarks>
-    /// Null when the wrapper wasn't produced by <see cref="SourceGeneratorProjectEngine.ProcessForDecl"/>
-    /// (e.g. constructed directly by tests).
-    /// </remarks>
-    public RazorProjectItem? SourceItem { get; } = sourceItem;
 }

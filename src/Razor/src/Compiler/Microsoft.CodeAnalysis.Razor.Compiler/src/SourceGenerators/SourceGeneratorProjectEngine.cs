@@ -13,19 +13,26 @@ internal sealed class SourceGeneratorProjectEngine
 {
     private readonly RazorProjectEngine _projectEngine;
 
-    // Phase index boundaries. Identified by explicit phase type lookup at construction so the
-    // SG doesn't bake in implicit assumptions about pipeline order.
+    // Phase index boundaries. Identified by explicit phase type lookup at construction time so the
+    // SG layer doesn't bake in implicit assumptions about pipeline order (the engine may add or
+    // reorder phases as it evolves).
 
-    /// <summary>Decl C# lowering (inclusive). Phases at or before this index are
-    /// tag-helper-independent and produce the unresolved IR plus the decl C# text.</summary>
+    /// <summary>Index of <see cref="DefaultRazorIntermediateNodeLoweringPhase"/>, where the
+    /// unresolved IR is first produced. The replay path on a material tag helper change re-runs
+    /// from this index (using the cached syntax tree) rather than re-parsing from scratch.</summary>
+    private readonly int _irLoweringPhaseIndex = -1;
+
+    /// <summary>Inclusive index of <see cref="DefaultRazorDeclCSharpLoweringPhase"/>. Phases at or
+    /// before this index produce the unresolved IR and the decl C# text; they are tag-helper-
+    /// independent.</summary>
     private readonly int _declLoweringEndIndex = -1;
 
-    /// <summary>Tag-helper discovery. Cached so the idempotency probe can re-run it in
-    /// isolation.</summary>
+    /// <summary>Index of <see cref="DefaultRazorTagHelperContextDiscoveryPhase"/>. Cached so the
+    /// idempotency check can re-run discovery in isolation without re-lowering.</summary>
     private readonly int _discoveryPhaseIndex = -1;
 
-    /// <summary>Tag-helper rewrite (inclusive). Phases after this index (optimization + impl
-    /// C# lowering) consume the resolved IR.</summary>
+    /// <summary>Inclusive index of <see cref="DefaultRazorTagHelperRewritePhase"/>. Phases after
+    /// this index (optimization + impl C# lowering) consume the resolved IR.</summary>
     private readonly int _tagHelperRewriteEndIndex = -1;
 
     private readonly IRazorEnginePhase _discoveryPhase;
@@ -42,6 +49,10 @@ internal sealed class SourceGeneratorProjectEngine
         {
             switch (phase)
             {
+                case DefaultRazorIntermediateNodeLoweringPhase:
+                    _irLoweringPhaseIndex = index;
+                    break;
+
                 case DefaultRazorDeclCSharpLoweringPhase:
                     _declLoweringEndIndex = index;
                     break;
@@ -59,31 +70,43 @@ internal sealed class SourceGeneratorProjectEngine
             index++;
         }
 
+        Debug.Assert(_irLoweringPhaseIndex >= 0);
         Debug.Assert(_declLoweringEndIndex >= 0);
         Debug.Assert(_discoveryPhase is not null);
         Debug.Assert(_discoveryPhaseIndex >= 0);
         Debug.Assert(_tagHelperRewriteEndIndex >= 0);
+        Debug.Assert(_irLoweringPhaseIndex < _declLoweringEndIndex);
         Debug.Assert(_declLoweringEndIndex < _discoveryPhaseIndex);
         Debug.Assert(_discoveryPhaseIndex < _tagHelperRewriteEndIndex);
     }
 
     /// <summary>
-    /// Runs the engine pipeline from parsing through decl C# lowering. The returned document
-    /// has unresolved IR (tag helper nodes are still <c>Unresolved*IntermediateNode</c>) and a
-    /// fully-written decl <see cref="RazorCSharpDocument"/>. The wrapper carries the source
-    /// <see cref="RazorProjectItem"/> so that <see cref="ProcessTagHelpers"/> can rebuild
-    /// unresolved IR if tag helpers later change materially.
+    /// Runs the engine pipeline from parsing through decl C# lowering. After this call, the document
+    /// has unresolved IR (tag helper nodes are still represented as
+    /// <see cref="Microsoft.AspNetCore.Razor.Language.Intermediate.UnresolvedElementIntermediateNode"/>
+    /// and friends) and a fully-written decl <see cref="RazorCSharpDocument"/> accessible via
+    /// <see cref="RazorCodeDocumentExtensions.GetDeclCSharpDocument"/>.
     /// </summary>
     public SourceGeneratorRazorCodeDocument ProcessForDecl(RazorProjectItem projectItem, CancellationToken cancellationToken)
     {
-        var codeDocument = CreateAndProcessForDecl(projectItem, cancellationToken);
-        return new SourceGeneratorRazorCodeDocument(codeDocument, projectItem);
+        var codeDocument = _projectEngine.CreateCodeDocument(projectItem);
+        codeDocument = ExecutePhases(Phases[..(_declLoweringEndIndex + 1)], codeDocument, cancellationToken);
+        return new SourceGeneratorRazorCodeDocument(codeDocument);
     }
 
-    private RazorCodeDocument CreateAndProcessForDecl(RazorProjectItem projectItem, CancellationToken cancellationToken)
+    /// <summary>
+    /// Produces a fresh unresolved IR on a doc whose IR has already been mutated by a prior
+    /// resolution / rewrite, by replaying IR lowering and the classifier phases against the
+    /// cached syntax tree. Skips decl C# lowering -- the decl text is tag-helper-independent
+    /// and was attached by the original <see cref="ProcessForDecl"/>; the With pattern preserves
+    /// it across rebuild. Also relies on the With pattern to preserve discovery-probe state
+    /// (<c>TagHelpers</c>, <c>TagHelperContext</c>, <c>DirectiveTagHelperContributions</c>) so
+    /// the caller can go straight to resolution.
+    /// </summary>
+    private RazorCodeDocument RebuildUnresolvedIrFromCachedSyntax(RazorCodeDocument codeDocument, CancellationToken cancellationToken)
     {
-        var codeDocument = _projectEngine.CreateCodeDocument(projectItem);
-        return ExecutePhases(Phases[..(_declLoweringEndIndex + 1)], codeDocument, cancellationToken);
+        Debug.Assert(codeDocument.GetSyntaxTree() is not null);
+        return ExecutePhases(Phases[_irLoweringPhaseIndex.._declLoweringEndIndex], codeDocument, cancellationToken);
     }
 
     public SourceGeneratorRazorCodeDocument ProcessTagHelpers(
@@ -95,7 +118,6 @@ internal sealed class SourceGeneratorProjectEngine
         Debug.Assert(sgDocument.CodeDocument.GetSyntaxTree() is not null);
 
         var codeDocument = sgDocument.CodeDocument;
-        var sourceItem = sgDocument.SourceItem;
 
         if (checkForIdempotency && codeDocument.TryGetTagHelpers(out var previousTagHelpers))
         {
@@ -121,17 +143,13 @@ internal sealed class SourceGeneratorProjectEngine
                 return sgDocument;
             }
 
-            // Material change. The IR on the cached codeDocument has already been resolved+rewritten
-            // by an earlier ProcessTagHelpers call (or the first ProcessRemaining); we can't re-run
-            // resolution against it because the unresolved nodes are gone. Rebuild the unresolved IR
-            // by replaying phases 0..decl-lowering from the cached source item, then run
-            // discovery+resolution+rewrite against that fresh document.
-            Debug.Assert(sourceItem is not null,
-                "Cached codeDocument carries previousTagHelpers, which means ProcessForDecl produced it; that should always attach a source item.");
-
-            codeDocument = CreateAndProcessForDecl(sourceItem, cancellationToken);
-            codeDocument = codeDocument.WithTagHelpers(tagHelpers);
-            codeDocument = ExecutePhases(Phases[_discoveryPhaseIndex..(_tagHelperRewriteEndIndex + 1)], codeDocument, cancellationToken);
+            // Material change. The IR has been resolved+possibly-optimized by prior calls, so
+            // we can't re-run resolution against it. The cached syntax tree is immutable, so
+            // rebuild fresh unresolved IR from it. Skip re-running discovery -- the probe above
+            // already updated the context against the new tag helpers, and the With pattern in
+            // the rebuild preserves that state.
+            codeDocument = RebuildUnresolvedIrFromCachedSyntax(codeDocument, cancellationToken);
+            codeDocument = ExecutePhases(Phases[(_discoveryPhaseIndex + 1)..(_tagHelperRewriteEndIndex + 1)], codeDocument, cancellationToken);
         }
         else
         {
@@ -141,7 +159,7 @@ internal sealed class SourceGeneratorProjectEngine
             codeDocument = ExecutePhases(Phases[_discoveryPhaseIndex..(_tagHelperRewriteEndIndex + 1)], codeDocument, cancellationToken);
         }
 
-        return new SourceGeneratorRazorCodeDocument(codeDocument, sourceItem);
+        return new SourceGeneratorRazorCodeDocument(codeDocument);
     }
 
     private static bool RequiresRewrite(
@@ -207,7 +225,7 @@ internal sealed class SourceGeneratorProjectEngine
 
         codeDocument = ExecutePhases(Phases[(_tagHelperRewriteEndIndex + 1)..], codeDocument, cancellationToken);
 
-        return new SourceGeneratorRazorCodeDocument(codeDocument, sgDocument.SourceItem);
+        return new SourceGeneratorRazorCodeDocument(codeDocument);
     }
 
     private static RazorCodeDocument ExecutePhases(ReadOnlySpan<IRazorEnginePhase> phases, RazorCodeDocument codeDocument, CancellationToken cancellationToken)

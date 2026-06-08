@@ -2051,21 +2051,33 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             {
                 case AddTagHelperChunkGenerator addTagHelper:
                     // @addTagHelper / @removeTagHelper / @tagHelperPrefix are not valid in component
-                    // documents. Pre-Sonic-4 this diagnostic was added by
-                    // DefaultRazorTagHelperContextDiscoveryPhase (which ran before lowering); after
-                    // the phase reorder, discovery runs AFTER lowering, so we have to attach the
-                    // diagnostic here so the base visitor copies it onto the resulting IR node.
-                    addTagHelper.Diagnostics.Add(
-                        ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(BuildSourceSpanFromNode(node)));
-                    break;
+                    // documents. Build the directive IR node ourselves with the diagnostic attached
+                    // directly: the chunk generator lives on the cached syntax tree and gets re-read
+                    // whenever IR lowering replays against that cached syntax (see
+                    // SourceGeneratorProjectEngine.RebuildUnresolvedIrFromCachedSyntax), so mutating
+                    // its diagnostics list would accumulate one extra entry per replay.
+                    EmitUnsupportedTagHelperDirective(
+                        node,
+                        descriptor: CSharpCodeParser.AddTagHelperDirectiveDescriptor,
+                        directiveTokenContent: addTagHelper.LookupText,
+                        parserDiagnostics: addTagHelper.Diagnostics);
+                    return;
+
                 case RemoveTagHelperChunkGenerator removeTagHelper:
-                    removeTagHelper.Diagnostics.Add(
-                        ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(BuildSourceSpanFromNode(node)));
-                    break;
+                    EmitUnsupportedTagHelperDirective(
+                        node,
+                        descriptor: CSharpCodeParser.RemoveTagHelperDirectiveDescriptor,
+                        directiveTokenContent: removeTagHelper.LookupText,
+                        parserDiagnostics: removeTagHelper.Diagnostics);
+                    return;
+
                 case TagHelperPrefixDirectiveChunkGenerator tagHelperPrefix:
-                    tagHelperPrefix.Diagnostics.Add(
-                        ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(BuildSourceSpanFromNode(node)));
-                    break;
+                    EmitUnsupportedTagHelperDirective(
+                        node,
+                        descriptor: CSharpCodeParser.TagHelperPrefixDirectiveDescriptor,
+                        directiveTokenContent: tagHelperPrefix.Prefix,
+                        parserDiagnostics: tagHelperPrefix.Diagnostics);
+                    return;
 
                 case null:
                 case StatementChunkGenerator:
@@ -2095,6 +2107,41 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             }
 
             base.VisitCSharpStatementLiteral(node);
+        }
+
+        private void EmitUnsupportedTagHelperDirective(
+            CSharpStatementLiteralSyntax node,
+            DirectiveDescriptor descriptor,
+            string directiveTokenContent,
+            IReadOnlyList<RazorDiagnostic> parserDiagnostics)
+        {
+            var source = BuildSourceSpanFromNode(node);
+
+            // The RZ9978 diagnostic is Error-severity, and any directive node with an Error
+            // diagnostic on its chunk generator was historically reported as malformed.
+            var directiveNode = new MalformedDirectiveIntermediateNode()
+            {
+                DirectiveName = descriptor.Directive,
+                Directive = descriptor,
+                Source = source,
+            };
+
+            // Forward any pre-existing parser diagnostics, then attach the component-specific
+            // diagnostic directly to the IR node (not to the cached chunk-generator list).
+            for (var i = 0; i < parserDiagnostics.Count; i++)
+            {
+                directiveNode.AddDiagnostic(parserDiagnostics[i]);
+            }
+            directiveNode.AddDiagnostic(ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(source));
+
+            _builder.Push(directiveNode);
+            _builder.Add(new DirectiveTokenIntermediateNode()
+            {
+                Content = directiveTokenContent,
+                DirectiveToken = descriptor.Tokens[0],
+                Source = source,
+            });
+            _builder.Pop();
         }
 
     }
@@ -2135,25 +2182,62 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             switch (node.ChunkGenerator)
             {
                 case AddTagHelperChunkGenerator addTagHelper:
-                    // @addTagHelper / @removeTagHelper / @tagHelperPrefix are not valid in component
-                    // import documents (same as components). Pre-Sonic-4 the diagnostic was added by
-                    // DefaultRazorTagHelperContextDiscoveryPhase (which ran before lowering); after
-                    // the phase reorder, discovery runs AFTER lowering, so we attach the diagnostic
-                    // here so the base visitor copies it onto the resulting IR directive node.
-                    addTagHelper.Diagnostics.Add(
-                        ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(BuildSourceSpanFromNode(node)));
-                    break;
+                    // See ComponentFileKindVisitor.EmitUnsupportedTagHelperDirective for why we
+                    // build the IR node directly here instead of mutating the chunk generator.
+                    EmitUnsupportedTagHelperDirective(
+                        node,
+                        descriptor: CSharpCodeParser.AddTagHelperDirectiveDescriptor,
+                        directiveTokenContent: addTagHelper.LookupText,
+                        parserDiagnostics: addTagHelper.Diagnostics);
+                    return;
                 case RemoveTagHelperChunkGenerator removeTagHelper:
-                    removeTagHelper.Diagnostics.Add(
-                        ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(BuildSourceSpanFromNode(node)));
-                    break;
+                    EmitUnsupportedTagHelperDirective(
+                        node,
+                        descriptor: CSharpCodeParser.RemoveTagHelperDirectiveDescriptor,
+                        directiveTokenContent: removeTagHelper.LookupText,
+                        parserDiagnostics: removeTagHelper.Diagnostics);
+                    return;
                 case TagHelperPrefixDirectiveChunkGenerator tagHelperPrefix:
-                    tagHelperPrefix.Diagnostics.Add(
-                        ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(BuildSourceSpanFromNode(node)));
-                    break;
+                    EmitUnsupportedTagHelperDirective(
+                        node,
+                        descriptor: CSharpCodeParser.TagHelperPrefixDirectiveDescriptor,
+                        directiveTokenContent: tagHelperPrefix.Prefix,
+                        parserDiagnostics: tagHelperPrefix.Diagnostics);
+                    return;
             }
 
             base.VisitCSharpStatementLiteral(node);
+        }
+
+        private void EmitUnsupportedTagHelperDirective(
+            CSharpStatementLiteralSyntax node,
+            DirectiveDescriptor descriptor,
+            string directiveTokenContent,
+            IReadOnlyList<RazorDiagnostic> parserDiagnostics)
+        {
+            var source = BuildSourceSpanFromNode(node);
+
+            var directiveNode = new MalformedDirectiveIntermediateNode()
+            {
+                DirectiveName = descriptor.Directive,
+                Directive = descriptor,
+                Source = source,
+            };
+
+            for (var i = 0; i < parserDiagnostics.Count; i++)
+            {
+                directiveNode.AddDiagnostic(parserDiagnostics[i]);
+            }
+            directiveNode.AddDiagnostic(ComponentDiagnosticFactory.Create_UnsupportedTagHelperDirective(source));
+
+            _builder.Push(directiveNode);
+            _builder.Add(new DirectiveTokenIntermediateNode()
+            {
+                Content = directiveTokenContent,
+                DirectiveToken = descriptor.Tokens[0],
+                Source = source,
+            });
+            _builder.Pop();
         }
 
         public override void VisitMarkupElement(MarkupElementSyntax node)
