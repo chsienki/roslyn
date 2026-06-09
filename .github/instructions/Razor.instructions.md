@@ -29,6 +29,14 @@ all Razor sources under `src/Razor/`. Razor was merged into the Roslyn repo from
   entry to `Microsoft.CodeAnalysis.Razor.CohostingShared.projitems` or
   `Microsoft.CodeAnalysis.Razor.CohostingShared.UnitTests.projitems`, or the file will not
   be built or tested by the importing projects.
+- **Preserve UTF-8 BOM on existing source files**: Most `.cs` files in `src/Razor/` are
+  saved with a UTF-8 BOM (bytes `EF BB BF`). PowerShell's default `Out-File` / `Set-Content`
+  encoding and many rebase/cherry-pick paths can strip the BOM, leaving a silently-malformed
+  diff that's hard to spot in code review. When editing or rewriting these files, verify
+  with `[System.IO.File]::ReadAllBytes($path) | Select-Object -First 3` that the BOM survives,
+  and re-prepend it (`[byte[]](0xEF, 0xBB, 0xBF) + $existing`) if it's gone. After any
+  multi-file rebase, audit every changed file in the diff against the base and restore
+  BOMs that were lost.
 
 ## File Types
 
