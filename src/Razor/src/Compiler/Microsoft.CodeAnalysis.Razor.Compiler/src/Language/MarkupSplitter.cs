@@ -121,6 +121,16 @@ internal static partial class MarkupSplitter
         }
 
         var analysis = BuildAnalysisDocument(children);
+
+        // A preprocessor directive (#if/#endif, #region, #pragma, #nullable) in the class body pairs or
+        // scopes across the members it surrounds. Routing a member to the other half would orphan the
+        // directive (e.g. #if in decl, #endif in impl -> CS1027), so fall back rather than split. Directives
+        // in @code are rare, and the whole-file render keeps them balanced.
+        if (HasPreprocessorDirective(analysis.Text))
+        {
+            return SplitDecision.Fallback(languageVersion, FallbackReason.ClassBodyHasDirectives);
+        }
+
         var classified = ClassifyMembers(analysis, parserOptions.CSharpParseOptions);
 
         // Unrecoverable structure (brace mismatch, or a marker outside every member): we can't trust the
@@ -160,6 +170,34 @@ internal static partial class MarkupSplitter
             if (member.Kind == MemberSplitKind.MarkupProperty)
             {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True if any line of the analysis text begins (after leading whitespace) with a preprocessor
+    /// directive. A line-anchored scan avoids misfiring on a <c>#</c> inside a string or interpolation;
+    /// a rare false positive only costs an unnecessary fallback, never a mis-split.
+    /// </summary>
+    internal static bool HasPreprocessorDirective(string text)
+    {
+        var atLineStart = true;
+
+        foreach (var c in text)
+        {
+            if (c is '\n' or '\r')
+            {
+                atLineStart = true;
+            }
+            else if (atLineStart && c == '#')
+            {
+                return true;
+            }
+            else if (!char.IsWhiteSpace(c))
+            {
+                atLineStart = false;
             }
         }
 

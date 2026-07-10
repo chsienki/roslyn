@@ -190,4 +190,11 @@ internal enum FallbackReason
     /// routed pieces. Rendering the file whole is always correct.
     /// </summary>
     UnsupportedMarkupProperty,
+
+    /// <summary>
+    /// The class body contains a preprocessor directive (<c>#if</c>/<c>#endif</c>, <c>#region</c>,
+    /// <c>#pragma</c>, <c>#nullable</c>). Splitting could route a member out of the directive's scope and
+    /// orphan it in the other half; rendering the file whole keeps directives balanced.
+    /// </summary>
+    ClassBodyHasDirectives,
 }

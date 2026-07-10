@@ -102,6 +102,22 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     }
 
     [Fact]
+    public void ConditionalCompilation_AroundMarkupMethod_Compiles()
+    {
+        // If a #if/#endif around a lifted member were split across halves, the halves would have
+        // unbalanced directives and fail to compile. Verify the split keeps each half well-formed.
+        var generated = CompileToCSharp("""
+            @code {
+            #if true
+                private Microsoft.AspNetCore.Components.RenderFragment M() => @<p>Hi</p>;
+            #endif
+            }
+            """);
+
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
     public void ExpressionTemplateProperty_SplitsIntoPartialPropertyAndCompiles()
     {
         var generated = CompileToCSharp("""

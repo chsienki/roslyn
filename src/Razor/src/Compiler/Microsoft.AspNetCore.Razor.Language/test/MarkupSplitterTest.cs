@@ -465,6 +465,33 @@ public class MarkupSplitterTest
     }
 
     [Fact]
+    public void Split_ClassBodyWithDirective_FallsBack()
+    {
+        var renderMethod = CreateRenderMethod();
+        var primaryClass = CreatePrimaryClass(
+            CreateCSharpCode("#nullable enable\n public RenderFragment Header => "),
+            new TemplateIntermediateNode(),
+            CreateCSharpCode(";"),
+            renderMethod);
+
+        var decision = MarkupSplitter.Split(primaryClass, renderMethod, ParserOptions(LanguageVersion.CSharp13));
+
+        var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
+        Assert.Equal(FallbackReason.ClassBodyHasDirectives, fallback.Reason);
+    }
+
+    [Theory]
+    [InlineData("#if DEBUG", true)]
+    [InlineData("   #pragma warning disable", true)]     // leading whitespace before the directive
+    [InlineData("int x = 1;\n#endif", true)]             // directive on a later line
+    [InlineData("int x = 1;", false)]
+    [InlineData("var s = \"not # a directive\";", false)] // hash mid-line is not a directive
+    public void HasPreprocessorDirective_DetectsLineAnchoredHash(string text, bool expected)
+    {
+        Assert.Equal(expected, MarkupSplitter.HasPreprocessorDirective(text));
+    }
+
+    [Fact]
     public void Split_MarkupExpressionProperty_CSharp13_ReturnsSplitPlanWithSignature()
     {
         var renderMethod = CreateRenderMethod();
