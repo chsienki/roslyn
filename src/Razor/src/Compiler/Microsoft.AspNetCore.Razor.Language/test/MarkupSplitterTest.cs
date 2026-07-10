@@ -400,6 +400,46 @@ public class MarkupSplitterTest
     }
 
     [Fact]
+    public void IsMarkupNode_RecognizesMarkupKinds()
+    {
+        Assert.True(MarkupSplitter.IsMarkupNode(new TemplateIntermediateNode()));
+        Assert.True(MarkupSplitter.IsMarkupNode(new MarkupElementIntermediateNode()));
+        Assert.True(MarkupSplitter.IsMarkupNode(new MarkupBlockIntermediateNode()));
+        Assert.True(MarkupSplitter.IsMarkupNode(new HtmlContentIntermediateNode()));
+    }
+
+    [Fact]
+    public void IsMarkupNode_ExcludesCSharpAndSurfaceNodes()
+    {
+        // Raw C# and structured/extension members are not routable markup -- crucially an @inject node,
+        // which (like a template) is an ExtensionIntermediateNode but is surface, not markup.
+        Assert.False(MarkupSplitter.IsMarkupNode(new CSharpCodeIntermediateNode()));
+        Assert.False(MarkupSplitter.IsMarkupNode(new FieldDeclarationIntermediateNode { Name = "_f", Type = "int" }));
+        Assert.False(MarkupSplitter.IsMarkupNode(new MethodDeclarationIntermediateNode()));
+        Assert.False(MarkupSplitter.IsMarkupNode(
+            new Components.ComponentInjectIntermediateNode("Foo", "Bar", typeSpan: null, memberSpan: null)));
+    }
+
+    [Fact]
+    public void Split_ClassBodyWithInject_FallsBack()
+    {
+        // A component whose @code mixes markup with an @inject can't be split yet: the inject is surface
+        // the splitter can't route, so the whole file falls back rather than mis-route it to impl.
+        var renderMethod = CreateRenderMethod();
+        var primaryClass = CreatePrimaryClass(
+            new Components.ComponentInjectIntermediateNode("Foo", "Bar", typeSpan: null, memberSpan: null),
+            CreateCSharpCode("void M(RenderTreeBuilder __builder) { "),
+            new MarkupElementIntermediateNode { TagName = "ul" },
+            CreateCSharpCode(" }"),
+            renderMethod);
+
+        var decision = MarkupSplitter.Split(primaryClass, renderMethod, ParserOptions(LanguageVersion.CSharp13));
+
+        var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
+        Assert.Equal(FallbackReason.UnsupportedClassBodyNode, fallback.Reason);
+    }
+
+    [Fact]
     public void Split_MarkupHelperMethod_ReturnsSplitPlanRoutedToImpl()
     {
         var renderMethod = CreateRenderMethod();

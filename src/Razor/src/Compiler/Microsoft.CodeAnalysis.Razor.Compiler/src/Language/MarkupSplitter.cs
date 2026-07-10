@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.Razor.Language.Extensions;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
 using Microsoft.AspNetCore.Razor.PooledObjects;
 using Microsoft.CodeAnalysis.CSharp;
@@ -90,6 +91,19 @@ internal static partial class MarkupSplitter
 
         // Render the class body to a parse-only document (markup -> markers) and recover its members.
         var children = CollectClassBodyChildren(primaryClass, renderMethod);
+
+        // The splitter only knows how to route raw C# and recognized markup. A class-body node of any
+        // other kind -- an @inject or another structured/extension member the fail-safe gate flagged as
+        // markup -- can't be safely placed, so render the whole file rather than risk mis-routing surface
+        // into the impl half.
+        foreach (var child in children)
+        {
+            if (!IsSupportedClassBodyNode(child))
+            {
+                return SplitDecision.Fallback(languageVersion, FallbackReason.UnsupportedClassBodyNode);
+            }
+        }
+
         var analysis = BuildAnalysisDocument(children);
         var classified = ClassifyMembers(analysis, parserOptions.CSharpParseOptions);
 
@@ -160,11 +174,40 @@ internal static partial class MarkupSplitter
     /// is treated as markup: erring toward running the split machinery is a harmless cost, whereas
     /// missing a markup node would let it leak into the resolution-free decl half.
     /// </summary>
+    /// <remarks>
+    /// This is the deliberately over-eager <em>gate</em> classifier. It can flag a non-markup extension
+    /// node (an <c>@inject</c>) as "markup"; that only causes <see cref="Split"/> to run, which then sees
+    /// the node isn't a kind it can route (<see cref="IsSupportedClassBodyNode"/>) and falls back. Routing
+    /// itself uses the precise allow-list <see cref="IsMarkupNode"/>, never this predicate.
+    /// </remarks>
     internal static bool IsClassBodyMarkup(IntermediateNode node)
         => node is not (CSharpCodeIntermediateNode or
                         FieldDeclarationIntermediateNode or
                         PropertyDeclarationIntermediateNode or
                         MethodDeclarationIntermediateNode);
+
+    /// <summary>
+    /// The precise allow-list of markup intermediate node kinds the splitter knows how to route to the
+    /// impl half: an expression-position <see cref="TemplateIntermediateNode"/> (from <c>@&lt;...&gt;</c>)
+    /// and the statement-position markup nodes. Unlike the fail-safe <see cref="IsClassBodyMarkup"/> gate,
+    /// this is positive: a class-body node that is neither raw C# nor one of these kinds -- e.g. an
+    /// <c>@inject</c> (<c>ComponentInjectIntermediateNode</c>, itself an
+    /// <see cref="ExtensionIntermediateNode"/> just like <see cref="TemplateIntermediateNode"/>) or a
+    /// structured member declaration -- is not treated as routable markup.
+    /// </summary>
+    internal static bool IsMarkupNode(IntermediateNode node)
+        => node is TemplateIntermediateNode or
+                   MarkupElementIntermediateNode or
+                   MarkupBlockIntermediateNode or
+                   HtmlContentIntermediateNode;
+
+    /// <summary>
+    /// A class-body node the splitter can route: raw C# text (which stays in decl or lifts to impl with
+    /// its member) or a recognized markup node (which lifts to impl). Any other kind -- a structured or
+    /// extension member such as <c>@inject</c> -- means the file can't be split and must fall back.
+    /// </summary>
+    internal static bool IsSupportedClassBodyNode(IntermediateNode node)
+        => node is CSharpCodeIntermediateNode || IsMarkupNode(node);
 
     /// <summary>
     /// The ordered user-authored class-body children -- everything that isn't the render method or a

@@ -47,7 +47,7 @@ internal static partial class MarkupSplitter
                     segments.Add(new AnalysisSegment(start, builder.Length - start, child, SegmentKind.CSharp));
                     break;
 
-                case var markup when IsClassBodyMarkup(markup):
+                case var markup when IsMarkupNode(markup):
                     builder.Append(IsExpressionPositionMarkup(markup) ? ExpressionMarker : StatementMarker);
                     segments.Add(new AnalysisSegment(start, builder.Length - start, child, SegmentKind.Markup));
                     break;

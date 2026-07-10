@@ -183,4 +183,11 @@ internal enum FallbackReason
     /// still recover member boundaries.
     /// </summary>
     UnrecoverableParse,
+
+    /// <summary>
+    /// The class body contains a node the splitter can't route -- neither raw C# nor a recognized markup
+    /// node -- such as an <c>@inject</c> or another structured/extension member. Rendering the file whole
+    /// is always correct; splitting it would risk moving surface into the impl half.
+    /// </summary>
+    UnsupportedClassBodyNode,
 }
