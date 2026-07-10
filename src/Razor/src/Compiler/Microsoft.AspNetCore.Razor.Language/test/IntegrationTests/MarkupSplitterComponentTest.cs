@@ -54,6 +54,54 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     }
 
     [Fact]
+    public void AccessorBodiedMarkupProperty_SplitsAndCompiles()
+    {
+        var generated = CompileToCSharp("""
+            @code {
+                public Microsoft.AspNetCore.Components.RenderFragment Foo { get => @<div>Hi</div>; }
+            }
+            """);
+
+        Assert.NotNull(generated.DeclCode);
+        Assert.Contains("partial", generated.DeclCode);
+        Assert.DoesNotContain("<div>Hi</div>", generated.DeclCode);
+        Assert.Contains("<div>Hi</div>", generated.Code);
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
+    public void MarkupInitializerProperty_FallsBackAndCompiles()
+    {
+        // The markup is in the initializer, not a property body, so the partial-property split doesn't
+        // apply and the whole file falls back. It must still compile (the prior single-file behavior).
+        var generated = CompileToCSharp("""
+            @code {
+                public Microsoft.AspNetCore.Components.RenderFragment Foo { get; set; } = @<div>Hi</div>;
+            }
+            """);
+
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
+    public void MultipleMarkupMethods_AllLiftToImplAndCompile()
+    {
+        var generated = CompileToCSharp("""
+            @code {
+                private Microsoft.AspNetCore.Components.RenderFragment A() => @<p>A</p>;
+                private Microsoft.AspNetCore.Components.RenderFragment B() => @<p>B</p>;
+            }
+            """);
+
+        Assert.NotNull(generated.DeclCode);
+        Assert.DoesNotContain("<p>A</p>", generated.DeclCode);
+        Assert.DoesNotContain("<p>B</p>", generated.DeclCode);
+        Assert.Contains("<p>A</p>", generated.Code);
+        Assert.Contains("<p>B</p>", generated.Code);
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
     public void ExpressionTemplateProperty_SplitsIntoPartialPropertyAndCompiles()
     {
         var generated = CompileToCSharp("""
