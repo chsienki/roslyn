@@ -54,6 +54,47 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     }
 
     [Fact]
+    public void ExpressionTemplateProperty_SplitsIntoPartialPropertyAndCompiles()
+    {
+        var generated = CompileToCSharp("""
+            @code {
+                public Microsoft.AspNetCore.Components.RenderFragment Foo => @<div>Hello</div>;
+            }
+            """);
+
+        // The bodyless defining declaration (the descriptor surface) stays in decl, markup-free; the
+        // implementing declaration with the real markup lands in impl.
+        Assert.NotNull(generated.DeclCode);
+        Assert.Contains("partial", generated.DeclCode);
+        Assert.Contains("Foo", generated.DeclCode);
+        Assert.DoesNotContain("<div>Hello</div>", generated.DeclCode);
+        Assert.Contains("Foo", generated.Code);
+        Assert.Contains("<div>Hello</div>", generated.Code);
+
+        // The defining + implementing partial declarations recombine and compile.
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
+    public void ParameterProperty_MarkupProperty_KeepsParameterInDeclAndCompiles()
+    {
+        var generated = CompileToCSharp("""
+            @code {
+                [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                public Microsoft.AspNetCore.Components.RenderFragment Foo => @<div>@Count</div>;
+            }
+            """);
+
+        // The parameter (descriptor surface) and the markup property's defining declaration stay in decl.
+        Assert.NotNull(generated.DeclCode);
+        Assert.Contains("Count", generated.DeclCode);
+        Assert.Contains("partial", generated.DeclCode);
+        Assert.DoesNotContain("OpenElement", generated.DeclCode);
+
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
     public void ExpressionTemplateProperty_SurvivesAsTemplateMarkup_AndSplits()
     {
         var generated = CompileToCSharp("""

@@ -4,7 +4,6 @@
 using System.Collections.Immutable;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Microsoft.AspNetCore.Razor.Language;
 
@@ -98,15 +97,6 @@ internal abstract class SplitDecision
             NormalizedLanguageVersion = normalizedLanguageVersion;
             PropertyPath = propertyPath;
             Members = members.NullToEmpty();
-
-            foreach (var member in Members)
-            {
-                if (member.Kind == MemberSplitKind.MarkupProperty)
-                {
-                    ContainsMarkupProperty = true;
-                    break;
-                }
-            }
         }
 
         /// <summary>
@@ -121,49 +111,35 @@ internal abstract class SplitDecision
 
         /// <summary>The routed class-body members in original order; each drives what its half emits.</summary>
         public ImmutableArray<RoutedMember> Members { get; }
-
-        /// <summary>
-        /// True if any routed member is a markup property. A markup property needs the Path A
-        /// partial-property emission (defining declaration in decl, implementing declaration in impl);
-        /// until that is wired the lowering phases leave such a plan unsplit rather than emit a decl that
-        /// still contains the property's markup. Markup <em>methods</em> route to impl without it.
-        /// </summary>
-        public bool ContainsMarkupProperty { get; }
     }
 }
 
 /// <summary>
-/// A user-authored class-body member after routing. Carries the member's <see cref="MemberSplitKind"/>
-/// (which selects the target half, or the property split), the ordered original IR pieces that make up
-/// its content -- C# chunks sliced at member boundaries and markup nodes, all shared by reference so
-/// they keep their source mappings -- and, for a <see cref="MemberSplitKind.MarkupProperty"/>, the
-/// parsed signature used to derive the Path A defining/implementing partial declarations.
+/// A user-authored class-body member after routing, already resolved into the IR pieces each half emits:
+/// <see cref="DeclPieces"/> for the decl half and <see cref="ImplPieces"/> for the impl half. Original
+/// nodes are shared by reference (keeping their source mappings); a markup property additionally carries
+/// a generated bodyless defining declaration in <see cref="DeclPieces"/> and a transformed implementing
+/// declaration in <see cref="ImplPieces"/>. The lowering phases simply append the pieces for their half.
 /// </summary>
-/// <remarks>
-/// Emission is deferred to the decl/impl build steps, which switch on <see cref="Kind"/>:
-/// <see cref="MemberSplitKind.NoMarkup"/> -> all pieces to decl; <see cref="MemberSplitKind.MarkupMethod"/>
-/// -> all pieces to impl; <see cref="MemberSplitKind.MarkupProperty"/> -> defining declaration (from
-/// <see cref="Signature"/>) to decl and the implementing declaration (the pieces) to impl.
-/// </remarks>
 internal readonly struct RoutedMember
 {
-    public RoutedMember(MemberSplitKind kind, ImmutableArray<IntermediateNode> pieces, MemberDeclarationSyntax? signature)
+    public RoutedMember(
+        MemberSplitKind kind,
+        ImmutableArray<IntermediateNode> declPieces,
+        ImmutableArray<IntermediateNode> implPieces)
     {
         Kind = kind;
-        Pieces = pieces.NullToEmpty();
-        Signature = signature;
+        DeclPieces = declPieces.NullToEmpty();
+        ImplPieces = implPieces.NullToEmpty();
     }
 
     public MemberSplitKind Kind { get; }
 
-    /// <summary>The member's content in original order (sliced C# chunks and markup nodes, by reference).</summary>
-    public ImmutableArray<IntermediateNode> Pieces { get; }
+    /// <summary>The pieces this member contributes to the decl half, in order.</summary>
+    public ImmutableArray<IntermediateNode> DeclPieces { get; }
 
-    /// <summary>
-    /// The parsed member signature, present only for <see cref="MemberSplitKind.MarkupProperty"/> so the
-    /// build step can derive the defining and implementing partial declarations. Null otherwise.
-    /// </summary>
-    public MemberDeclarationSyntax? Signature { get; }
+    /// <summary>The pieces this member contributes to the impl half, in order.</summary>
+    public ImmutableArray<IntermediateNode> ImplPieces { get; }
 }
 
 /// <summary>
@@ -207,4 +183,11 @@ internal enum FallbackReason
     /// is always correct; splitting it would risk moving surface into the impl half.
     /// </summary>
     UnsupportedClassBodyNode,
+
+    /// <summary>
+    /// A markup-bearing property can't be split into a partial-property pair -- its markup is in an
+    /// initializer (which needs the static-synth lift) or its parsed shape doesn't line up with the
+    /// routed pieces. Rendering the file whole is always correct.
+    /// </summary>
+    UnsupportedMarkupProperty,
 }

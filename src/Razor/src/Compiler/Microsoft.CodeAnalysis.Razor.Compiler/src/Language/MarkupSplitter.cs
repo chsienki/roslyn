@@ -70,19 +70,17 @@ internal static partial class MarkupSplitter
     /// <summary>
     /// Returns the <see cref="SplitDecision.SplitPlan"/> whose markup the lowering phases should route
     /// between the decl and impl halves, or <see langword="null"/> when the document keeps its unsplit
-    /// shape. The single place both phases consult so they agree on what is routed: a plan is routable
-    /// only when it splits and contains no markup property (which needs Path A emission that isn't wired
-    /// yet). No class-body markup, an unsupported node, or a below-C#-13 markup property all yield null.
+    /// shape. The single place both phases consult so they agree on what is routed. A <see cref="Split"/>
+    /// result is a <see cref="SplitDecision.SplitPlan"/> only when every member is fully routable, so this
+    /// is a plain cast; no class-body markup, an unsupported node, a below-C#-13 markup property, or a
+    /// property whose markup can't be split all yield a non-plan decision and therefore null.
     /// </summary>
     public static SplitDecision.SplitPlan? GetRoutablePlan(
         ClassDeclarationIntermediateNode primaryClass,
         MethodDeclarationIntermediateNode renderMethod,
         RazorParserOptions parserOptions)
     {
-        return GetOrCreateDecision(primaryClass, renderMethod, parserOptions)
-            is SplitDecision.SplitPlan { ContainsMarkupProperty: false } plan
-            ? plan
-            : null;
+        return GetOrCreateDecision(primaryClass, renderMethod, parserOptions) as SplitDecision.SplitPlan;
     }
 
     /// <summary>
@@ -139,7 +137,13 @@ internal static partial class MarkupSplitter
             return SplitDecision.Fallback(languageVersion, FallbackReason.MarkupPropertyBelowCSharp13);
         }
 
-        var routedMembers = BuildRoutedMembers(analysis, members);
+        // Routing can still fail for a property whose markup it can't split (e.g. a markup initializer, or
+        // a shape whose parsed spans don't line up); in that case leave the whole file unsplit.
+        if (BuildRoutedMembers(analysis, members) is not { } routedMembers)
+        {
+            return SplitDecision.Fallback(languageVersion, FallbackReason.UnsupportedMarkupProperty);
+        }
+
         return new SplitDecision.SplitPlan(languageVersion, PropertySplitPath.PartialProperty, routedMembers);
     }
 

@@ -456,11 +456,12 @@ public class MarkupSplitterTest
         Assert.True(plan.RequiresSplit);
         var member = Assert.Single(plan.Members);
         Assert.Equal(MemberSplitKind.MarkupMethod, member.Kind);
-        Assert.Null(member.Signature);
+        Assert.Empty(member.DeclPieces);
 
-        // The method's C# chunks stay by reference and the markup node is carried through untouched.
-        Assert.Equal(3, member.Pieces.Length);
-        Assert.Same(markup, member.Pieces[1]);
+        // The whole method lifts to impl: its C# chunks stay by reference and the markup node is carried
+        // through untouched.
+        Assert.Equal(3, member.ImplPieces.Length);
+        Assert.Same(markup, member.ImplPieces[1]);
     }
 
     [Fact]
@@ -468,7 +469,7 @@ public class MarkupSplitterTest
     {
         var renderMethod = CreateRenderMethod();
         var primaryClass = CreatePrimaryClass(
-            CreateCSharpCode("public RenderFragment Header => "),
+            CreateCSharpCode("[Parameter] public RenderFragment Header => "),
             new TemplateIntermediateNode(),
             CreateCSharpCode(";"),
             renderMethod);
@@ -480,8 +481,14 @@ public class MarkupSplitterTest
         var member = Assert.Single(plan.Members);
         Assert.Equal(MemberSplitKind.MarkupProperty, member.Kind);
 
-        // The parsed signature is carried forward so the build step can derive the partial declarations.
-        Assert.NotNull(member.Signature);
+        // Decl gets the bodyless defining declaration (attributes kept, `partial`, `{ get; }`).
+        var defining = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(member.DeclPieces));
+        Assert.Contains("[Parameter] public partial RenderFragment Header { get; }", TokenText(defining));
+
+        // Impl gets the implementing declaration: attributes stripped, `partial` inserted, markup reused.
+        Assert.Contains("public partial RenderFragment Header", TokenText((CSharpCodeIntermediateNode)member.ImplPieces[0]));
+        Assert.DoesNotContain("[Parameter]", TokenText((CSharpCodeIntermediateNode)member.ImplPieces[0]));
+        Assert.Contains(member.ImplPieces, static p => p is TemplateIntermediateNode);
     }
 
     [Fact]
@@ -551,24 +558,28 @@ public class MarkupSplitterTest
         Assert.NotNull(members);
 
         var routed = MarkupSplitter.BuildRoutedMembers(analysis, members.Value);
+        Assert.NotNull(routed);
 
-        Assert.Equal(3, routed.Length);
+        Assert.Equal(3, routed.Value.Length);
 
-        // int Count -> decl-only, one sliced C# piece, no signature.
-        Assert.Equal(MemberSplitKind.NoMarkup, routed[0].Kind);
-        Assert.Null(routed[0].Signature);
-        var countPiece = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(routed[0].Pieces));
+        // int Count -> decl only, one sliced C# piece.
+        Assert.Equal(MemberSplitKind.NoMarkup, routed.Value[0].Kind);
+        Assert.Empty(routed.Value[0].ImplPieces);
+        var countPiece = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(routed.Value[0].DeclPieces));
         Assert.Contains("int Count", TokenText(countPiece));
         Assert.DoesNotContain("Helper", TokenText(countPiece));
 
-        // Helper -> impl-only, carrying the markup node by reference.
-        Assert.Equal(MemberSplitKind.MarkupMethod, routed[1].Kind);
-        Assert.Contains(routed[1].Pieces, p => ReferenceEquals(p, markup));
+        // Helper -> impl only, carrying the markup node by reference.
+        Assert.Equal(MemberSplitKind.MarkupMethod, routed.Value[1].Kind);
+        Assert.Empty(routed.Value[1].DeclPieces);
+        Assert.Contains(routed.Value[1].ImplPieces, p => ReferenceEquals(p, markup));
 
-        // Foo -> markup property, carrying the template node and its parsed signature.
-        Assert.Equal(MemberSplitKind.MarkupProperty, routed[2].Kind);
-        Assert.NotNull(routed[2].Signature);
-        Assert.Contains(routed[2].Pieces, p => ReferenceEquals(p, template));
+        // Foo -> markup property: defining declaration in decl, implementing declaration (with the
+        // template) in impl.
+        Assert.Equal(MemberSplitKind.MarkupProperty, routed.Value[2].Kind);
+        var fooDefining = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(routed.Value[2].DeclPieces));
+        Assert.Contains("public partial RenderFragment Foo { get; }", TokenText(fooDefining));
+        Assert.Contains(routed.Value[2].ImplPieces, p => ReferenceEquals(p, template));
     }
 
     [Theory]

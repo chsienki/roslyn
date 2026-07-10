@@ -11,12 +11,14 @@ internal static partial class MarkupSplitter
 {
     /// <summary>
     /// Groups the analysis segments under their owning parsed members, slicing straddling C# chunks at
-    /// member boundaries, to produce one <see cref="RoutedMember"/> per member in original order. This
-    /// is the mapping that reconciles the two coordinate systems: parser member spans and IR nodes both
-    /// live in analysis-document offsets (markup nodes contribute their marker span), so intersecting
-    /// them here means the markup/marker length difference never matters.
+    /// member boundaries, to produce one <see cref="RoutedMember"/> per member in original order --
+    /// already resolved into the pieces each half emits. This is the mapping that reconciles the two
+    /// coordinate systems: parser member spans and IR nodes both live in analysis-document offsets
+    /// (markup nodes contribute their marker span), so intersecting them here means the markup/marker
+    /// length difference never matters. Returns <see langword="null"/> when a markup property can't be
+    /// split (see <see cref="BuildPropertyDeclarations"/>), so the caller falls back for the whole file.
     /// </summary>
-    internal static ImmutableArray<RoutedMember> BuildRoutedMembers(
+    internal static ImmutableArray<RoutedMember>? BuildRoutedMembers(
         AnalysisDocument analysis,
         ImmutableArray<ClassifiedMember> members)
     {
@@ -52,12 +54,31 @@ internal static partial class MarkupSplitter
         for (var i = 0; i < members.Length; i++)
         {
             var member = members[i];
+            var pieces = pieceBuilders[i].ToImmutableArray();
 
-            // Only a split property needs its parsed signature carried forward (for the Path A defining
-            // and implementing declarations); every other member emits its pieces directly.
-            var signature = member.Kind == MemberSplitKind.MarkupProperty ? member.Syntax : null;
+            switch (member.Kind)
+            {
+                case MemberSplitKind.NoMarkup:
+                    // Markup-free surface stays in decl.
+                    result.Add(new RoutedMember(member.Kind, declPieces: pieces, implPieces: []));
+                    break;
 
-            result.Add(new RoutedMember(member.Kind, [.. pieceBuilders[i]], signature));
+                case MemberSplitKind.MarkupMethod:
+                    // Markup-bearing methods (and explicit-interface properties) lift wholesale to impl.
+                    result.Add(new RoutedMember(member.Kind, declPieces: [], implPieces: pieces));
+                    break;
+
+                case MemberSplitKind.MarkupProperty:
+                    // Path A: the signature stays in decl, the markup body moves to impl. If the property
+                    // can't be split this way, the whole file falls back.
+                    if (BuildPropertyDeclarations(member, pieces) is not { } split)
+                    {
+                        return null;
+                    }
+
+                    result.Add(new RoutedMember(member.Kind, declPieces: split.Decl, implPieces: split.Impl));
+                    break;
+            }
         }
 
         return result.ToImmutable();

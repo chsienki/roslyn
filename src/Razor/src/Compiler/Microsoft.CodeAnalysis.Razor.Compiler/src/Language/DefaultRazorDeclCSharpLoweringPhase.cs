@@ -102,12 +102,9 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         {
             foreach (var member in plan.Members)
             {
-                if (member.Kind == MemberSplitKind.NoMarkup)
+                foreach (var piece in member.DeclPieces)
                 {
-                    foreach (var piece in member.Pieces)
-                    {
-                        declClass.Children.Add(piece);
-                    }
+                    declClass.Children.Add(piece);
                 }
             }
         }
