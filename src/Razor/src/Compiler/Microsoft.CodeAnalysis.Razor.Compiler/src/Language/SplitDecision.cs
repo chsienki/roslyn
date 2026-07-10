@@ -98,6 +98,15 @@ internal abstract class SplitDecision
             NormalizedLanguageVersion = normalizedLanguageVersion;
             PropertyPath = propertyPath;
             Members = members.NullToEmpty();
+
+            foreach (var member in Members)
+            {
+                if (member.Kind == MemberSplitKind.MarkupProperty)
+                {
+                    ContainsMarkupProperty = true;
+                    break;
+                }
+            }
         }
 
         /// <summary>
@@ -112,6 +121,14 @@ internal abstract class SplitDecision
 
         /// <summary>The routed class-body members in original order; each drives what its half emits.</summary>
         public ImmutableArray<RoutedMember> Members { get; }
+
+        /// <summary>
+        /// True if any routed member is a markup property. A markup property needs the Path A
+        /// partial-property emission (defining declaration in decl, implementing declaration in impl);
+        /// until that is wired the lowering phases leave such a plan unsplit rather than emit a decl that
+        /// still contains the property's markup. Markup <em>methods</em> route to impl without it.
+        /// </summary>
+        public bool ContainsMarkupProperty { get; }
     }
 }
 

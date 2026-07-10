@@ -81,6 +81,24 @@ internal class DefaultRazorCSharpLoweringPhase : RazorEnginePhaseBase, IRazorCSh
             }
         }
 
+        // Mirror of the decl phase: when the class body was split, the markup-bearing members lift here.
+        // Markup methods move wholesale (their sliced C# chunks and markup nodes, in order); markup-free
+        // members stayed in decl. The plan is the same memoized decision the decl phase routed from.
+        var plan = MarkupSplitter.GetRoutablePlan(primaryClass, renderMethod, codeDocument.ParserOptions);
+        if (plan is not null)
+        {
+            foreach (var member in plan.Members)
+            {
+                if (member.Kind == MemberSplitKind.MarkupMethod)
+                {
+                    foreach (var piece in member.Pieces)
+                    {
+                        implClass.Children.Add(piece);
+                    }
+                }
+            }
+        }
+
         foreach (var usingDirective in usings)
         {
             implNamespace.Children.Add(usingDirective);

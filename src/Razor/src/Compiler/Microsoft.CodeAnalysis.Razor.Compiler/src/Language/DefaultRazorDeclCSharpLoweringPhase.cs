@@ -92,14 +92,36 @@ internal sealed class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase
         var declNamespace = RazorCSharpDocumentWriter.CloneContainer(primaryNamespace);
         var declClass = RazorCSharpDocumentWriter.CloneContainer(primaryClass);
 
-        foreach (var classChild in primaryClass.Children)
+        // When the class body mixes markup and C#, route each member: markup-free members stay in decl
+        // (so the descriptor surface is markup-free and byte-stable), while markup-bearing members lift
+        // to the impl half. A straddling C# chunk is sliced at member boundaries, so decl receives the
+        // markup-free slices. Absent a routable plan the class body has no class-body markup to move (or
+        // the plan still needs property emission), so every non-render/non-synth child stays in decl.
+        var plan = MarkupSplitter.GetRoutablePlan(primaryClass, renderMethod, codeDocument.ParserOptions);
+        if (plan is not null)
         {
-            if (classChild == renderMethod || classChild.IsSynthesizedHelper)
+            foreach (var member in plan.Members)
             {
-                continue;
+                if (member.Kind == MemberSplitKind.NoMarkup)
+                {
+                    foreach (var piece in member.Pieces)
+                    {
+                        declClass.Children.Add(piece);
+                    }
+                }
             }
+        }
+        else
+        {
+            foreach (var classChild in primaryClass.Children)
+            {
+                if (classChild == renderMethod || classChild.IsSynthesizedHelper)
+                {
+                    continue;
+                }
 
-            declClass.Children.Add(classChild);
+                declClass.Children.Add(classChild);
+            }
         }
 
         foreach (var nsChild in primaryNamespace.Children)

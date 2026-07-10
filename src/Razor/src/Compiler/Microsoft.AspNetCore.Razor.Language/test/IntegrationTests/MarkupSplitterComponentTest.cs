@@ -17,6 +17,43 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     internal override bool UseTwoPhaseCompilation => true;
 
     [Fact]
+    public void MarkupMethod_LiftsToImpl_AndCompiles()
+    {
+        var generated = CompileToCSharp("""
+            @code {
+                private Microsoft.AspNetCore.Components.RenderFragment Make() => @<p>Hi</p>;
+            }
+            """);
+
+        // The markup method lifts wholesale to the impl half; the markup-free decl half keeps none of it.
+        Assert.NotNull(generated.DeclCode);
+        Assert.DoesNotContain("Make", generated.DeclCode);
+        Assert.Contains("Make", generated.Code);
+
+        // decl + impl are emitted as partial halves that recombine and compile.
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
+    public void MarkupMethod_AlongsideMarkupFreeMembers_RoutesEachHalf()
+    {
+        var generated = CompileToCSharp("""
+            @code {
+                [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                private Microsoft.AspNetCore.Components.RenderFragment Make() => @<p>Hi</p>;
+            }
+            """);
+
+        // The parameter (descriptor surface) stays in decl; the markup method lifts to impl.
+        Assert.NotNull(generated.DeclCode);
+        Assert.Contains("Count", generated.DeclCode);
+        Assert.DoesNotContain("Make", generated.DeclCode);
+        Assert.Contains("Make", generated.Code);
+
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
     public void ExpressionTemplateProperty_SurvivesAsTemplateMarkup_AndSplits()
     {
         var generated = CompileToCSharp("""

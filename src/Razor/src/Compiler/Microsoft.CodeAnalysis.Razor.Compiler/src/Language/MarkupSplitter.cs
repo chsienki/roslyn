@@ -68,6 +68,24 @@ internal static partial class MarkupSplitter
     }
 
     /// <summary>
+    /// Returns the <see cref="SplitDecision.SplitPlan"/> whose markup the lowering phases should route
+    /// between the decl and impl halves, or <see langword="null"/> when the document keeps its unsplit
+    /// shape. The single place both phases consult so they agree on what is routed: a plan is routable
+    /// only when it splits and contains no markup property (which needs Path A emission that isn't wired
+    /// yet). No class-body markup, an unsupported node, or a below-C#-13 markup property all yield null.
+    /// </summary>
+    public static SplitDecision.SplitPlan? GetRoutablePlan(
+        ClassDeclarationIntermediateNode primaryClass,
+        MethodDeclarationIntermediateNode renderMethod,
+        RazorParserOptions parserOptions)
+    {
+        return GetOrCreateDecision(primaryClass, renderMethod, parserOptions)
+            is SplitDecision.SplitPlan { ContainsMarkupProperty: false } plan
+            ? plan
+            : null;
+    }
+
+    /// <summary>
     /// Computes the split decision for the given primary class body. Pure and uncached; direct callers
     /// such as unit tests use this, while the lowering phases go through <see cref="GetOrCreateDecision"/>.
     /// </summary>
