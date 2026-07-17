@@ -273,6 +273,50 @@ public class MarkupSplitterTest
     }
 
     [Fact]
+    public void ClassifyMembers_MarkupField_IsMarkupUnsupported()
+    {
+        // A field's initializer runs in declaration order; lifting it across partials could perturb that,
+        // so a markup field can't be lifted -- it takes the whole file to fallback.
+        var members = ClassifyFromChildren(
+            CreateCSharpCode("private RenderFragment _frag = "),
+            new TemplateIntermediateNode(),
+            CreateCSharpCode(";"));
+
+        var member = Assert.Single(members);
+        Assert.Equal(MemberSplitKind.MarkupUnsupported, member.Kind);
+    }
+
+    [Fact]
+    public void ClassifyMembers_NestedTypeWithMarkup_IsMarkupUnsupported()
+    {
+        // A nested type carrying markup can't be lifted as if it were a method (it may be referenced from
+        // decl, and its own markup members aren't handled), so it forces fallback.
+        var members = ClassifyFromChildren(
+            CreateCSharpCode("public class Nested { public RenderFragment View => "),
+            new TemplateIntermediateNode(),
+            CreateCSharpCode("; }"));
+
+        var member = Assert.Single(members);
+        Assert.Equal(MemberSplitKind.MarkupUnsupported, member.Kind);
+    }
+
+    [Fact]
+    public void Split_MarkupField_FallsBack()
+    {
+        var renderMethod = CreateRenderMethod();
+        var primaryClass = CreatePrimaryClass(
+            CreateCSharpCode("private RenderFragment _frag = "),
+            new TemplateIntermediateNode(),
+            CreateCSharpCode(";"),
+            renderMethod);
+
+        var decision = MarkupSplitter.Split(primaryClass, renderMethod, ParserOptions(LanguageVersion.CSharp13));
+
+        var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
+        Assert.Equal(FallbackReason.UnsupportedMarkupMember, fallback.Reason);
+    }
+
+    [Fact]
     public void ClassifyMembers_MixedMembers_ClassifiesEachInOrder()
     {
         var members = ClassifyFromChildren(
@@ -336,6 +380,25 @@ public class MarkupSplitterTest
         Assert.Equal(4, s.LineIndex);         // advanced past one newline
         Assert.Equal(0, s.CharacterIndex);    // reset after the newline
         Assert.Equal(4, s.Length);
+        Assert.Equal(0, s.LineCount);         // "cdef" is single-line: zero line breaks
+        Assert.Equal(4, s.EndCharacterIndex);
+    }
+
+    [Fact]
+    public void SliceToken_SpanningNewline_ReportsOneLineBreak()
+    {
+        // A slice that itself crosses a newline reports LineCount 1 (one line break), and its end
+        // character resets on the new line.
+        var source = new SourceSpan(filePath: "C.razor", absoluteIndex: 100, lineIndex: 3, characterIndex: 4, length: 12);
+        var token = new CSharpIntermediateToken("ab\ncdefghij", source);
+
+        var sliced = MarkupSplitter.SliceToken(token, localStart: 0, localLength: 5); // "ab\ncd"
+        var s = sliced.Source!.Value;
+
+        Assert.Equal("ab\ncd", sliced.Content);
+        Assert.Equal(3, s.LineIndex);
+        Assert.Equal(1, s.LineCount);         // one newline crossed
+        Assert.Equal(2, s.EndCharacterIndex); // "cd" -> char 2 on the new line
     }
 
     [Fact]

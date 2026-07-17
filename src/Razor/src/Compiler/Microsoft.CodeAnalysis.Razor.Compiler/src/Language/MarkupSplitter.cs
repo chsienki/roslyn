@@ -136,28 +136,33 @@ internal static partial class MarkupSplitter
             return SplitDecision.Fallback(FallbackReason.UnrecoverableParse);
         }
 
-        // A property/indexer is descriptor surface, so it has to stay in the markup-free decl half -- but
-        // it can't if it carries markup. Rather than reshape it, the whole file falls back so the property
-        // renders in place. Markup-free properties stay in decl; only markup methods/fields lift to impl.
-        if (HasMarkupProperty(members))
+        // A markup property/indexer is descriptor surface that must stay in the markup-free decl half but
+        // can't (it carries markup); a markup field/event/type/etc. can't be safely lifted either. Rather
+        // than reshape them, the whole file falls back so they render in place. Only markup methods lift.
+        if (FindFallbackMember(members) is { } reason)
         {
-            return SplitDecision.Fallback(FallbackReason.MarkupProperty);
+            return SplitDecision.Fallback(reason);
         }
 
         return new SplitDecision.SplitPlan(BuildRoutedMembers(analysis, members));
     }
 
-    private static bool HasMarkupProperty(ImmutableArray<ClassifiedMember> members)
+    // Returns the fallback reason if any member's markup means the whole file can't be split, else null.
+    private static FallbackReason? FindFallbackMember(ImmutableArray<ClassifiedMember> members)
     {
         foreach (var member in members)
         {
-            if (member.Kind == MemberSplitKind.MarkupProperty)
+            switch (member.Kind)
             {
-                return true;
+                case MemberSplitKind.MarkupProperty:
+                    return FallbackReason.MarkupProperty;
+
+                case MemberSplitKind.MarkupUnsupported:
+                    return FallbackReason.UnsupportedMarkupMember;
             }
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>

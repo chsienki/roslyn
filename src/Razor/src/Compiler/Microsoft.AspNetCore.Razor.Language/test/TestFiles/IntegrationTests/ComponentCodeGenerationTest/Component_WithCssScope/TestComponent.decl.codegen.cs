@@ -27,7 +27,7 @@ using Microsoft.AspNetCore.Components.Rendering
     #nullable disable
     {
 #nullable restore
-#line (17,8)-(20,1) "x:\dir\subdir\Test\TestComponent.cshtml"
+#line (17,8)-(19,1) "x:\dir\subdir\Test\TestComponent.cshtml"
 
     ElementReference myElementReference;
 
@@ -36,7 +36,7 @@ using Microsoft.AspNetCore.Components.Rendering
 #nullable disable
 
 #nullable restore
-#line (19,1)-(21,1) "x:\dir\subdir\Test\TestComponent.cshtml"
+#line (19,1)-(20,1) "x:\dir\subdir\Test\TestComponent.cshtml"
     TemplatedComponent myComponentReference;
 
 #line default
@@ -44,7 +44,7 @@ using Microsoft.AspNetCore.Components.Rendering
 #nullable disable
 
 #nullable restore
-#line (20,1)-(22,1) "x:\dir\subdir\Test\TestComponent.cshtml"
+#line (20,1)-(21,1) "x:\dir\subdir\Test\TestComponent.cshtml"
     string myVariable;
 
 #line default

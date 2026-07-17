@@ -132,6 +132,14 @@ internal enum FallbackReason
     MarkupProperty,
 
     /// <summary>
+    /// A non-method, non-property member carries markup -- a field/event (whose initializer runs in
+    /// declaration order, which splitting across partials would perturb), a nested type, a
+    /// constructor/operator, or an incomplete member. It can't be safely lifted, so the whole file falls
+    /// back.
+    /// </summary>
+    UnsupportedMarkupMember,
+
+    /// <summary>
     /// The analysis parse is unrecoverable (brace mismatch, or a markup marker isn't contained by any
     /// member), so member boundaries can't be trusted. Not triggered by ordinary transient typos, which
     /// still recover member boundaries.

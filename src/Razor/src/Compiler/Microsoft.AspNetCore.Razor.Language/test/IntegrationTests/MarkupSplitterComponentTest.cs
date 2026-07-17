@@ -17,6 +17,20 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     internal override bool UseTwoPhaseCompilation => true;
 
     [Fact]
+    public void MarkupField_FallsBackAndCompiles()
+    {
+        // A field initializer with markup can't be lifted (declaration-order side effects), so the file
+        // falls back and still compiles.
+        var generated = CompileToCSharp("""
+            @code {
+                private Microsoft.AspNetCore.Components.RenderFragment _frag = @<div>Hi</div>;
+            }
+            """);
+
+        CompileToAssembly(generated);
+    }
+
+    [Fact]
     public void MarkupMethod_LiftsToImpl_AndCompiles()
     {
         var generated = CompileToCSharp("""

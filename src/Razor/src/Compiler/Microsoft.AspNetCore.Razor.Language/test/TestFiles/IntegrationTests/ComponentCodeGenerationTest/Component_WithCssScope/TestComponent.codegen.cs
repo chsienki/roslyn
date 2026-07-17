@@ -115,7 +115,7 @@ myVariable
         }
         #pragma warning restore 1998
 #nullable restore
-#line (21,1)-(27,1) "x:\dir\subdir\Test\TestComponent.cshtml"
+#line (21,1)-(26,1) "x:\dir\subdir\Test\TestComponent.cshtml"
 
     void MethodRenderingMarkup(RenderTreeBuilder __builder)
     {

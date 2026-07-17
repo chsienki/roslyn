@@ -128,7 +128,9 @@ internal static partial class MarkupSplitter
             startLine,
             startCharacter,
             localLength,
-            lineCount: endLine - startLine + 1,
+            // LineCount is the number of line breaks the span covers (0 for a single-line slice), matching
+            // how the writer derives the enhanced #line end line as LineIndex + 1 + LineCount.
+            lineCount: endLine - startLine,
             endCharacterIndex: endCharacter);
 
         return new CSharpIntermediateToken(slicedContent, slicedSource);

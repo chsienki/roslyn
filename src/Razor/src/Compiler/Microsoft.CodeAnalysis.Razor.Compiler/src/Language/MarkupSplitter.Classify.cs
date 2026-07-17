@@ -54,7 +54,56 @@ internal static partial class MarkupSplitter
             return null;
         }
 
+        // Likewise, every piece of non-whitespace C# must land inside some member. A gap (skipped tokens
+        // from a malformed body, or content the parser attributed outside any member) would be silently
+        // dropped by routing, changing the generated code or masking a diagnostic. Fall back instead.
+        if (!AllCSharpContentCovered(analysis, members))
+        {
+            return null;
+        }
+
         return members;
+    }
+
+    // True when every non-whitespace character of every C# segment falls within some member's span.
+    // Members partition the class body contiguously in the common case, so this only fails on real gaps
+    // (leading/trailing skipped tokens or brace imbalance), which routing must not silently drop.
+    private static bool AllCSharpContentCovered(
+        AnalysisDocument analysis,
+        ImmutableArray<ClassifiedMember> members)
+    {
+        var text = analysis.Text;
+
+        foreach (var segment in analysis.Segments)
+        {
+            if (segment.Kind != SegmentKind.CSharp)
+            {
+                continue;
+            }
+
+            for (var index = segment.Start; index < segment.End; index++)
+            {
+                if (!char.IsWhiteSpace(text[index]) && !IsCoveredByMember(members, index))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsCoveredByMember(ImmutableArray<ClassifiedMember> members, int index)
+    {
+        foreach (var member in members)
+        {
+            if (member.Span.Contains(index))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool AllMarkupCovered(
@@ -112,12 +161,19 @@ internal static partial class MarkupSplitter
 
         return member switch
         {
-            // A property/indexer is descriptor surface, so markup in one takes the whole file to fallback
-            // (it can neither leave decl nor keep its markup there). Everything else -- methods, fields,
-            // events, constructors, operators -- isn't surface, so it lifts wholesale to impl.
+            // Only a plain method can be lifted wholesale to impl: it has no field-initializer ordering to
+            // preserve and isn't descriptor surface, so its absence from decl is invisible.
+            MethodDeclarationSyntax => MemberSplitKind.MarkupMethod,
+
+            // A property/indexer is descriptor surface -- it must stay in decl, where markup can't live --
+            // so markup in one takes the whole file to fallback.
             PropertyDeclarationSyntax or IndexerDeclarationSyntax => MemberSplitKind.MarkupProperty,
 
-            _ => MemberSplitKind.MarkupMethod,
+            // Anything else with markup -- a field or event (whose initializer runs in declaration order,
+            // which splitting across partials would perturb), a nested type (which may be referenced from
+            // decl, or itself contain markup members), a constructor/operator, or an incomplete member --
+            // isn't safe to lift, so the whole file falls back.
+            _ => MemberSplitKind.MarkupUnsupported,
         };
     }
 }
@@ -129,8 +185,8 @@ internal enum MemberSplitKind
     NoMarkup,
 
     /// <summary>
-    /// Markup in a non-property member (method, field, event, constructor, operator): lifted wholesale to
-    /// impl. Not descriptor surface, so its absence from decl is fine.
+    /// Markup in a plain method: lifted wholesale to impl. Not descriptor surface and no initializer
+    /// ordering to preserve, so its absence from decl is fine.
     /// </summary>
     MarkupMethod,
 
@@ -139,6 +195,12 @@ internal enum MemberSplitKind
     /// can't, so this takes the whole file to fallback rather than routing to a half.
     /// </summary>
     MarkupProperty,
+
+    /// <summary>
+    /// Markup in a member that can't be safely lifted or kept -- a field/event (initializer ordering), a
+    /// nested type, a constructor/operator, or an incomplete member. Takes the whole file to fallback.
+    /// </summary>
+    MarkupUnsupported,
 }
 
 /// <summary>
