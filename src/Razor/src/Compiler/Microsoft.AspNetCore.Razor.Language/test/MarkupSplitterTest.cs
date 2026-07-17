@@ -1,11 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Linq;
 using Microsoft.AspNetCore.Razor.Language.Extensions;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Razor.Language;
@@ -116,12 +114,11 @@ public class MarkupSplitterTest
     [Fact]
     public void Fallback_IsFallbackAndDoesNotRequireSplit()
     {
-        var decision = SplitDecision.Fallback(LanguageVersion.CSharp10, FallbackReason.MarkupPropertyBelowCSharp13);
+        var decision = SplitDecision.Fallback(FallbackReason.MarkupProperty);
 
         Assert.True(decision.IsFallback);
         Assert.False(decision.RequiresSplit);
-        Assert.Equal(LanguageVersion.CSharp10, decision.NormalizedLanguageVersion);
-        Assert.Equal(FallbackReason.MarkupPropertyBelowCSharp13, decision.Reason);
+        Assert.Equal(FallbackReason.MarkupProperty, decision.Reason);
     }
 
     [Fact]
@@ -152,28 +149,6 @@ public class MarkupSplitterTest
         Assert.Equal(new IntermediateNode[] { first, markup, last }, collected);
     }
 
-    [Fact]
-    public void NormalizedLanguageVersion_ResolvesUnspecifiedToConcreteVersion()
-    {
-        var latest = RazorParserOptions.Default.WithCSharpParseOptions(
-            CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest));
-
-        var normalized = MarkupSplitter.NormalizedLanguageVersion(latest);
-
-        Assert.NotEqual(LanguageVersion.Latest, normalized);
-        Assert.NotEqual(LanguageVersion.Default, normalized);
-        Assert.NotEqual(LanguageVersion.LatestMajor, normalized);
-        Assert.NotEqual(LanguageVersion.Preview, normalized);
-    }
-
-    [Fact]
-    public void NormalizedLanguageVersion_KeepsConcreteVersion()
-    {
-        var csharp10 = RazorParserOptions.Default.WithCSharpParseOptions(
-            CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp10));
-
-        Assert.Equal(LanguageVersion.CSharp10, MarkupSplitter.NormalizedLanguageVersion(csharp10));
-    }
 
     [Fact]
     public void BuildAnalysisDocument_PureCSharp_EmitsTextWithNoMarkers()
@@ -284,16 +259,17 @@ public class MarkupSplitterTest
     }
 
     [Fact]
-    public void ClassifyMembers_ExplicitInterfaceMarkupProperty_IsMarkupMethod()
+    public void ClassifyMembers_ExplicitInterfaceMarkupProperty_IsMarkupProperty()
     {
         var members = ClassifyFromChildren(
             CreateCSharpCode("global::Microsoft.AspNetCore.Components.RenderFragment IFoo.Bar => "),
             new TemplateIntermediateNode(),
             CreateCSharpCode(";"));
 
-        // Explicit-interface can't be a partial member on either path, so it lifts wholesale like a method.
+        // Any property/indexer with markup is classified as a markup property, which takes the whole file
+        // to fallback -- explicit-interface properties included.
         var member = Assert.Single(members);
-        Assert.Equal(MemberSplitKind.MarkupMethod, member.Kind);
+        Assert.Equal(MemberSplitKind.MarkupProperty, member.Kind);
     }
 
     [Fact]
@@ -492,8 +468,10 @@ public class MarkupSplitterTest
     }
 
     [Fact]
-    public void Split_MarkupExpressionProperty_CSharp13_ReturnsSplitPlanWithSignature()
+    public void Split_MarkupProperty_FallsBack()
     {
+        // A property with markup can't stay in the markup-free decl half but must (it's descriptor
+        // surface), so the whole file falls back -- on any language version.
         var renderMethod = CreateRenderMethod();
         var primaryClass = CreatePrimaryClass(
             CreateCSharpCode("[Parameter] public RenderFragment Header => "),
@@ -503,24 +481,37 @@ public class MarkupSplitterTest
 
         var decision = MarkupSplitter.Split(primaryClass, renderMethod, ParserOptions(LanguageVersion.CSharp13));
 
-        var plan = Assert.IsType<SplitDecision.SplitPlan>(decision);
-        Assert.Equal(LanguageVersion.CSharp13, plan.NormalizedLanguageVersion);
-        var member = Assert.Single(plan.Members);
-        Assert.Equal(MemberSplitKind.MarkupProperty, member.Kind);
-
-        // Decl gets the bodyless defining declaration (attributes kept, `partial`, `{ get; }`).
-        var defining = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(member.DeclPieces));
-        Assert.Contains("[Parameter] public partial RenderFragment Header { get; }", TokenText(defining));
-
-        // Impl gets the implementing declaration: attributes stripped, `partial` inserted, markup reused.
-        Assert.Contains("public partial RenderFragment Header", TokenText((CSharpCodeIntermediateNode)member.ImplPieces[0]));
-        Assert.DoesNotContain("[Parameter]", TokenText((CSharpCodeIntermediateNode)member.ImplPieces[0]));
-        Assert.Contains(member.ImplPieces, static p => p is TemplateIntermediateNode);
+        var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
+        Assert.Equal(FallbackReason.MarkupProperty, fallback.Reason);
     }
 
     [Fact]
-    public void Split_MarkupProperty_BelowCSharp13_FallsBack()
+    public void Split_MarkupFreeProperty_AlongsideMarkupMethod_StaysInDecl()
     {
+        // A markup-free property is descriptor surface and stays in decl; the markup method that forces
+        // the split lifts to impl.
+        var renderMethod = CreateRenderMethod();
+        var property = CreateCSharpCode("[Parameter] public int Count { get; set; } void M(RenderTreeBuilder __builder) { ");
+        var primaryClass = CreatePrimaryClass(
+            property,
+            new MarkupElementIntermediateNode { TagName = "ul" },
+            CreateCSharpCode(" }"),
+            renderMethod);
+
+        var decision = MarkupSplitter.Split(primaryClass, renderMethod, ParserOptions(LanguageVersion.CSharp13));
+
+        var plan = Assert.IsType<SplitDecision.SplitPlan>(decision);
+        Assert.Equal(2, plan.Members.Length);
+        Assert.Equal(MemberSplitKind.NoMarkup, plan.Members[0].Kind);
+        Assert.Contains("Count", TokenText((CSharpCodeIntermediateNode)Assert.Single(plan.Members[0].DeclPieces)));
+        Assert.Equal(MemberSplitKind.MarkupMethod, plan.Members[1].Kind);
+        Assert.Empty(plan.Members[1].DeclPieces);
+    }
+
+    [Fact]
+    public void Split_MarkupProperty_BelowCSharp13_AlsoFallsBack()
+    {
+        // The fallback is version-independent: no C# 13 gate anymore.
         var renderMethod = CreateRenderMethod();
         var primaryClass = CreatePrimaryClass(
             CreateCSharpCode("public RenderFragment Header => "),
@@ -528,18 +519,16 @@ public class MarkupSplitterTest
             CreateCSharpCode(";"),
             renderMethod);
 
-        var decision = MarkupSplitter.Split(primaryClass, renderMethod, ParserOptions(LanguageVersion.CSharp12));
+        var decision = MarkupSplitter.Split(primaryClass, renderMethod, ParserOptions(LanguageVersion.CSharp10));
 
-        Assert.True(decision.IsFallback);
         var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
-        Assert.Equal(FallbackReason.MarkupPropertyBelowCSharp13, fallback.Reason);
-        Assert.Equal(LanguageVersion.CSharp12, fallback.NormalizedLanguageVersion);
+        Assert.Equal(FallbackReason.MarkupProperty, fallback.Reason);
     }
 
     [Fact]
     public void Split_MarkupMethod_BelowCSharp13_StillSplits()
     {
-        // Only markup *properties* need partial properties; a markup method lifts wholesale on any C#.
+        // Only markup properties fall back; a markup method lifts wholesale on any C#.
         var renderMethod = CreateRenderMethod();
         var primaryClass = CreatePrimaryClass(
             CreateCSharpCode("void M(RenderTreeBuilder __builder) { "),
@@ -572,77 +561,32 @@ public class MarkupSplitterTest
     public void BuildRoutedMembers_MixedMembers_SlicesChunkAndRoutesEachInOrder()
     {
         // One C# chunk holds a whole field plus the start of a markup method, so it must be sliced at
-        // the member boundary and each slice routed to its own member.
+        // the member boundary and each slice routed to its own member. (A markup property never reaches
+        // routing -- it takes the whole file to fallback -- so routing only ever sees NoMarkup and
+        // MarkupMethod members.)
         var markup = new MarkupElementIntermediateNode { TagName = "div" };
-        var template = new TemplateIntermediateNode();
         var analysis = MarkupSplitter.BuildAnalysisDocument([
             CreateCSharpCode("[Parameter] public int Count { get; set; } private void Helper(RenderTreeBuilder __builder) { "),
             markup,
-            CreateCSharpCode(" } public RenderFragment Foo => "),
-            template,
-            CreateCSharpCode(";")]);
+            CreateCSharpCode(" }")]);
         var members = MarkupSplitter.ClassifyMembers(analysis, CSharpParseOptions.Default);
         Assert.NotNull(members);
 
         var routed = MarkupSplitter.BuildRoutedMembers(analysis, members.Value);
-        Assert.NotNull(routed);
 
-        Assert.Equal(3, routed.Value.Length);
+        Assert.Equal(2, routed.Length);
 
         // int Count -> decl only, one sliced C# piece.
-        Assert.Equal(MemberSplitKind.NoMarkup, routed.Value[0].Kind);
-        Assert.Empty(routed.Value[0].ImplPieces);
-        var countPiece = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(routed.Value[0].DeclPieces));
+        Assert.Equal(MemberSplitKind.NoMarkup, routed[0].Kind);
+        Assert.Empty(routed[0].ImplPieces);
+        var countPiece = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(routed[0].DeclPieces));
         Assert.Contains("int Count", TokenText(countPiece));
         Assert.DoesNotContain("Helper", TokenText(countPiece));
 
         // Helper -> impl only, carrying the markup node by reference.
-        Assert.Equal(MemberSplitKind.MarkupMethod, routed.Value[1].Kind);
-        Assert.Empty(routed.Value[1].DeclPieces);
-        Assert.Contains(routed.Value[1].ImplPieces, p => ReferenceEquals(p, markup));
-
-        // Foo -> markup property: defining declaration in decl, implementing declaration (with the
-        // template) in impl.
-        Assert.Equal(MemberSplitKind.MarkupProperty, routed.Value[2].Kind);
-        var fooDefining = Assert.IsType<CSharpCodeIntermediateNode>(Assert.Single(routed.Value[2].DeclPieces));
-        Assert.Contains("public partial RenderFragment Foo { get; }", TokenText(fooDefining));
-        Assert.Contains(routed.Value[2].ImplPieces, p => ReferenceEquals(p, template));
-    }
-
-    [Theory]
-    // Expression-bodied markup getter: attributes kept, `partial` inserted, get-only accessor list.
-    [InlineData("[Parameter] public RenderFragment Foo => X();",
-                "[Parameter] public partial RenderFragment Foo { get; }")]
-    // get + set accessors reproduced exactly.
-    [InlineData("public RenderFragment Foo { get => X(); set => Y(value); }",
-                "public partial RenderFragment Foo { get; set; }")]
-    // init-only preserved (not collapsed to set).
-    [InlineData("public RenderFragment Foo { get => X(); init => Y(value); }",
-                "public partial RenderFragment Foo { get; init; }")]
-    // Per-accessor accessibility preserved.
-    [InlineData("public int Foo { get => X(); private set => Y(value); }",
-                "public partial int Foo { get; private set; }")]
-    // static + generic type.
-    [InlineData("public static RenderFragment<TItem> Foo => X();",
-                "public static partial RenderFragment<TItem> Foo { get; }")]
-    // Nullable annotation + required modifier preserved.
-    [InlineData("[Parameter] public required RenderFragment? Foo => X();",
-                "[Parameter] public required partial RenderFragment? Foo { get; }")]
-    // Indexer: name becomes this[...] with the parameter list.
-    [InlineData("public RenderFragment this[int index] => X();",
-                "public partial RenderFragment this[int index] { get; }")]
-    public void BuildDefiningPropertyDeclaration_ReproducesSignatureWithPartial(string member, string expected)
-    {
-        var syntax = ParseProperty(member);
-
-        Assert.Equal(expected, MarkupSplitter.BuildDefiningPropertyDeclaration(syntax));
-    }
-
-    private static BasePropertyDeclarationSyntax ParseProperty(string memberText)
-    {
-        var tree = CSharpSyntaxTree.ParseText("class __C {\n" + memberText + "\n}\n");
-        var @class = tree.GetCompilationUnitRoot().Members.OfType<ClassDeclarationSyntax>().Single();
-        return (BasePropertyDeclarationSyntax)@class.Members.Single();
+        Assert.Equal(MemberSplitKind.MarkupMethod, routed[1].Kind);
+        Assert.Empty(routed[1].DeclPieces);
+        Assert.Contains(routed[1].ImplPieces, p => ReferenceEquals(p, markup));
     }
 
     private static RazorParserOptions ParserOptions(LanguageVersion version)

@@ -3,7 +3,6 @@
 
 using System.Collections.Immutable;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace Microsoft.AspNetCore.Razor.Language;
 
@@ -15,17 +14,16 @@ namespace Microsoft.AspNetCore.Razor.Language;
 /// <item><see cref="SplitPlan"/> -- the class body mixes markup and C# and can be split safely into a
 /// markup-free decl half and a markup-bearing impl half; describes how the pieces route.</item>
 /// <item><see cref="SplitFallback"/> -- the class body has markup but can't be split safely (a markup
-/// property below C# 13, or an unrecoverable parse), so the caller renders the whole tree unsplit and
-/// discovers its tag helper the existing (non-incremental) way.</item>
+/// property, an unsupported node, a directive, or an unrecoverable parse), so the caller renders the
+/// whole tree unsplit and discovers its tag helper the existing (non-incremental) way.</item>
 /// </list>
 /// </summary>
 /// <remarks>
-/// This is a closed hierarchy. It is produced once per primary class and shared by both lowering
-/// phases, so both the <see cref="SplitPlan"/> and <see cref="SplitFallback"/> cases carry the
-/// normalized language version they were computed against to keep the two source-generator/IDE paths
-/// byte-identical across the C# 12/13/14 boundaries (including the split/fallback boundary at C# 13).
-/// The source generator inspects the decision to route each file to incremental (split) or existing
-/// (fallback) tag-helper discovery.
+/// This is a closed hierarchy, produced once per primary class and shared by both lowering phases. The
+/// decision is a pure function of the class body's IR and the parse options, and it never branches on
+/// the language version, so the source-generator and IDE local-view paths reach the same decision for
+/// the same document. The source generator inspects it to route each file to incremental (split) or
+/// existing (fallback) tag-helper discovery.
 /// </remarks>
 internal abstract class SplitDecision
 {
@@ -43,8 +41,7 @@ internal abstract class SplitDecision
     /// The class body has markup but can't be split safely; the caller renders the whole tree unsplit
     /// and discovers its tag helper the existing way.
     /// </summary>
-    public static SplitFallback Fallback(LanguageVersion normalizedLanguageVersion, FallbackReason reason)
-        => new(normalizedLanguageVersion, reason);
+    public static SplitFallback Fallback(FallbackReason reason) => new(reason);
 
     /// <summary>True when this decision requires the caller to build separate decl and impl halves.</summary>
     public bool RequiresSplit => this is SplitPlan;
@@ -66,18 +63,10 @@ internal abstract class SplitDecision
     /// </summary>
     public sealed class SplitFallback : SplitDecision
     {
-        public SplitFallback(LanguageVersion normalizedLanguageVersion, FallbackReason reason)
+        public SplitFallback(FallbackReason reason)
         {
-            NormalizedLanguageVersion = normalizedLanguageVersion;
             Reason = reason;
         }
-
-        /// <summary>
-        /// The effective C# version the decision was computed against (with Default/Latest/Preview
-        /// resolved). Recorded so the split/fallback choice is stable across the source-generator and
-        /// IDE local-view paths.
-        /// </summary>
-        public LanguageVersion NormalizedLanguageVersion { get; }
 
         /// <summary>Why the file falls back instead of splitting (for diagnostics/telemetry and tests).</summary>
         public FallbackReason Reason { get; }
@@ -89,25 +78,10 @@ internal abstract class SplitDecision
     /// </summary>
     public sealed class SplitPlan : SplitDecision
     {
-        public SplitPlan(
-            LanguageVersion normalizedLanguageVersion,
-            PropertySplitPath propertyPath,
-            ImmutableArray<RoutedMember> members)
+        public SplitPlan(ImmutableArray<RoutedMember> members)
         {
-            NormalizedLanguageVersion = normalizedLanguageVersion;
-            PropertyPath = propertyPath;
             Members = members.NullToEmpty();
         }
-
-        /// <summary>
-        /// The effective C# version the plan was computed against (with Default/Latest/Preview
-        /// resolved). Recorded so the decl and impl phases agree and so cohost identity holds across
-        /// the C# 12/13/14 boundaries.
-        /// </summary>
-        public LanguageVersion NormalizedLanguageVersion { get; }
-
-        /// <summary>Which property-split strategy applies at this language version.</summary>
-        public PropertySplitPath PropertyPath { get; }
 
         /// <summary>The routed class-body members in original order; each drives what its half emits.</summary>
         public ImmutableArray<RoutedMember> Members { get; }
@@ -117,9 +91,10 @@ internal abstract class SplitDecision
 /// <summary>
 /// A user-authored class-body member after routing, already resolved into the IR pieces each half emits:
 /// <see cref="DeclPieces"/> for the decl half and <see cref="ImplPieces"/> for the impl half. Original
-/// nodes are shared by reference (keeping their source mappings); a markup property additionally carries
-/// a generated bodyless defining declaration in <see cref="DeclPieces"/> and a transformed implementing
-/// declaration in <see cref="ImplPieces"/>. The lowering phases simply append the pieces for their half.
+/// nodes are shared by reference (keeping their source mappings). A member is either markup-free (all its
+/// pieces stay in decl) or a markup-bearing method/field (all its pieces lift to impl); a markup property
+/// never reaches routing because it takes the whole file to fallback. The lowering phases simply append
+/// the pieces for their half.
 /// </summary>
 internal readonly struct RoutedMember
 {
@@ -143,32 +118,18 @@ internal readonly struct RoutedMember
 }
 
 /// <summary>
-/// The strategy used to split a markup-bearing property so its signature stays in decl while its
-/// markup bodies move to impl. Currently one active strategy; a markup property on a language version
-/// that doesn't support it falls back (<see cref="FallbackReason.MarkupPropertyBelowCSharp13"/>)
-/// instead of being split.
-/// </summary>
-internal enum PropertySplitPath
-{
-    /// <summary>
-    /// C# 13+: emit the property's defining partial declaration into decl and a transformed
-    /// implementing partial declaration into impl. No synthesized helpers and no accepted breaks.
-    /// </summary>
-    PartialProperty,
-}
-
-/// <summary>
 /// Why a markup-bearing class body is left unsplit (rendered whole, discovered the existing way)
 /// instead of being split into decl/impl halves.
 /// </summary>
 internal enum FallbackReason
 {
     /// <summary>
-    /// A property/indexer body carries markup but the effective language version is below C# 13, so the
-    /// partial-property split isn't available. (Splitting it would require synthesized accessor lifts,
-    /// which are retired; see the archived Path B design.)
+    /// A property/indexer carries markup. A property is tag-helper descriptor surface (a
+    /// <c>[Parameter]</c> shapes the component's attributes), so it must stay in the decl half -- but
+    /// markup can't live in the markup-free decl half. Rather than reshape the property, the whole file
+    /// falls back so the property renders in place.
     /// </summary>
-    MarkupPropertyBelowCSharp13,
+    MarkupProperty,
 
     /// <summary>
     /// The analysis parse is unrecoverable (brace mismatch, or a markup marker isn't contained by any
@@ -183,13 +144,6 @@ internal enum FallbackReason
     /// is always correct; splitting it would risk moving surface into the impl half.
     /// </summary>
     UnsupportedClassBodyNode,
-
-    /// <summary>
-    /// A markup-bearing property can't be split into a partial-property pair -- its markup is in an
-    /// initializer (which needs the static-synth lift) or its parsed shape doesn't line up with the
-    /// routed pieces. Rendering the file whole is always correct.
-    /// </summary>
-    UnsupportedMarkupProperty,
 
     /// <summary>
     /// The class body contains a preprocessor directive (<c>#if</c>/<c>#endif</c>, <c>#region</c>,

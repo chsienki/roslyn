@@ -7,7 +7,6 @@ using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Razor.Language.Extensions;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
 using Microsoft.AspNetCore.Razor.PooledObjects;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace Microsoft.AspNetCore.Razor.Language;
 
@@ -26,11 +25,10 @@ namespace Microsoft.AspNetCore.Razor.Language;
 /// the single-file behavior without parsing anything.
 /// </para>
 /// <para>
-/// The split decision is a pure function of the class body's IR content plus the effective C#
-/// <see cref="LanguageVersion"/> (properties split differently on C# 13+, which has partial properties,
-/// than on earlier versions). It is memoized on the primary class node's identity so the decl and impl
-/// lowering phases -- which run back to back over the same document and therefore the same primary
-/// class instance -- share a single computation and cannot disagree.
+/// The split decision is a pure function of the class body's IR content and the parse options; it does
+/// not branch on the language version. It is memoized on the primary class node's identity so the decl
+/// and impl lowering phases -- which run back to back over the same document and therefore the same
+/// primary class instance -- share a single computation and cannot disagree.
 /// </para>
 /// </remarks>
 internal static partial class MarkupSplitter
@@ -103,8 +101,6 @@ internal static partial class MarkupSplitter
             return SplitDecision.NoSplit;
         }
 
-        var languageVersion = NormalizedLanguageVersion(parserOptions);
-
         // Render the class body to a parse-only document (markup -> markers) and recover its members.
         var children = CollectClassBodyChildren(primaryClass, renderMethod);
 
@@ -116,7 +112,7 @@ internal static partial class MarkupSplitter
         {
             if (!IsSupportedClassBodyNode(child))
             {
-                return SplitDecision.Fallback(languageVersion, FallbackReason.UnsupportedClassBodyNode);
+                return SplitDecision.Fallback(FallbackReason.UnsupportedClassBodyNode);
             }
         }
 
@@ -128,7 +124,7 @@ internal static partial class MarkupSplitter
         // in @code are rare, and the whole-file render keeps them balanced.
         if (HasPreprocessorDirective(analysis.Text))
         {
-            return SplitDecision.Fallback(languageVersion, FallbackReason.ClassBodyHasDirectives);
+            return SplitDecision.Fallback(FallbackReason.ClassBodyHasDirectives);
         }
 
         var classified = ClassifyMembers(analysis, parserOptions.CSharpParseOptions);
@@ -137,31 +133,19 @@ internal static partial class MarkupSplitter
         // boundaries, so render the file whole and discover its tag helper the existing way.
         if (classified is not { } members)
         {
-            return SplitDecision.Fallback(languageVersion, FallbackReason.UnrecoverableParse);
+            return SplitDecision.Fallback(FallbackReason.UnrecoverableParse);
         }
 
-        // A markup-bearing property can only keep its signature in decl via a partial property, which is
-        // C# 13+. Below that, fall back rather than emit a synthesized accessor lift.
-        if (languageVersion < PartialPropertyMinLanguageVersion && HasMarkupProperty(members))
+        // A property/indexer is descriptor surface, so it has to stay in the markup-free decl half -- but
+        // it can't if it carries markup. Rather than reshape it, the whole file falls back so the property
+        // renders in place. Markup-free properties stay in decl; only markup methods/fields lift to impl.
+        if (HasMarkupProperty(members))
         {
-            return SplitDecision.Fallback(languageVersion, FallbackReason.MarkupPropertyBelowCSharp13);
+            return SplitDecision.Fallback(FallbackReason.MarkupProperty);
         }
 
-        // Routing can still fail for a property whose markup it can't split (e.g. a markup initializer, or
-        // a shape whose parsed spans don't line up); in that case leave the whole file unsplit.
-        if (BuildRoutedMembers(analysis, members) is not { } routedMembers)
-        {
-            return SplitDecision.Fallback(languageVersion, FallbackReason.UnsupportedMarkupProperty);
-        }
-
-        return new SplitDecision.SplitPlan(languageVersion, PropertySplitPath.PartialProperty, routedMembers);
+        return new SplitDecision.SplitPlan(BuildRoutedMembers(analysis, members));
     }
-
-    /// <summary>
-    /// The lowest C# version that supports partial properties, which the property split (Path A) relies
-    /// on. A markup-bearing property below this version falls back instead of splitting.
-    /// </summary>
-    internal const LanguageVersion PartialPropertyMinLanguageVersion = LanguageVersion.CSharp13;
 
     private static bool HasMarkupProperty(ImmutableArray<ClassifiedMember> members)
     {
@@ -292,12 +276,4 @@ internal static partial class MarkupSplitter
 
         return builder.ToImmutableAndClear();
     }
-
-    /// <summary>
-    /// The effective C# <see cref="LanguageVersion"/> with <c>Default</c>/<c>Latest</c>/<c>Preview</c>
-    /// resolved to a concrete version, so the split decision is stable across the source-generator and
-    /// IDE local-view paths (both must produce byte-identical halves for cohosting).
-    /// </summary>
-    internal static LanguageVersion NormalizedLanguageVersion(RazorParserOptions parserOptions)
-        => parserOptions.CSharpParseOptions.LanguageVersion.MapSpecifiedToEffectiveVersion();
 }

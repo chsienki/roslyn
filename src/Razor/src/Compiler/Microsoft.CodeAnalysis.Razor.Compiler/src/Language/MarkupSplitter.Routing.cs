@@ -15,10 +15,10 @@ internal static partial class MarkupSplitter
     /// already resolved into the pieces each half emits. This is the mapping that reconciles the two
     /// coordinate systems: parser member spans and IR nodes both live in analysis-document offsets
     /// (markup nodes contribute their marker span), so intersecting them here means the markup/marker
-    /// length difference never matters. Returns <see langword="null"/> when a markup property can't be
-    /// split (see <see cref="BuildPropertyDeclarations"/>), so the caller falls back for the whole file.
+    /// length difference never matters. A markup property never reaches routing (the caller falls back
+    /// for the whole file first), so every member routes wholly to one half.
     /// </summary>
-    internal static ImmutableArray<RoutedMember>? BuildRoutedMembers(
+    internal static ImmutableArray<RoutedMember> BuildRoutedMembers(
         AnalysisDocument analysis,
         ImmutableArray<ClassifiedMember> members)
     {
@@ -56,29 +56,11 @@ internal static partial class MarkupSplitter
             var member = members[i];
             var pieces = pieceBuilders[i].ToImmutableArray();
 
-            switch (member.Kind)
-            {
-                case MemberSplitKind.NoMarkup:
-                    // Markup-free surface stays in decl.
-                    result.Add(new RoutedMember(member.Kind, declPieces: pieces, implPieces: []));
-                    break;
-
-                case MemberSplitKind.MarkupMethod:
-                    // Markup-bearing methods (and explicit-interface properties) lift wholesale to impl.
-                    result.Add(new RoutedMember(member.Kind, declPieces: [], implPieces: pieces));
-                    break;
-
-                case MemberSplitKind.MarkupProperty:
-                    // Path A: the signature stays in decl, the markup body moves to impl. If the property
-                    // can't be split this way, the whole file falls back.
-                    if (BuildPropertyDeclarations(member, pieces) is not { } split)
-                    {
-                        return null;
-                    }
-
-                    result.Add(new RoutedMember(member.Kind, declPieces: split.Decl, implPieces: split.Impl));
-                    break;
-            }
+            // A markup-free member stays in decl; a markup-bearing method/field lifts wholesale to impl.
+            // (Markup properties took the whole file to fallback before this runs.)
+            result.Add(member.Kind == MemberSplitKind.MarkupMethod
+                ? new RoutedMember(member.Kind, declPieces: [], implPieces: pieces)
+                : new RoutedMember(member.Kind, declPieces: pieces, implPieces: []));
         }
 
         return result.ToImmutable();

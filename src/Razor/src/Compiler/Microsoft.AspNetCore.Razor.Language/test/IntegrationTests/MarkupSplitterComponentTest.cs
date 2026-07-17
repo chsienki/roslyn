@@ -54,26 +54,24 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     }
 
     [Fact]
-    public void AccessorBodiedMarkupProperty_SplitsAndCompiles()
+    public void AccessorBodiedMarkupProperty_FallsBackAndCompiles()
     {
+        // A property with markup falls back (a property is descriptor surface that must stay in decl,
+        // where markup can't live). The whole file renders unsplit and still compiles.
         var generated = CompileToCSharp("""
             @code {
                 public Microsoft.AspNetCore.Components.RenderFragment Foo { get => @<div>Hi</div>; }
             }
             """);
 
-        Assert.NotNull(generated.DeclCode);
-        Assert.Contains("partial", generated.DeclCode);
-        Assert.DoesNotContain("<div>Hi</div>", generated.DeclCode);
-        Assert.Contains("<div>Hi</div>", generated.Code);
         CompileToAssembly(generated);
     }
 
     [Fact]
     public void MarkupInitializerProperty_FallsBackAndCompiles()
     {
-        // The markup is in the initializer, not a property body, so the partial-property split doesn't
-        // apply and the whole file falls back. It must still compile (the prior single-file behavior).
+        // Markup in a property (here its initializer) takes the whole file to fallback. It must still
+        // compile (the whole-file render).
         var generated = CompileToCSharp("""
             @code {
                 public Microsoft.AspNetCore.Components.RenderFragment Foo { get; set; } = @<div>Hi</div>;
@@ -118,7 +116,7 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     }
 
     [Fact]
-    public void ExpressionTemplateProperty_SplitsIntoPartialPropertyAndCompiles()
+    public void MarkupProperty_FallsBackAndCompiles()
     {
         var generated = CompileToCSharp("""
             @code {
@@ -126,40 +124,44 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
             }
             """);
 
-        // The bodyless defining declaration (the descriptor surface) stays in decl, markup-free; the
-        // implementing declaration with the real markup lands in impl.
-        Assert.NotNull(generated.DeclCode);
-        Assert.Contains("partial", generated.DeclCode);
-        Assert.Contains("Foo", generated.DeclCode);
-        Assert.DoesNotContain("<div>Hello</div>", generated.DeclCode);
-        Assert.Contains("Foo", generated.Code);
-        Assert.Contains("<div>Hello</div>", generated.Code);
+        var documentNode = generated.CodeDocument.GetDocumentNode();
+        Assert.NotNull(documentNode);
+        var primaryClass = documentNode.FindPrimaryClass();
+        var renderMethod = documentNode.FindPrimaryMethod();
+        Assert.NotNull(primaryClass);
+        Assert.NotNull(renderMethod);
 
-        // The defining + implementing partial declarations recombine and compile.
+        // A markup property takes the whole file to fallback, on any language version.
+        var decision = MarkupSplitter.Split(primaryClass, renderMethod, generated.CodeDocument.ParserOptions);
+        var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
+        Assert.Equal(FallbackReason.MarkupProperty, fallback.Reason);
+
+        // The whole-file render still compiles.
         CompileToAssembly(generated);
     }
 
     [Fact]
-    public void ParameterProperty_MarkupProperty_KeepsParameterInDeclAndCompiles()
+    public void MarkupFreeProperty_WithMarkupMethod_StaysInDeclAndSplits()
     {
+        // A markup-free property is descriptor surface and stays in the decl half (the fast path); the
+        // markup method that forces the split lifts to impl.
         var generated = CompileToCSharp("""
             @code {
                 [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
-                public Microsoft.AspNetCore.Components.RenderFragment Foo => @<div>@Count</div>;
+                private Microsoft.AspNetCore.Components.RenderFragment Make() => @<div>@Count</div>;
             }
             """);
 
-        // The parameter (descriptor surface) and the markup property's defining declaration stay in decl.
         Assert.NotNull(generated.DeclCode);
         Assert.Contains("Count", generated.DeclCode);
-        Assert.Contains("partial", generated.DeclCode);
-        Assert.DoesNotContain("OpenElement", generated.DeclCode);
+        Assert.DoesNotContain("Make", generated.DeclCode);
+        Assert.Contains("Make", generated.Code);
 
         CompileToAssembly(generated);
     }
 
     [Fact]
-    public void ExpressionTemplateProperty_SurvivesAsTemplateMarkup_AndSplits()
+    public void ExpressionTemplateProperty_SurvivesAsTemplateMarkup_ButFallsBack()
     {
         var generated = CompileToCSharp("""
             @code {
@@ -180,15 +182,10 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
         var children = MarkupSplitter.CollectClassBodyChildren(primaryClass, renderMethod);
         Assert.Contains(children, static c => c is TemplateIntermediateNode);
 
-        // Classification: every class-body child is a kind the splitter can route -- no surface
-        // extension node (an @inject) hiding among the @code content.
-        Assert.All(children, static c => Assert.True(MarkupSplitter.IsSupportedClassBodyNode(c)));
-
-        // Decision: at the harness's Preview (>= C# 13) language version the markup property splits via
-        // Path A, keeping its signature in decl.
+        // But because the markup is in a property, the file falls back rather than splits.
         var decision = MarkupSplitter.Split(primaryClass, renderMethod, generated.CodeDocument.ParserOptions);
-        var plan = Assert.IsType<SplitDecision.SplitPlan>(decision);
-        Assert.Contains(plan.Members, static m => m.Kind == MemberSplitKind.MarkupProperty);
+        var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
+        Assert.Equal(FallbackReason.MarkupProperty, fallback.Reason);
     }
 
     [Fact]
@@ -219,10 +216,12 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
     {
         // @inject lowers to a ComponentInjectIntermediateNode (surface, an ExtensionIntermediateNode
         // like a template). The splitter can't route it, so a component mixing it with markup falls back.
+        // A markup *method* is used so the inject is the unambiguous cause (a markup property would fall
+        // back on its own).
         var generated = CompileToCSharp("""
             @inject System.IServiceProvider Services
             @code {
-                public Microsoft.AspNetCore.Components.RenderFragment Header => @<div>Hello</div>;
+                private Microsoft.AspNetCore.Components.RenderFragment Make() => @<div>Hello</div>;
             }
             """);
 

@@ -112,16 +112,10 @@ internal static partial class MarkupSplitter
 
         return member switch
         {
-            // An explicit-interface property can't become a partial member on either path, so it is
-            // lifted wholesale to impl like a method (it isn't descriptor surface either).
-            PropertyDeclarationSyntax { ExplicitInterfaceSpecifier: not null } => MemberSplitKind.MarkupMethod,
-            IndexerDeclarationSyntax { ExplicitInterfaceSpecifier: not null } => MemberSplitKind.MarkupMethod,
-
+            // A property/indexer is descriptor surface, so markup in one takes the whole file to fallback
+            // (it can neither leave decl nor keep its markup there). Everything else -- methods, fields,
+            // events, constructors, operators -- isn't surface, so it lifts wholesale to impl.
             PropertyDeclarationSyntax or IndexerDeclarationSyntax => MemberSplitKind.MarkupProperty,
-
-            MethodDeclarationSyntax or FieldDeclarationSyntax or EventFieldDeclarationSyntax or
-            EventDeclarationSyntax or ConstructorDeclarationSyntax or OperatorDeclarationSyntax
-                => MemberSplitKind.MarkupMethod,
 
             _ => MemberSplitKind.MarkupMethod,
         };
@@ -135,12 +129,15 @@ internal enum MemberSplitKind
     NoMarkup,
 
     /// <summary>
-    /// Markup in a non-property member (or an explicit-interface property): lifted wholesale to impl.
-    /// Not descriptor surface, so its absence from decl is fine.
+    /// Markup in a non-property member (method, field, event, constructor, operator): lifted wholesale to
+    /// impl. Not descriptor surface, so its absence from decl is fine.
     /// </summary>
     MarkupMethod,
 
-    /// <summary>Markup in a property/indexer: the signature stays in decl, bodies move to impl.</summary>
+    /// <summary>
+    /// Markup in a property/indexer. A property is descriptor surface that must stay in decl, but markup
+    /// can't, so this takes the whole file to fallback rather than routing to a half.
+    /// </summary>
     MarkupProperty,
 }
 
