@@ -236,4 +236,95 @@ public class MarkupSplitterComponentTest : RazorIntegrationTestBase
         var fallback = Assert.IsType<SplitDecision.SplitFallback>(decision);
         Assert.Equal(FallbackReason.UnsupportedClassBodyNode, fallback.Reason);
     }
+
+    [Fact]
+    public void MarkupEdit_InMethodBody_LeavesDeclHalfByteIdentical()
+    {
+        // The core value of the split: editing markup (which lives in the impl half) must not perturb the
+        // decl half, so incremental tag-helper discovery can reuse it. The markup-free `[Parameter]`
+        // stays in decl; the markup method lives wholly in impl. The two sources differ only in the markup
+        // on one line, so nothing in decl shifts.
+        var a = CompileToCSharp("""
+            @code {
+                [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                private Microsoft.AspNetCore.Components.RenderFragment Make() => @<div>Hello</div>;
+            }
+            """);
+
+        var b = CompileToCSharp("""
+            @code {
+                [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                private Microsoft.AspNetCore.Components.RenderFragment Make() => @<span>Bye</span>;
+            }
+            """);
+
+        Assert.NotNull(a.DeclCode);
+        Assert.NotNull(b.DeclCode);
+
+        // The decl halves are byte-identical despite the differing markup, and neither leaks the markup.
+        Assert.Equal(a.DeclCode, b.DeclCode);
+        Assert.DoesNotContain("Hello", a.DeclCode);
+        Assert.DoesNotContain("Bye", b.DeclCode);
+
+        // The impl halves do differ (that's where the edited markup lives).
+        Assert.NotEqual(a.Code, b.Code);
+    }
+
+    [Fact]
+    public void MarkupEdit_InMethodBody_AddingLines_LeavesDeclHalfByteIdentical()
+    {
+        // Same as above but the edit adds lines to the method body (which follows the decl member), to
+        // confirm the decl half's line mappings don't shift with impl-only growth.
+        var a = CompileToCSharp("""
+            @code {
+                [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                private void Make(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
+                {
+                    <div>Hello</div>
+                }
+            }
+            """);
+
+        var b = CompileToCSharp("""
+            @code {
+                [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                private void Make(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
+                {
+                    <div>Hello</div>
+                    <p>An extra line of markup</p>
+                    <span>And another</span>
+                }
+            }
+            """);
+
+        Assert.NotNull(a.DeclCode);
+        Assert.NotNull(b.DeclCode);
+        Assert.Equal(a.DeclCode, b.DeclCode);
+    }
+
+    [Fact]
+    public void LiftedMarkupMethod_ContentIsSourceMappedToRazor()
+    {
+        // A diagnostic inside a lifted markup method must map back to the .razor, which relies on the
+        // method's nodes keeping their source mappings when they move to the impl half. Assert that
+        // directly: the `@Count` inside the lifted method has a source mapping whose original text (read
+        // from the .razor) and generated text (read from the impl half) both read "Count" -- so the
+        // lifted content points at the user's source, not unmapped scaffolding.
+        var generated = CompileToCSharp("""
+            @code {
+                [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                private Microsoft.AspNetCore.Components.RenderFragment Make() => @<div>@Count</div>;
+            }
+            """);
+
+        var impl = generated.CodeDocument.GetRequiredImplCSharpDocument();
+        var implText = impl.Text.ToString();
+        var sourceText = generated.CodeDocument.Source.Text.ToString();
+
+        Assert.Contains(impl.SourceMappingsSortedByGenerated, m =>
+            Slice(sourceText, m.OriginalSpan) == "Count" &&
+            Slice(implText, m.GeneratedSpan) == "Count");
+    }
+
+    private static string Slice(string text, SourceSpan span) => text.Substring(span.AbsoluteIndex, span.Length);
 }
